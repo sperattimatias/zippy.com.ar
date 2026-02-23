@@ -1,5 +1,5 @@
-import { CancelReason, GeoZoneType, SafetyAlertStatus, TripStatus, VehicleCategory } from '@prisma/client';
-import { IsArray, IsBoolean, IsEnum, IsInt,  IsNumber, IsOptional, IsString, Max, Min } from 'class-validator';
+import { ActorType, CancelReason, GeoZoneType, RestrictionReason, RestrictionStatus, SafetyAlertStatus, TripStatus, VehicleCategory } from '@prisma/client';
+import { IsArray, IsBoolean, IsDateString, IsEnum, IsInt, IsNumber, IsOptional, IsString, Max, Min } from 'class-validator';
 
 export class PresenceOnlineDto { @IsNumber() lat!: number; @IsNumber() lng!: number; @IsEnum(VehicleCategory) category!: VehicleCategory; }
 export class PresencePingDto { @IsNumber() lat!: number; @IsNumber() lng!: number; }
@@ -44,4 +44,28 @@ export class SafetyAlertUpdateDto {
 
 export class SafetyAlertFilterDto {
   @IsOptional() @IsEnum(SafetyAlertStatus) status?: SafetyAlertStatus;
+}
+
+export class AdminScoreFilterDto {
+  @IsOptional() @IsEnum(ActorType) actor_type?: ActorType;
+  @IsOptional() @IsEnum(RestrictionStatus) status?: RestrictionStatus;
+  @IsOptional() @IsString() q?: string;
+}
+
+export class AdminScoreActorDto {
+  @IsEnum(ActorType) actor_type!: ActorType;
+}
+
+export class CreateRestrictionDto {
+  @IsEnum(ActorType) actor_type!: ActorType;
+  @IsEnum(RestrictionStatus) status!: RestrictionStatus;
+  @IsEnum(RestrictionReason) reason!: RestrictionReason;
+  @IsOptional() @IsDateString() ends_at?: string;
+  @IsOptional() @IsString() notes?: string;
+}
+
+export class AdjustScoreDto {
+  @IsEnum(ActorType) actor_type!: ActorType;
+  @IsInt() delta!: number;
+  @IsOptional() @IsString() notes?: string;
 }

@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { TripStatus } from '@prisma/client';
 import { RideService } from './ride.service';
 
@@ -24,7 +24,7 @@ describe('RideService', () => {
       }),
     };
     const ws: any = { emitTrip: jest.fn() };
-    const service = new RideService(prisma, ws);
+    const service = new RideService(prisma, ws, { applyScoreEvent: jest.fn(), ensureDriverCanGoOnline: jest.fn(), listScores: jest.fn(), getUserScoreDetail: jest.fn(), createManualRestriction: jest.fn(), liftRestriction: jest.fn(), adjustScore: jest.fn() } as any);
 
     await service.autoMatchExpiredBiddingTrips();
     expect(prisma.$transaction).toHaveBeenCalled();
@@ -45,7 +45,7 @@ describe('RideService', () => {
       }),
     };
     const ws: any = { emitTrip: jest.fn() };
-    const service = new RideService(prisma, ws);
+    const service = new RideService(prisma, ws, { applyScoreEvent: jest.fn(), ensureDriverCanGoOnline: jest.fn(), listScores: jest.fn(), getUserScoreDetail: jest.fn(), createManualRestriction: jest.fn(), liftRestriction: jest.fn(), adjustScore: jest.fn() } as any);
 
     await service.autoMatchExpiredBiddingTrips();
     expect(prisma.tripEvent.create).not.toHaveBeenCalled();
@@ -53,7 +53,7 @@ describe('RideService', () => {
   });
 
   it('point-in-polygon works for inside and outside points', () => {
-    const service = new RideService({} as any, {} as any);
+    const service = new RideService({} as any, {} as any, { applyScoreEvent: jest.fn(), ensureDriverCanGoOnline: jest.fn() } as any);
     const polygon = [
       { lat: 0, lng: 0 },
       { lat: 0, lng: 1 },
@@ -66,7 +66,7 @@ describe('RideService', () => {
   });
 
   it('distance-to-polyline is near zero for point on the route', () => {
-    const service = new RideService({} as any, {} as any);
+    const service = new RideService({} as any, {} as any, { applyScoreEvent: jest.fn(), ensureDriverCanGoOnline: jest.fn() } as any);
     const line = [{ lat: 0, lng: 0 }, { lat: 0, lng: 1 }];
     const d = (service as any).distanceToPolylineMeters({ lat: 0, lng: 0.5 }, line);
     expect(d).toBeLessThan(30);
@@ -80,7 +80,7 @@ describe('RideService', () => {
         update: jest.fn().mockResolvedValue({}),
       },
     };
-    const service = new RideService(prisma, { emitTrip: jest.fn() } as any);
+    const service = new RideService(prisma, { emitTrip: jest.fn() } as any, { applyScoreEvent: jest.fn(), ensureDriverCanGoOnline: jest.fn() } as any);
     await expect(service.verifyOtp('t1', 'd1', { otp: '000000' })).rejects.toBeInstanceOf(BadRequestException);
     expect(prisma.tripOtp.update).toHaveBeenCalled();
   });
@@ -100,7 +100,7 @@ describe('RideService', () => {
       },
     };
     const ws: any = { emitTrip: jest.fn(), emitSosAlert: jest.fn() };
-    const service = new RideService(prisma, ws);
+    const service = new RideService(prisma, ws, { applyScoreEvent: jest.fn(), ensureDriverCanGoOnline: jest.fn(), listScores: jest.fn(), getUserScoreDetail: jest.fn(), createManualRestriction: jest.fn(), liftRestriction: jest.fn(), adjustScore: jest.fn() } as any);
     await service.scanTrackingLostTrips();
     expect(prisma.safetyAlert.create).toHaveBeenCalled();
   });
@@ -124,7 +124,7 @@ describe('RideService', () => {
       tripEvent: { create: jest.fn().mockResolvedValue({}) },
     };
     const ws: any = { emitTrip: jest.fn(), emitSosAlert: jest.fn() };
-    const service = new RideService(prisma, ws);
+    const service = new RideService(prisma, ws, { applyScoreEvent: jest.fn(), ensureDriverCanGoOnline: jest.fn(), listScores: jest.fn(), getUserScoreDetail: jest.fn(), createManualRestriction: jest.fn(), liftRestriction: jest.fn(), adjustScore: jest.fn() } as any);
     jest.spyOn(Date, 'now').mockReturnValueOnce(0).mockReturnValueOnce(21_000).mockReturnValue(21_000);
 
     await service.trackLocation('t1', 'd1', { lat: 0.02, lng: 0.02 });
@@ -134,9 +134,40 @@ describe('RideService', () => {
     (Date.now as jest.Mock).mockRestore();
   });
 
+
+
+
+  it('presence online rejects blocked driver', async () => {
+    const prisma: any = { driverPresence: { upsert: jest.fn() } };
+    const scoreService: any = { ensureDriverCanGoOnline: jest.fn().mockRejectedValue(new ForbiddenException('blocked')) };
+    const service = new RideService(prisma, {} as any, scoreService);
+    await expect(service.presenceOnline('d1', { lat: 0, lng: 0, category: 'AUTO' as any })).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('matching request prioritizes higher score drivers', async () => {
+    const ws: any = { emitTrip: jest.fn(), emitToDriver: jest.fn() };
+    const prisma: any = {
+      trip: { create: jest.fn().mockResolvedValue({ id: 't1', status: 'BIDDING', origin_address: 'A', dest_address: 'B', price_base: 1000, bidding_expires_at: new Date() }) },
+      tripRouteBaseline: { create: jest.fn().mockResolvedValue({}) },
+      tripSafetyState: { create: jest.fn().mockResolvedValue({}) },
+      tripEvent: { create: jest.fn().mockResolvedValue({}) },
+      driverPresence: { findMany: jest.fn().mockResolvedValue([
+        { driver_user_id: 'dLow', last_seen_at: new Date(), last_lat: 0, last_lng: 0 },
+        { driver_user_id: 'dHigh', last_seen_at: new Date(), last_lat: 0, last_lng: 0 },
+      ]) },
+      userScore: { findMany: jest.fn().mockResolvedValue([
+        { user_id: 'dLow', score: 20 },
+        { user_id: 'dHigh', score: 99 },
+      ]) },
+    };
+    const service = new RideService(prisma, ws, { applyScoreEvent: jest.fn(), ensureDriverCanGoOnline: jest.fn() } as any);
+    await service.requestTrip('p1', { origin_lat: 0, origin_lng: 0, origin_address: 'A', dest_lat: 1, dest_lng: 1, dest_address: 'B', category: 'AUTO' as any });
+    expect(ws.emitToDriver.mock.calls[0][0]).toBe('dHigh');
+  });
+
   it('invalid FSM transition fails', async () => {
     const prisma: any = { trip: { findUnique: jest.fn().mockResolvedValue({ id: 't1', driver_user_id: 'd1', status: TripStatus.MATCHED }) } };
-    const service = new RideService(prisma, {} as any);
+    const service = new RideService(prisma, {} as any, { applyScoreEvent: jest.fn(), ensureDriverCanGoOnline: jest.fn() } as any);
     await expect(service.completeTrip('t1', 'd1')).rejects.toBeInstanceOf(BadRequestException);
   });
 });

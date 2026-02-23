@@ -1,10 +1,13 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
 import {
+  ActorType,
   CancelReason,
   DeviationLevel,
   GeoZoneType,
+  RestrictionStatus,
   SafetyAlertStatus,
   SafetyAlertType,
+  ScoreEventType,
   TripActor,
   TripBidStatus,
   TripStatus,
@@ -12,6 +15,7 @@ import {
 import { createHash } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { RideGateway } from './ride.gateway';
+import { ScoreService } from '../score/score.service';
 import {
   AcceptBidDto,
   CancelDto,
@@ -34,7 +38,7 @@ export class RideService implements OnModuleInit {
   private deviationWindow = new Map<string, { over300Since?: number; over700Since?: number; majorCount: number }>();
   private trackingAlertState = new Map<string, 'none' | 'minor' | 'major'>();
 
-  constructor(private readonly prisma: PrismaService, private readonly ws: RideGateway) {}
+  constructor(private readonly prisma: PrismaService, private readonly ws: RideGateway, private readonly scoreService: ScoreService) {}
 
   onModuleInit() {
     setInterval(() => void this.autoMatchExpiredBiddingTrips(), 1000);
@@ -109,6 +113,22 @@ export class RideService implements OnModuleInit {
     await this.addEvent(tripId, actorUserId, 'trip.safety.alert_created', { alert_id: alert.id, type, severity });
     this.ws.emitTrip(tripId, 'safety.alert', { id: alert.id, type, severity, message });
     this.ws.emitSosAlert('sos.alert.created', { id: alert.id, trip_id: tripId, type, severity, message });
+
+    if (actorUserId) {
+      if (type === SafetyAlertType.ENTERED_RED_ZONE) {
+        await this.scoreService.applyScoreEvent({ user_id: actorUserId, actor_type: ActorType.DRIVER, type: ScoreEventType.ENTERED_RED_ZONE, delta: -10, trip_id: tripId, safety_alert_id: alert.id });
+      } else if (type === SafetyAlertType.ROUTE_DEVIATION_MAJOR) {
+        await this.scoreService.applyScoreEvent({ user_id: actorUserId, actor_type: ActorType.DRIVER, type: ScoreEventType.ROUTE_DEVIATION_MAJOR, delta: -15, trip_id: tripId, safety_alert_id: alert.id });
+      } else if (type === SafetyAlertType.ROUTE_DEVIATION_MINOR) {
+        await this.scoreService.applyScoreEvent({ user_id: actorUserId, actor_type: ActorType.DRIVER, type: ScoreEventType.ROUTE_DEVIATION_MINOR, delta: -5, trip_id: tripId, safety_alert_id: alert.id });
+      } else if (type === SafetyAlertType.OTP_FAILED_MULTIPLE) {
+        await this.scoreService.applyScoreEvent({ user_id: actorUserId, actor_type: ActorType.PASSENGER, type: ScoreEventType.OTP_FAILED_MULTIPLE, delta: -12, trip_id: tripId, safety_alert_id: alert.id });
+      }
+    }
+    if (type === SafetyAlertType.TRACKING_LOST && severity >= 4) {
+      const trip = await this.prisma.trip.findUnique({ where: { id: tripId } });
+      if (trip?.driver_user_id) await this.scoreService.applyScoreEvent({ user_id: trip.driver_user_id, actor_type: ActorType.DRIVER, type: ScoreEventType.TRACKING_LOST_MAJOR, delta: -10, trip_id: tripId, safety_alert_id: alert.id });
+    }
     return alert;
   }
 
@@ -122,10 +142,11 @@ export class RideService implements OnModuleInit {
   }
 
   async presenceOnline(driverUserId: string, dto: PresenceOnlineDto) {
+    const gate = await this.scoreService.ensureDriverCanGoOnline(driverUserId);
     return this.prisma.driverPresence.upsert({
       where: { driver_user_id: driverUserId },
-      update: { is_online: true, last_lat: dto.lat, last_lng: dto.lng, last_seen_at: new Date(), vehicle_category: dto.category },
-      create: { driver_user_id: driverUserId, is_online: true, last_lat: dto.lat, last_lng: dto.lng, last_seen_at: new Date(), vehicle_category: dto.category },
+      update: { is_online: true, is_limited: gate.isLimited, last_lat: dto.lat, last_lng: dto.lng, last_seen_at: new Date(), vehicle_category: dto.category },
+      create: { driver_user_id: driverUserId, is_online: true, is_limited: gate.isLimited, last_lat: dto.lat, last_lng: dto.lng, last_seen_at: new Date(), vehicle_category: dto.category },
     });
   }
   async presenceOffline(driverUserId: string) { await this.prisma.driverPresence.updateMany({ where: { driver_user_id: driverUserId }, data: { is_online: false } }); return { message: 'offline' }; }
@@ -147,8 +168,14 @@ export class RideService implements OnModuleInit {
     this.ws.emitTrip(trip.id, 'trip.created', { trip_id: trip.id, status: trip.status });
 
     const presences = await this.prisma.driverPresence.findMany({ where: { is_online: true, vehicle_category: dto.category } });
-    const activeNearby = presences.filter((p) => this.onlineRecent(p.last_seen_at)).map((p) => ({ p, distance: this.haversineKm(dto.origin_lat, dto.origin_lng, p.last_lat ?? dto.origin_lat, p.last_lng ?? dto.origin_lng) })).sort((a, b) => a.distance - b.distance).slice(0, 20);
-    for (const { p } of activeNearby) this.ws.emitToDriver(p.driver_user_id, 'trip.bidding.started', { trip_id: trip.id, origin_address: trip.origin_address, dest_address: trip.dest_address, price_base: trip.price_base, bidding_expires_at: trip.bidding_expires_at });
+    const activeNearby = presences.filter((p) => this.onlineRecent(p.last_seen_at));
+    const driverIds = activeNearby.map((p) => p.driver_user_id);
+    const scores = await this.prisma.userScore.findMany({ where: { actor_type: ActorType.DRIVER, user_id: { in: driverIds } } });
+    const scoreMap = new Map(scores.map((s) => [s.user_id, s.score]));
+    const prioritized = activeNearby
+      .map((p) => ({ p, score: scoreMap.get(p.driver_user_id) ?? 100, distance: this.haversineKm(dto.origin_lat, dto.origin_lng, p.last_lat ?? dto.origin_lat, p.last_lng ?? dto.origin_lng) }))
+      .sort((a, b) => (b.score - a.score) || (a.distance - b.distance));
+    for (const { p } of prioritized.slice(0, 15)) this.ws.emitToDriver(p.driver_user_id, 'trip.bidding.started', { trip_id: trip.id, origin_address: trip.origin_address, dest_address: trip.dest_address, price_base: trip.price_base, bidding_expires_at: trip.bidding_expires_at });
     return trip;
   }
 
@@ -360,6 +387,8 @@ export class RideService implements OnModuleInit {
     if (trip.status !== TripStatus.IN_PROGRESS) throw new BadRequestException('Invalid transition');
     const updated = await this.prisma.trip.update({ where: { id: tripId }, data: { status: TripStatus.COMPLETED, completed_at: new Date() } });
     await this.addEvent(tripId, driverUserId, 'trip.completed', {});
+    await this.scoreService.applyScoreEvent({ user_id: driverUserId, actor_type: ActorType.DRIVER, type: ScoreEventType.TRIP_COMPLETED_CLEAN, delta: 2, trip_id: tripId });
+    await this.scoreService.applyScoreEvent({ user_id: trip.passenger_user_id, actor_type: ActorType.PASSENGER, type: ScoreEventType.TRIP_COMPLETED_CLEAN, delta: 1, trip_id: tripId });
     this.ws.emitTrip(tripId, 'trip.completed', { trip_id: tripId });
     return updated;
   }
@@ -385,6 +414,9 @@ export class RideService implements OnModuleInit {
     const updated = await this.prisma.trip.update({ where: { id: tripId }, data: { status, cancelled_at: new Date(), cancelled_by_user_id: passengerUserId, cancel_reason: dto.reason } });
     const penalty = trip.status === TripStatus.DRIVER_EN_ROUTE ? 'light' : (trip.status === TripStatus.MATCHED && trip.driver_user_id ? 'moderate' : 'none');
     await this.addEvent(tripId, passengerUserId, 'trip.cancelled', { by: 'passenger', reason: dto.reason, penalty });
+    if (trip.status === TripStatus.MATCHED && trip.driver_user_id) {
+      await this.scoreService.applyScoreEvent({ user_id: passengerUserId, actor_type: ActorType.PASSENGER, type: ScoreEventType.PASSENGER_CANCEL_LATE, delta: -6, trip_id: tripId });
+    }
     this.ws.emitTrip(tripId, 'trip.cancelled', { trip_id: tripId, status });
     return updated;
   }
@@ -395,6 +427,9 @@ export class RideService implements OnModuleInit {
     const status = TripStatus.CANCELLED_BY_DRIVER;
     const updated = await this.prisma.trip.update({ where: { id: tripId }, data: { status, cancelled_at: new Date(), cancelled_by_user_id: driverUserId, cancel_reason: dto.reason } });
     await this.addEvent(tripId, driverUserId, 'trip.cancelled', { by: 'driver', reason: dto.reason, penalty: trip.status === TripStatus.DRIVER_EN_ROUTE ? 'strong' : 'none' });
+    if (trip.status === TripStatus.DRIVER_EN_ROUTE) {
+      await this.scoreService.applyScoreEvent({ user_id: driverUserId, actor_type: ActorType.DRIVER, type: ScoreEventType.DRIVER_CANCEL_LATE, delta: -8, trip_id: tripId });
+    }
     this.ws.emitTrip(tripId, 'trip.cancelled', { trip_id: tripId, status });
     return updated;
   }
@@ -436,6 +471,34 @@ export class RideService implements OnModuleInit {
     const alerts = await this.prisma.safetyAlert.findMany({ where: { trip_id: tripId }, orderBy: { created_at: 'desc' } });
     const locations = await this.prisma.tripLocation.findMany({ where: { trip_id: tripId }, orderBy: { created_at: 'desc' }, take: 20 });
     return { safety, alerts, locations };
+  }
+
+  async listScores(filter: { actor_type?: ActorType; status?: RestrictionStatus; q?: string }) {
+    return this.scoreService.listScores(filter.actor_type, filter.status, filter.q);
+  }
+
+  async userScoreDetail(userId: string, actorType: ActorType) {
+    return this.scoreService.getUserScoreDetail(userId, actorType);
+  }
+
+  async createManualRestriction(userId: string, actorUserId: string, dto: { actor_type: ActorType; status: RestrictionStatus; reason: any; ends_at?: string; notes?: string }) {
+    return this.scoreService.createManualRestriction({
+      user_id: userId,
+      actor_type: dto.actor_type,
+      status: dto.status,
+      reason: dto.reason,
+      ends_at: dto.ends_at ? new Date(dto.ends_at) : undefined,
+      notes: dto.notes,
+      created_by_user_id: actorUserId,
+    });
+  }
+
+  async liftRestriction(id: string, actorUserId: string) {
+    return this.scoreService.liftRestriction(id, actorUserId);
+  }
+
+  async adjustScore(userId: string, actorUserId: string, dto: { actor_type: ActorType; delta: number; notes?: string }) {
+    return this.scoreService.adjustScore(userId, dto.actor_type, dto.delta, dto.notes, actorUserId);
   }
 
   async listTripsRecent() { return this.prisma.trip.findMany({ orderBy: { created_at: 'desc' }, take: 100 }); }

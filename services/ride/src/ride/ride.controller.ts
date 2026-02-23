@@ -18,6 +18,10 @@ import {
   SafetyAlertUpdateDto,
   TripRequestDto,
   VerifyOtpDto,
+  AdminScoreFilterDto,
+  AdminScoreActorDto,
+  CreateRestrictionDto,
+  AdjustScoreDto,
 } from '../dto/ride.dto';
 
 type AuthReq = { user: { sub: string; roles: string[] } };
@@ -122,4 +126,29 @@ export class RideController {
   updateSafetyAlert(@Req() req: AuthReq, @Param('id') id: string, @Body() dto: SafetyAlertUpdateDto) {
     return this.rideService.updateSafetyAlert(id, req.user.sub, dto);
   }
+
+  @Get('admin/scores')
+  @Roles('admin', 'sos')
+  adminScores(@Query() filter: AdminScoreFilterDto) { return this.rideService.listScores(filter); }
+
+  @Get('admin/users/:user_id/score')
+  @Roles('admin', 'sos')
+  adminUserScore(@Param('user_id') userId: string, @Query() query: AdminScoreActorDto) { return this.rideService.userScoreDetail(userId, query.actor_type); }
+
+  @Post('admin/users/:user_id/restrictions')
+  @Roles('admin', 'sos')
+  adminCreateRestriction(@Req() req: AuthReq, @Param('user_id') userId: string, @Body() dto: CreateRestrictionDto) {
+    return this.rideService.createManualRestriction(userId, req.user.sub, dto);
+  }
+
+  @Post('admin/restrictions/:id/lift')
+  @Roles('admin', 'sos')
+  adminLiftRestriction(@Req() req: AuthReq, @Param('id') id: string) { return this.rideService.liftRestriction(id, req.user.sub); }
+
+  @Post('admin/users/:user_id/score/adjust')
+  @Roles('admin', 'sos')
+  adminAdjustScore(@Req() req: AuthReq, @Param('user_id') userId: string, @Body() dto: AdjustScoreDto) {
+    return this.rideService.adjustScore(userId, req.user.sub, dto);
+  }
+
 }

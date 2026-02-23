@@ -18,6 +18,12 @@ Monorepo rideshare con Auth centralizado, KYC de conductores y Ride Core con mat
 - Detección de tracking perdido y alertas SOS/Admin.
 - Safety alerts con flujo OPEN -> ACKNOWLEDGED/RESOLVED/DISMISSED.
 
+## Sprint 5 (Zippy Score)
+- Score persistente por actor (driver/passenger).
+- Bloqueos automáticos revisables por Admin/SOS.
+- Priorización de matching por score.
+- Restricciones manuales y ajustes auditables.
+
 ## Comandos
 ```bash
 cp .env.example .env
@@ -53,6 +59,11 @@ docker compose -f infra/docker-compose.yml ps
   - `DELETE /api/admin/geozones/:id`
   - `GET /api/admin/safety-alerts`
   - `PATCH /api/admin/safety-alerts/:id`
+  - `GET /api/admin/scores`
+  - `GET /api/admin/users/:user_id/score`
+  - `POST /api/admin/users/:user_id/restrictions`
+  - `POST /api/admin/restrictions/:id/lift`
+  - `POST /api/admin/users/:user_id/score/adjust`
 
 ## Curl ejemplo
 ```bash
@@ -103,3 +114,5 @@ curl -i -X POST https://api.zippy.local/api/trips/<TRIP_ID>/driver/verify-otp \
 - `docs/SAFETY.md`
 - `docs/GEOZONES.md`
 - `docs/ALERTS.md`
+- `docs/ZIPPY_SCORE.md`
+- `docs/RESTRICTIONS.md`

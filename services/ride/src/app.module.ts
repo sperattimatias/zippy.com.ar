@@ -11,6 +11,7 @@ import { RolesGuard } from './common/roles.guard';
 import { RideController } from './ride/ride.controller';
 import { RideService } from './ride/ride.service';
 import { RideGateway } from './ride/ride.gateway';
+import { ScoreService } from './score/score.service';
 
 @Module({
   imports: [
@@ -29,6 +30,6 @@ import { RideGateway } from './ride/ride.gateway';
     LoggerModule.forRoot(defaultPinoConfig),
   ],
   controllers: [AppController, RideController],
-  providers: [PrismaService, JwtAccessGuard, RolesGuard, RideService, RideGateway],
+  providers: [PrismaService, JwtAccessGuard, RolesGuard, RideService, RideGateway, ScoreService],
 })
 export class AppModule {}

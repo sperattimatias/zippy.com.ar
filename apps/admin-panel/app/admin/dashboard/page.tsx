@@ -22,6 +22,7 @@ export default function DashboardPage() {
         <Link href="/admin/trips">Trips</Link>
         <Link href="/admin/geozones">GeoZones</Link>
         <Link href="/admin/safety-alerts">Safety Alerts</Link>
+        <Link href="/admin/scores">Scores</Link>
       </div>
 
     </main>
