@@ -1,4 +1,4 @@
-import { ActorType, CancelReason, GeoZoneType, PremiumZoneType, RestrictionReason, RestrictionStatus, SafetyAlertStatus, TripStatus, VehicleCategory } from '@prisma/client';
+import { ActorType, CancelReason, GeoZoneType, LevelTier, PremiumZoneType, RestrictionReason, RestrictionStatus, SafetyAlertStatus, VehicleCategory } from '@prisma/client';
 import { IsArray, IsBoolean, IsDateString, IsEnum, IsInt, IsNumber, IsOptional, IsString, Max, Min } from 'class-validator';
 
 export class PresenceOnlineDto { @IsNumber() lat!: number; @IsNumber() lng!: number; @IsEnum(VehicleCategory) category!: VehicleCategory; }
@@ -90,4 +90,25 @@ export class AdjustScoreDto {
   @IsEnum(ActorType) actor_type!: ActorType;
   @IsInt() delta!: number;
   @IsOptional() @IsString() notes?: string;
+}
+
+
+export class AdminLevelFilterDto {
+  @IsOptional() @IsEnum(ActorType) actor_type?: ActorType;
+  @IsOptional() @IsEnum(LevelTier) tier?: LevelTier;
+}
+
+export class AdminMonthlyPerformanceFilterDto {
+  @IsInt() year!: number;
+  @IsInt() month!: number;
+  @IsOptional() @IsEnum(ActorType) actor_type?: ActorType;
+}
+
+export class AdminBonusesFilterDto {
+  @IsInt() year!: number;
+  @IsInt() month!: number;
+}
+
+export class BonusRevokeDto {
+  @IsString() reason!: string;
 }

@@ -39,6 +39,11 @@ const adminRestrictionsRoutes: RouteInfo[] = [{ path: 'api/admin/restrictions/:i
 const adminConfigRoutes: RouteInfo[] = [{ path: 'api/admin/config/:key', method: RequestMethod.ALL }];
 const adminPremiumZoneRoutes: RouteInfo[] = [{ path: 'api/admin/premium-zones/(.*)', method: RequestMethod.ALL }, { path: 'api/admin/premium-zones', method: RequestMethod.ALL }];
 const publicBadgeRoutes: RouteInfo[] = [{ path: 'api/public/badges/me', method: RequestMethod.GET }];
+const adminLevelsRoutes: RouteInfo[] = [{ path: 'api/admin/levels', method: RequestMethod.ALL }];
+const adminMonthlyPerformanceRoutes: RouteInfo[] = [{ path: 'api/admin/monthly-performance', method: RequestMethod.ALL }];
+const adminBonusesRoutes: RouteInfo[] = [{ path: 'api/admin/bonuses/(.*)', method: RequestMethod.ALL }, { path: 'api/admin/bonuses', method: RequestMethod.ALL }];
+const adminPoliciesRoutes: RouteInfo[] = [{ path: 'api/admin/policies/:key', method: RequestMethod.ALL }];
+const driverCommissionRoutes: RouteInfo[] = [{ path: 'api/drivers/commission/current', method: RequestMethod.ALL }];
 const paymentRoutes: RouteInfo[] = [{ path: 'api/payments/(.*)', method: RequestMethod.ALL }];
 
 const passengerTripRoutes: RouteInfo[] = [
@@ -96,8 +101,8 @@ const driverTripRoutes: RouteInfo[] = [
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
     consumer.apply(JwtClaimsMiddleware, RequirePassengerOrDriverMiddleware).forRoutes(...driverRoutes, ...publicBadgeRoutes);
-    consumer.apply(JwtClaimsMiddleware, RequireAdminOrSosMiddleware).forRoutes(...adminDriverRoutes, ...adminTripsRoutes, ...adminGeoZonesRoutes, ...adminSafetyAlertsRoutes, ...adminScoresRoutes, ...adminUserScoreRoutes, ...adminRestrictionsRoutes, ...adminConfigRoutes, ...adminPremiumZoneRoutes);
-    consumer.apply(JwtClaimsMiddleware, RequireDriverMiddleware).forRoutes(...driverPresenceRoutes);
+    consumer.apply(JwtClaimsMiddleware, RequireAdminOrSosMiddleware).forRoutes(...adminDriverRoutes, ...adminTripsRoutes, ...adminGeoZonesRoutes, ...adminSafetyAlertsRoutes, ...adminScoresRoutes, ...adminUserScoreRoutes, ...adminRestrictionsRoutes, ...adminConfigRoutes, ...adminPremiumZoneRoutes, ...adminLevelsRoutes, ...adminMonthlyPerformanceRoutes, ...adminBonusesRoutes, ...adminPoliciesRoutes);
+    consumer.apply(JwtClaimsMiddleware, RequireDriverMiddleware).forRoutes(...driverPresenceRoutes, ...driverCommissionRoutes);
     consumer.apply(JwtClaimsMiddleware, RequirePassengerMiddleware).forRoutes(...passengerTripRoutes);
     consumer.apply(JwtClaimsMiddleware, RequireDriverMiddleware).forRoutes(...driverTripRoutes);
 
@@ -183,6 +188,36 @@ export class AppModule implements NestModule {
         createProxyMiddleware({ target: process.env.RIDE_SERVICE_URL, changeOrigin: true, pathRewrite: { '^/api/public/badges': '/public/badges' } }),
       )
       .forRoutes(...publicBadgeRoutes);
+
+    consumer
+      .apply(
+        createProxyMiddleware({ target: process.env.RIDE_SERVICE_URL, changeOrigin: true, pathRewrite: { '^/api/admin/levels': '/admin/levels' } }),
+      )
+      .forRoutes(...adminLevelsRoutes);
+
+    consumer
+      .apply(
+        createProxyMiddleware({ target: process.env.RIDE_SERVICE_URL, changeOrigin: true, pathRewrite: { '^/api/admin/monthly-performance': '/admin/monthly-performance' } }),
+      )
+      .forRoutes(...adminMonthlyPerformanceRoutes);
+
+    consumer
+      .apply(
+        createProxyMiddleware({ target: process.env.RIDE_SERVICE_URL, changeOrigin: true, pathRewrite: { '^/api/admin/bonuses': '/admin/bonuses' } }),
+      )
+      .forRoutes(...adminBonusesRoutes);
+
+    consumer
+      .apply(
+        createProxyMiddleware({ target: process.env.RIDE_SERVICE_URL, changeOrigin: true, pathRewrite: { '^/api/admin/policies': '/admin/policies' } }),
+      )
+      .forRoutes(...adminPoliciesRoutes);
+
+    consumer
+      .apply(
+        createProxyMiddleware({ target: process.env.RIDE_SERVICE_URL, changeOrigin: true, pathRewrite: { '^/api/drivers/commission/current': '/drivers/commission/current' } }),
+      )
+      .forRoutes(...driverCommissionRoutes);
 
     consumer
       .apply(

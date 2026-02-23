@@ -128,6 +128,29 @@ enum BadgeTier {
   RESTRICTED
 }
 
+
+enum LevelTier {
+  BRONZE
+  SILVER
+  GOLD
+  DIAMOND
+}
+
+enum PeriodStatus {
+  DRAFT
+  FINALIZED
+}
+
+enum BonusType {
+  COMMISSION_DISCOUNT
+}
+
+enum BonusStatus {
+  ACTIVE
+  EXPIRED
+  REVOKED
+}
+
 model Trip {
   id                    String       @id @default(cuid())
   passenger_user_id     String
@@ -379,4 +402,74 @@ model PeakGateEvent {
   created_at DateTime  @default(now())
 
   @@index([user_id, created_at])
+}
+
+
+model UserLevel {
+  id          String    @id @default(cuid())
+  user_id     String
+  actor_type  ActorType
+  tier        LevelTier
+  computed_at DateTime
+  valid_until DateTime?
+  payload_json Json
+  created_at  DateTime  @default(now())
+
+  @@unique([user_id, actor_type])
+}
+
+model UserLevelHistory {
+  id          String    @id @default(cuid())
+  user_id     String
+  actor_type  ActorType
+  tier        LevelTier
+  computed_at DateTime
+  payload_json Json
+  created_at  DateTime  @default(now())
+
+  @@index([user_id, created_at])
+}
+
+model MonthlyPerformance {
+  id                    String       @id @default(cuid())
+  user_id               String
+  actor_type            ActorType
+  year                  Int
+  month                 Int
+  trips_completed       Int          @default(0)
+  trips_cancelled_late  Int          @default(0)
+  no_show_count         Int          @default(0)
+  avg_score             Int          @default(100)
+  safety_major_alerts   Int          @default(0)
+  completion_rate       Float        @default(0)
+  cancel_rate           Float        @default(0)
+  performance_index     Float        @default(0)
+  status                PeriodStatus @default(FINALIZED)
+  computed_at           DateTime     @default(now())
+
+  @@unique([user_id, actor_type, year, month])
+  @@index([year, month, performance_index])
+}
+
+model MonthlyBonusLedger {
+  id              String      @id @default(cuid())
+  driver_user_id  String
+  year            Int
+  month           Int
+  bonus_type      BonusType
+  discount_bps    Int
+  reason          String
+  status          BonusStatus @default(ACTIVE)
+  starts_at       DateTime
+  ends_at         DateTime
+  created_at      DateTime    @default(now())
+
+  @@unique([driver_user_id, year, month])
+}
+
+model CommissionPolicy {
+  id         String   @id @default(cuid())
+  key        String   @unique
+  value_json Json
+  updated_at DateTime @updatedAt
 }

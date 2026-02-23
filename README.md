@@ -137,3 +137,11 @@ curl -i -X POST https://api.zippy.local/api/trips/<TRIP_ID>/driver/verify-otp \
 - `docs/PREMIUM_ZONES.md`
 - `docs/PEAK_HOURS.md`
 - `docs/MERITOCRACY.md`
+
+
+## Sprint 7 — Levels & Bonuses
+- Ride service adds dynamic levels (`UserLevel`, `UserLevelHistory`) and monthly ranking (`MonthlyPerformance`) with bonus ledger (`MonthlyBonusLedger`).
+- Commission API: `GET /api/drivers/commission/current`.
+- Admin APIs: `GET /api/admin/levels`, `GET /api/admin/monthly-performance`, `GET /api/admin/bonuses`, `PUT /api/admin/policies/:key`, `POST /api/admin/bonuses/:id/revoke`.
+- Admin Panel pages: `/admin/levels`, `/admin/performance`, `/admin/bonuses`, `/admin/policies`.
+- Docs: `docs/LEVELS.md`, `docs/BONUSES.md`, `docs/COMMISSION.md`, `docs/POLICIES.md`.

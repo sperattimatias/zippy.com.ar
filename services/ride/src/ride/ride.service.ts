@@ -8,6 +8,7 @@ import {
   SafetyAlertStatus,
   SafetyAlertType,
   ScoreEventType,
+  LevelTier,
   TripActor,
   TripBidStatus,
   TripStatus,
@@ -17,6 +18,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { RideGateway } from './ride.gateway';
 import { ScoreService } from '../score/score.service';
 import { MeritocracyService } from '../meritocracy/meritocracy.service';
+import { LevelAndBonusService } from '../levels/level-bonus.service';
 import {
   AcceptBidDto,
   CancelDto,
@@ -39,7 +41,7 @@ export class RideService implements OnModuleInit {
   private deviationWindow = new Map<string, { over300Since?: number; over700Since?: number; majorCount: number }>();
   private trackingAlertState = new Map<string, 'none' | 'minor' | 'major'>();
 
-  constructor(private readonly prisma: PrismaService, private readonly ws: RideGateway, private readonly scoreService: ScoreService, private readonly merit: MeritocracyService) {}
+  constructor(private readonly prisma: PrismaService, private readonly ws: RideGateway, private readonly scoreService: ScoreService, private readonly merit: MeritocracyService, private readonly levelBonus: LevelAndBonusService) {}
 
   onModuleInit() {
     setInterval(() => void this.autoMatchExpiredBiddingTrips(), 1000);
@@ -441,6 +443,8 @@ export class RideService implements OnModuleInit {
     await this.scoreService.applyScoreEvent({ user_id: trip.passenger_user_id, actor_type: ActorType.PASSENGER, type: ScoreEventType.TRIP_COMPLETED_CLEAN, delta: 1, trip_id: tripId });
     await this.scoreService.applyRecoveryOnTripCompletion(driverUserId, ActorType.DRIVER);
     await this.scoreService.applyRecoveryOnTripCompletion(trip.passenger_user_id, ActorType.PASSENGER);
+    await this.levelBonus.computeDriverLevel(driverUserId);
+    await this.levelBonus.computePassengerLevel(trip.passenger_user_id);
     this.ws.emitTrip(tripId, 'trip.completed', { trip_id: tripId });
     return updated;
   }
@@ -580,6 +584,32 @@ export class RideService implements OnModuleInit {
   async deletePremiumZone(id: string) {
     await this.prisma.premiumZone.delete({ where: { id } });
     return { message: 'deleted' };
+  }
+
+
+
+  async getDriverCurrentCommission(driverUserId: string) {
+    return this.levelBonus.getActiveCommissionBps(driverUserId, new Date());
+  }
+
+  async adminListLevels(filter: { actor_type?: ActorType; tier?: LevelTier }) {
+    return this.levelBonus.listLevels(filter.actor_type, filter.tier);
+  }
+
+  async adminListMonthlyPerformance(filter: { year: number; month: number; actor_type?: ActorType }) {
+    return this.levelBonus.listMonthlyPerformance(filter.year, filter.month, filter.actor_type);
+  }
+
+  async adminListBonuses(filter: { year: number; month: number }) {
+    return this.levelBonus.listBonuses(filter.year, filter.month);
+  }
+
+  async adminPutPolicy(key: string, value: unknown) {
+    return this.levelBonus.putPolicy(key, value);
+  }
+
+  async adminRevokeBonus(id: string, reason: string) {
+    return this.levelBonus.revokeBonus(id, reason);
   }
 
   async listTripsRecent() { return this.prisma.trip.findMany({ orderBy: { created_at: 'desc' }, take: 100 }); }

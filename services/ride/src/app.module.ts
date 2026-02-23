@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import * as Joi from 'joi';
 import { LoggerModule } from 'nestjs-pino';
 import { JwtModule } from '@nestjs/jwt';
+import { ScheduleModule } from '@nestjs/schedule';
 import { defaultPinoConfig } from '../../../shared/utils/logger';
 import { AppController } from './app.controller';
 import { PrismaService } from './prisma/prisma.service';
@@ -13,6 +14,7 @@ import { RideService } from './ride/ride.service';
 import { RideGateway } from './ride/ride.gateway';
 import { ScoreService } from './score/score.service';
 import { MeritocracyService } from './meritocracy/meritocracy.service';
+import { LevelAndBonusService } from './levels/level-bonus.service';
 
 @Module({
   imports: [
@@ -28,9 +30,10 @@ import { MeritocracyService } from './meritocracy/meritocracy.service';
       }),
     }),
     JwtModule.register({}),
+    ScheduleModule.forRoot(),
     LoggerModule.forRoot(defaultPinoConfig),
   ],
   controllers: [AppController, RideController],
-  providers: [PrismaService, JwtAccessGuard, RolesGuard, RideService, RideGateway, MeritocracyService, ScoreService],
+  providers: [PrismaService, JwtAccessGuard, RolesGuard, RideService, RideGateway, MeritocracyService, ScoreService, LevelAndBonusService],
 })
 export class AppModule {}

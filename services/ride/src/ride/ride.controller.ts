@@ -25,6 +25,10 @@ import {
   ConfigPutDto,
   PremiumZoneCreateDto,
   PremiumZonePatchDto,
+  AdminLevelFilterDto,
+  AdminMonthlyPerformanceFilterDto,
+  AdminBonusesFilterDto,
+  BonusRevokeDto,
 } from '../dto/ride.dto';
 
 type AuthReq = { user: { sub: string; roles: string[] } };
@@ -52,6 +56,11 @@ export class RideController {
   @Post('drivers/presence/ping')
   @Roles('driver')
   presencePing(@Req() req: AuthReq, @Body() dto: PresencePingDto) { return this.rideService.presencePing(req.user.sub, dto); }
+
+
+  @Get('drivers/commission/current')
+  @Roles('driver')
+  driverCurrentCommission(@Req() req: AuthReq) { return this.rideService.getDriverCurrentCommission(req.user.sub); }
 
   @Post('trips/request')
   @Roles('passenger')
@@ -167,6 +176,27 @@ export class RideController {
   @Put('admin/config/:key')
   @Roles('admin', 'sos')
   adminPutConfig(@Param('key') key: string, @Body() dto: ConfigPutDto) { return this.rideService.putConfig(key, dto.value_json); }
+
+
+  @Get('admin/levels')
+  @Roles('admin', 'sos')
+  adminLevels(@Query() filter: AdminLevelFilterDto) { return this.rideService.adminListLevels(filter); }
+
+  @Get('admin/monthly-performance')
+  @Roles('admin', 'sos')
+  adminMonthlyPerformance(@Query() filter: AdminMonthlyPerformanceFilterDto) { return this.rideService.adminListMonthlyPerformance(filter); }
+
+  @Get('admin/bonuses')
+  @Roles('admin', 'sos')
+  adminBonuses(@Query() filter: AdminBonusesFilterDto) { return this.rideService.adminListBonuses(filter); }
+
+  @Put('admin/policies/:key')
+  @Roles('admin', 'sos')
+  adminPutPolicy(@Param('key') key: string, @Body() dto: ConfigPutDto) { return this.rideService.adminPutPolicy(key, dto.value_json); }
+
+  @Post('admin/bonuses/:id/revoke')
+  @Roles('admin', 'sos')
+  adminRevokeBonus(@Param('id') id: string, @Body() dto: BonusRevokeDto) { return this.rideService.adminRevokeBonus(id, dto.reason); }
 
   @Post('admin/premium-zones')
   @Roles('admin', 'sos')

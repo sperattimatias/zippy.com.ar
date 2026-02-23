@@ -25,6 +25,10 @@ export default function DashboardPage() {
         <Link href="/admin/scores">Scores</Link>
         <Link href="/admin/merit/config">Merit Config</Link>
         <Link href="/admin/premium-zones">Premium Zones</Link>
+        <Link href="/admin/levels">Levels</Link>
+        <Link href="/admin/performance">Performance</Link>
+        <Link href="/admin/bonuses">Bonuses</Link>
+        <Link href="/admin/policies">Policies</Link>
       </div>
 
     </main>
