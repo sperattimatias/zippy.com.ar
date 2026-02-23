@@ -1,0 +1,236 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum TripStatus {
+  DRAFT
+  REQUESTED
+  BIDDING
+  MATCHED
+  DRIVER_EN_ROUTE
+  ARRIVED
+  OTP_PENDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED_BY_PASSENGER
+  CANCELLED_BY_DRIVER
+  EXPIRED_NO_DRIVER
+}
+
+enum CancelReason {
+  PASSENGER_CHANGED_MIND
+  DRIVER_NO_SHOW
+  PASSENGER_NO_SHOW
+  PRICE_DISAGREE
+  SAFETY
+  OTHER
+}
+
+enum TripBidStatus {
+  PENDING
+  WITHDRAWN
+  ACCEPTED
+  REJECTED
+  AUTO_SELECTED
+}
+
+enum VehicleCategory {
+  MOTO
+  AUTO
+}
+
+enum TripActor {
+  DRIVER
+  PASSENGER
+}
+
+enum GeoZoneType {
+  SAFE
+  CAUTION
+  RED
+}
+
+enum SafetyAlertType {
+  ENTERED_RED_ZONE
+  ENTERED_CAUTION_ZONE
+  ROUTE_DEVIATION_MAJOR
+  ROUTE_DEVIATION_MINOR
+  TRACKING_LOST
+  OTP_FAILED_MULTIPLE
+  DRIVER_CANCEL_PATTERN
+  PASSENGER_CANCEL_PATTERN
+  MANUAL_SOS_TRIGGER
+}
+
+enum SafetyAlertStatus {
+  OPEN
+  ACKNOWLEDGED
+  RESOLVED
+  DISMISSED
+}
+
+enum DeviationLevel {
+  NONE
+  MINOR
+  MAJOR
+}
+
+model Trip {
+  id                    String       @id @default(cuid())
+  passenger_user_id     String
+  driver_user_id        String?
+  status                TripStatus   @default(DRAFT)
+  origin_lat            Float
+  origin_lng            Float
+  origin_address        String
+  dest_lat              Float
+  dest_lng              Float
+  dest_address          String
+  distance_km           Float?
+  eta_minutes           Int?
+  price_base            Int
+  price_final           Int?
+  currency              String       @default("ARS")
+  bidding_expires_at    DateTime?
+  matched_at            DateTime?
+  started_at            DateTime?
+  completed_at          DateTime?
+  cancelled_at          DateTime?
+  cancelled_by_user_id  String?
+  cancel_reason         CancelReason?
+  created_at            DateTime     @default(now())
+  updated_at            DateTime     @updatedAt
+
+  bids TripBid[]
+  locations TripLocation[]
+  events TripEvent[]
+  otp TripOTP?
+  safety_state TripSafetyState?
+  route_baseline TripRouteBaseline?
+  safety_alerts SafetyAlert[]
+
+  @@index([passenger_user_id, created_at])
+  @@index([driver_user_id, created_at])
+  @@index([status, bidding_expires_at])
+}
+
+model TripBid {
+  id                     String        @id @default(cuid())
+  trip_id                String
+  driver_user_id         String
+  price_offer            Int
+  eta_to_pickup_minutes  Int?
+  status                 TripBidStatus @default(PENDING)
+  created_at             DateTime      @default(now())
+
+  trip Trip @relation(fields: [trip_id], references: [id], onDelete: Cascade)
+
+  @@index([trip_id])
+  @@index([driver_user_id])
+  @@index([trip_id, price_offer])
+}
+
+model DriverPresence {
+  driver_user_id   String          @id
+  is_online        Boolean         @default(false)
+  last_lat         Float?
+  last_lng         Float?
+  last_seen_at     DateTime?
+  vehicle_category VehicleCategory
+
+  @@index([is_online, last_seen_at])
+}
+
+model TripLocation {
+  id         String    @id @default(cuid())
+  trip_id    String
+  actor      TripActor
+  lat        Float
+  lng        Float
+  speed      Float?
+  heading    Float?
+  created_at DateTime  @default(now())
+
+  trip Trip @relation(fields: [trip_id], references: [id], onDelete: Cascade)
+
+  @@index([trip_id, created_at])
+}
+
+model TripEvent {
+  id            String   @id @default(cuid())
+  trip_id       String
+  actor_user_id String?
+  type          String
+  payload_json  Json
+  created_at    DateTime @default(now())
+
+  trip Trip @relation(fields: [trip_id], references: [id], onDelete: Cascade)
+
+  @@index([trip_id, created_at])
+}
+
+model TripOTP {
+  trip_id     String   @id
+  otp_hash    String
+  expires_at  DateTime
+  attempts    Int      @default(0)
+  verified_at DateTime?
+
+  trip Trip @relation(fields: [trip_id], references: [id], onDelete: Cascade)
+}
+
+model GeoZone {
+  id          String      @id @default(cuid())
+  name        String
+  type        GeoZoneType
+  polygon_json Json
+  is_active   Boolean     @default(true)
+  created_at  DateTime    @default(now())
+  updated_at  DateTime    @updatedAt
+
+  @@index([type, is_active])
+}
+
+model TripRouteBaseline {
+  trip_id        String   @id
+  polyline_json  Json
+  created_at     DateTime @default(now())
+
+  trip Trip @relation(fields: [trip_id], references: [id], onDelete: Cascade)
+}
+
+model TripSafetyState {
+  trip_id                  String         @id
+  safety_score             Int            @default(100)
+  last_driver_location_at  DateTime?
+  last_zone_type           GeoZoneType?
+  deviation_level          DeviationLevel @default(NONE)
+  created_at               DateTime       @default(now())
+  updated_at               DateTime       @updatedAt
+
+  trip Trip @relation(fields: [trip_id], references: [id], onDelete: Cascade)
+}
+
+model SafetyAlert {
+  id                        String            @id @default(cuid())
+  trip_id                   String
+  type                      SafetyAlertType
+  status                    SafetyAlertStatus @default(OPEN)
+  severity                  Int
+  message                   String
+  payload_json              Json
+  created_at                DateTime          @default(now())
+  acknowledged_at           DateTime?
+  acknowledged_by_user_id   String?
+  resolved_at               DateTime?
+  resolved_by_user_id       String?
+
+  trip Trip @relation(fields: [trip_id], references: [id], onDelete: Cascade)
+
+  @@index([status, created_at])
+}
