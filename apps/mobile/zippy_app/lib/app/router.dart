@@ -18,6 +18,24 @@ import '../features/profile/role_selector_page.dart';
 import '../features/ride/in_trip_page.dart';
 import '../features/ride/waiting_page.dart';
 
+CustomTransitionPage<void> _premiumTransition({required LocalKey key, required Widget child}) {
+  return CustomTransitionPage<void>(
+    key: key,
+    child: child,
+    transitionDuration: const Duration(milliseconds: 150),
+    transitionsBuilder: (context, animation, secondaryAnimation, child) {
+      final curved = CurvedAnimation(parent: animation, curve: Curves.easeOutCubic);
+      return FadeTransition(
+        opacity: curved,
+        child: SlideTransition(
+          position: Tween<Offset>(begin: const Offset(0.02, 0), end: Offset.zero).animate(curved),
+          child: child,
+        ),
+      );
+    },
+  );
+}
+
 GoRouter buildRouter({
   required AuthRepository authRepository,
   required SocketService socketService,
@@ -26,26 +44,32 @@ GoRouter buildRouter({
   return GoRouter(
     initialLocation: '/splash',
     routes: [
-      GoRoute(path: '/splash', builder: (c, s) => SplashPage(storage: storage)),
+      GoRoute(path: '/splash', pageBuilder: (c, s) => _premiumTransition(key: s.pageKey, child: SplashPage(storage: storage))),
       GoRoute(
         path: '/login',
-        builder: (c, s) => LoginPage(authRepository: authRepository, socketService: socketService, storage: storage),
+        pageBuilder: (c, s) => _premiumTransition(
+          key: s.pageKey,
+          child: LoginPage(authRepository: authRepository, socketService: socketService, storage: storage),
+        ),
       ),
-      GoRoute(path: '/register', builder: (c, s) => RegisterPage()),
+      GoRoute(path: '/register', pageBuilder: (c, s) => _premiumTransition(key: s.pageKey, child: RegisterPage())),
       GoRoute(
         path: '/role-selector',
-        builder: (context, state) => RoleSelectorPage(roles: (state.extra as List<String>?) ?? const ['passenger']),
+        pageBuilder: (context, state) => _premiumTransition(
+          key: state.pageKey,
+          child: RoleSelectorPage(roles: (state.extra as List<String>?) ?? const ['passenger']),
+        ),
       ),
-      GoRoute(path: '/passenger/home', builder: (c, s) => const PassengerHomePage()),
-      GoRoute(path: '/passenger/destination', builder: (c, s) => DestinationSheetPage()),
-      GoRoute(path: '/ride/waiting', builder: (c, s) => const WaitingPage()),
-      GoRoute(path: '/ride/en-route', builder: (c, s) => const WaitingPage()),
-      GoRoute(path: '/ride/in-trip', builder: (c, s) => const InTripPage()),
-      GoRoute(path: '/driver/home', builder: (c, s) => const DriverHomePage()),
-      GoRoute(path: '/driver/requests', builder: (c, s) => IncomingRequestsPage()),
-      GoRoute(path: '/driver/en-route', builder: (c, s) => const DriverEnRoutePage()),
-      GoRoute(path: '/driver/otp', builder: (c, s) => DriverOtpPage()),
-      GoRoute(path: '/driver/earnings', builder: (c, s) => const EarningsPage()),
+      GoRoute(path: '/passenger/home', pageBuilder: (c, s) => _premiumTransition(key: s.pageKey, child: const PassengerHomePage())),
+      GoRoute(path: '/passenger/destination', pageBuilder: (c, s) => _premiumTransition(key: s.pageKey, child: DestinationSheetPage())),
+      GoRoute(path: '/ride/waiting', pageBuilder: (c, s) => _premiumTransition(key: s.pageKey, child: const WaitingPage())),
+      GoRoute(path: '/ride/en-route', pageBuilder: (c, s) => _premiumTransition(key: s.pageKey, child: const WaitingPage())),
+      GoRoute(path: '/ride/in-trip', pageBuilder: (c, s) => _premiumTransition(key: s.pageKey, child: const InTripPage())),
+      GoRoute(path: '/driver/home', pageBuilder: (c, s) => _premiumTransition(key: s.pageKey, child: const DriverHomePage())),
+      GoRoute(path: '/driver/requests', pageBuilder: (c, s) => _premiumTransition(key: s.pageKey, child: const IncomingRequestsPage())),
+      GoRoute(path: '/driver/en-route', pageBuilder: (c, s) => _premiumTransition(key: s.pageKey, child: const DriverEnRoutePage())),
+      GoRoute(path: '/driver/otp', pageBuilder: (c, s) => _premiumTransition(key: s.pageKey, child: DriverOtpPage())),
+      GoRoute(path: '/driver/earnings', pageBuilder: (c, s) => _premiumTransition(key: s.pageKey, child: const EarningsPage())),
     ],
     errorBuilder: (context, state) => Scaffold(body: Center(child: Text(state.error.toString()))),
   );

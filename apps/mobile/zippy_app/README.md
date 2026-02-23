@@ -43,3 +43,10 @@ Aplicación Android Flutter para Passenger + Driver con realtime Socket.IO y map
 3. Waiting screen con skeleton/empty y luego oferta.
 4. Driver Home con toggle grande + badges.
 5. Driver incoming request card con timer circular.
+
+### Screenshots (Black Edition)
+> En este entorno no se pudieron generar capturas automáticas porque no hay runtime Flutter/web activo para renderizar la app.
+> QA debe adjuntar estas capturas al validar en dispositivo/emulador Android:
+- Passenger Home Black (mapa + search bar flotante)
+- Destination Sheet Black (destino + slider + CTA)
+- Driver Home Black (earnings + toggle online)

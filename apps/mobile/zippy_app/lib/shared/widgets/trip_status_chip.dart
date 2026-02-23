@@ -1,19 +1,47 @@
 import 'package:flutter/material.dart';
 
-class TripStatusChip extends StatelessWidget {
+import '../design/colors.dart';
+
+class TripStatusChip extends StatefulWidget {
   final String status;
-  const TripStatusChip({super.key, required this.status});
+  final bool active;
+  const TripStatusChip({super.key, required this.status, this.active = true});
+
+  @override
+  State<TripStatusChip> createState() => _TripStatusChipState();
+}
+
+class _TripStatusChipState extends State<TripStatusChip> with SingleTickerProviderStateMixin {
+  late final AnimationController _pulse = AnimationController(vsync: this, duration: const Duration(milliseconds: 1100))..repeat(reverse: true);
+
+  @override
+  void dispose() {
+    _pulse.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 230),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.06),
-        borderRadius: BorderRadius.circular(20),
+    return AnimatedScale(
+      duration: const Duration(milliseconds: 150),
+      scale: 1,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        decoration: BoxDecoration(color: ZippyColors.surface, borderRadius: BorderRadius.circular(20), border: Border.all(color: ZippyColors.divider)),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (widget.active)
+              FadeTransition(
+                opacity: Tween<double>(begin: 0.4, end: 1).animate(_pulse),
+                child: const Icon(Icons.circle, size: 8, color: ZippyColors.primary),
+              ),
+            if (widget.active) const SizedBox(width: 7),
+            Text(widget.status, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+          ],
+        ),
       ),
-      child: Text(status, style: const TextStyle(fontWeight: FontWeight.w600)),
     );
   }
 }

@@ -13,7 +13,7 @@ class ZippyPill extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(color: bg ?? ZippyColors.brand.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(ZippyRadius.r24)),
+      decoration: BoxDecoration(color: bg ?? ZippyColors.brand.withOpacity(0.1), borderRadius: BorderRadius.circular(ZippyRadius.r24)),
       child: Text(text, style: const TextStyle(fontWeight: FontWeight.w600)),
     );
   }

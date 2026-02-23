@@ -44,13 +44,20 @@ class _DriverHomePageState extends State<DriverHomePage> {
             right: 16,
             child: ZippyCard(
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  Text('\$ 48.320', style: Theme.of(context).textTheme.titleLarge),
+                  const SizedBox(height: 2),
+                  const Text('Ganancias hoy', style: TextStyle(color: Colors.white70)),
+                  const SizedBox(height: 10),
                   Row(
                     children: [
-                      const Expanded(child: Text('Conectado para recibir viajes', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700))),
+                      const Expanded(child: Text('Online para recibir viajes', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700))),
                       Switch(value: online, onChanged: (v) => setState(() => online = v)),
                     ],
                   ),
+                  const SizedBox(height: 6),
+                  Text(online ? 'Activo y visible para pasajeros' : 'Estás offline', style: const TextStyle(color: Colors.white70)),
                   const SizedBox(height: 6),
                   const Row(
                     children: [

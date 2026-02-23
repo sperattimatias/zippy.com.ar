@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
-import 'zippy_primary_button.dart';
+import '../design/colors.dart';
+import 'zippy_secondary_button.dart';
 
 class ZippyEmptyState extends StatelessWidget {
   final IconData icon;
@@ -15,17 +16,17 @@ class ZippyEmptyState extends StatelessWidget {
   Widget build(BuildContext context) {
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 32),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 42),
-            const SizedBox(height: 12),
-            Text(title, textAlign: TextAlign.center, style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 8),
-            Text(subtitle, textAlign: TextAlign.center),
+            Icon(icon, size: 34, color: ZippyColors.textSecondary),
             const SizedBox(height: 16),
-            ZippyPrimaryButton(label: ctaLabel, onPressed: onTap),
+            Text(title, textAlign: TextAlign.center, style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 10),
+            Text(subtitle, textAlign: TextAlign.center, style: Theme.of(context).textTheme.bodySmall),
+            const SizedBox(height: 20),
+            ZippySecondaryButton(label: ctaLabel, onPressed: onTap),
           ],
         ),
       ),

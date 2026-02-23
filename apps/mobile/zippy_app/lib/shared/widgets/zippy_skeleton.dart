@@ -25,7 +25,7 @@ class _ZippySkeletonState extends State<ZippySkeleton> with SingleTickerProvider
         final opacity = 0.3 + (_controller.value * 0.35);
         return Container(
           height: widget.height,
-          decoration: BoxDecoration(color: Colors.grey.withValues(alpha: opacity), borderRadius: BorderRadius.circular(10)),
+          decoration: BoxDecoration(color: Colors.grey.withOpacity(opacity), borderRadius: BorderRadius.circular(10)),
         );
       },
     );
