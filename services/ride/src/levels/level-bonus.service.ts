@@ -68,7 +68,12 @@ export class LevelAndBonusService {
   async computeDriverLevel(userId: string, now = new Date()) {
     const rules = await this.getPolicy('level_rules', {} as any);
     const perf = await this.lastWindowPerf(userId, ActorType.DRIVER, 30);
-    const { tier, payload } = this.levelFromRules(perf.avgScore, perf, rules.driver ?? {}, false);
+    let { tier, payload } = this.levelFromRules(perf.avgScore, perf, rules.driver ?? {}, false);
+    const activeHold = await this.prisma.userHold.findFirst({ where: { user_id: userId, status: 'ACTIVE', hold_type: { in: ['PAYOUT_HOLD', 'ACCOUNT_BLOCK'] }, OR: [{ ends_at: null }, { ends_at: { gt: now } }] } });
+    if (activeHold && [LevelTier.GOLD, LevelTier.DIAMOND].includes(tier)) {
+      tier = LevelTier.SILVER;
+      payload = { ...(payload ?? {}), hold_cap: true, hold_type: activeHold.hold_type };
+    }
     const saved = await this.prisma.userLevel.upsert({
       where: { user_id_actor_type: { user_id: userId, actor_type: ActorType.DRIVER } },
       update: { tier, computed_at: now, valid_until: null, payload_json: payload as any },
@@ -138,7 +143,20 @@ export class LevelAndBonusService {
   async computeMonthlyBonuses(year: number, month: number) {
     const rules = await this.getPolicy('bonus_rules', { top_10_discount_bps: 300, top_3_discount_bps: 500, top_1_discount_bps: 800, min_trips_completed: 40, require_no_show_eq: 0, require_safety_major_alerts_eq: 0 });
     const rows = await this.prisma.monthlyPerformance.findMany({ where: { year, month, actor_type: ActorType.DRIVER }, orderBy: { performance_index: 'desc' } });
-    const eligible = rows.filter((r) => r.trips_completed >= (rules.min_trips_completed ?? 40) && r.no_show_count === (rules.require_no_show_eq ?? 0) && r.safety_major_alerts === (rules.require_safety_major_alerts_eq ?? 0));
+    const monthStart = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0));
+    const monthEnd = new Date(Date.UTC(year, month, 0, 23, 59, 59));
+    const eligible: typeof rows = [];
+    for (const r of rows) {
+      const baseEligible = r.trips_completed >= (rules.min_trips_completed ?? 40) && r.no_show_count === (rules.require_no_show_eq ?? 0) && r.safety_major_alerts === (rules.require_safety_major_alerts_eq ?? 0);
+      if (!baseEligible) continue;
+      const hold = await this.prisma.userHold.findFirst({ where: { user_id: r.user_id, status: 'ACTIVE', hold_type: { in: ['PAYOUT_HOLD', 'ACCOUNT_BLOCK'] }, starts_at: { lte: monthEnd }, OR: [{ ends_at: null }, { ends_at: { gte: monthStart } }] } });
+      const severeSignal = await this.prisma.fraudSignal.count({ where: { user_id: r.user_id, created_at: { gte: monthStart, lte: monthEnd }, severity: { in: ['HIGH', 'CRITICAL'] as any } } });
+      if (hold || severeSignal > 0) {
+        this.ws.emitSosAlert('admin.fraud.bonus_denied', { user_id: r.user_id, year, month, reason: hold ? 'active_hold' : 'high_signal' });
+        continue;
+      }
+      eligible.push(r);
+    }
     const total = Math.max(eligible.length, 1);
     const nextMonthStart = new Date(Date.UTC(year, month, 1, 0, 0, 0));
     const nextMonthEnd = new Date(Date.UTC(year, month + 1, 0, 23, 59, 59));

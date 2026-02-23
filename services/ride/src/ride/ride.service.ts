@@ -6,6 +6,8 @@ import {
   FraudSeverity,
   FraudSignalType,
   GeoZoneType,
+  HoldStatus,
+  HoldType,
   RestrictionStatus,
   SafetyAlertStatus,
   SafetyAlertType,
@@ -172,6 +174,8 @@ export class RideService implements OnModuleInit {
   async requestTrip(passengerUserId: string, dto: TripRequestDto, headers?: { ip?: string; ua?: string; device?: string }) {
     const passengerScore = await this.scoreService.getOrCreateUserScore(passengerUserId, ActorType.PASSENGER);
     await this.fraud.captureFingerprint(passengerUserId, ActorType.PASSENGER, headers ?? {});
+    const accountHold = await this.prisma.userHold.findFirst({ where: { user_id: passengerUserId, hold_type: HoldType.ACCOUNT_BLOCK, status: HoldStatus.ACTIVE, OR: [{ ends_at: null }, { ends_at: { gt: new Date() } }] } });
+    if (accountHold) throw new ForbiddenException('Passenger blocked by active fraud hold');
     const peakGate = await this.merit.evaluatePeakGate(passengerUserId, ActorType.PASSENGER, passengerScore.score, passengerScore.status);
     if (!peakGate.allowed) throw new ForbiddenException('Peak gate denied for passenger');
 
@@ -458,15 +462,37 @@ export class RideService implements OnModuleInit {
 
     const since24 = new Date(Date.now() - 24 * 3600 * 1000);
     const since7d = new Date(Date.now() - 7 * 24 * 3600 * 1000);
-    const pair24 = await this.prisma.trip.count({ where: { passenger_user_id: trip.passenger_user_id, driver_user_id: driverUserId, status: TripStatus.COMPLETED, completed_at: { gte: since24 } } });
-    const pair7 = await this.prisma.trip.count({ where: { passenger_user_id: trip.passenger_user_id, driver_user_id: driverUserId, status: TripStatus.COMPLETED, completed_at: { gte: since7d } } });
-    const thresholds = (await this.prisma.appConfig.findUnique({ where: { key: 'fraud_thresholds' } }))?.value_json as any ?? { repeated_pair_24h: 4, repeated_pair_7d: 12, low_distance_km: 1.0 };
-    if (pair24 > (thresholds.repeated_pair_24h ?? 4) || pair7 > (thresholds.repeated_pair_7d ?? 12)) {
-      await this.fraud.applySignal({ user_id: trip.passenger_user_id, trip_id: tripId, type: FraudSignalType.REPEATED_PAIR_TRIPS, severity: pair24 > (thresholds.repeated_pair_24h ?? 4) + 2 ? FraudSeverity.HIGH : FraudSeverity.MEDIUM, score_delta: 15, payload: { pair24, pair7, driver_user_id: driverUserId } });
-      await this.fraud.applySignal({ user_id: driverUserId, trip_id: tripId, type: FraudSignalType.REPEATED_PAIR_TRIPS, severity: pair24 > (thresholds.repeated_pair_24h ?? 4) + 2 ? FraudSeverity.HIGH : FraudSeverity.MEDIUM, score_delta: 15, payload: { pair24, pair7, passenger_user_id: trip.passenger_user_id } });
-    }
-    if ((trip.distance_km ?? 0) < (thresholds.low_distance_km ?? 1.0) && pair24 > 1) {
-      await this.fraud.applySignal({ user_id: trip.passenger_user_id, trip_id: tripId, type: FraudSignalType.SUSPICIOUS_ROUTE_PATTERN, severity: FraudSeverity.MEDIUM, score_delta: 10, payload: { distance_km: trip.distance_km, pair24 } });
+    const thresholds = (await this.prisma.appConfig.findUnique({ where: { key: 'fraud_thresholds' } }))?.value_json as any ?? {};
+
+    const pairTrips24 = await this.prisma.trip.findMany({ where: { passenger_user_id: trip.passenger_user_id, driver_user_id: driverUserId, status: TripStatus.COMPLETED, completed_at: { gte: since24 } }, select: { origin_lat: true, origin_lng: true, dest_lat: true, dest_lng: true, distance_km: true, price_final: true } });
+    const pairTrips7 = await this.prisma.trip.count({ where: { passenger_user_id: trip.passenger_user_id, driver_user_id: driverUserId, status: TripStatus.COMPLETED, completed_at: { gte: since7d } } });
+    const pair24 = pairTrips24.length;
+    const pair7 = pairTrips7;
+
+    if (pair24 >= (thresholds.repeated_pair_min_trips_for_pattern ?? 6) && (pair24 > (thresholds.repeated_pair_24h ?? 4) || pair7 > (thresholds.repeated_pair_7d ?? 12))) {
+      const lowDistanceKm = thresholds.repeated_pair_low_distance_km ?? 2.0;
+      const lowDistanceCount = pairTrips24.filter((t) => (t.distance_km ?? 999) < lowDistanceKm).length;
+      const lowDistanceRatio = pair24 > 0 ? lowDistanceCount / pair24 : 0;
+      const originCenter = pairTrips24[0] ?? null;
+      const destCenter = pairTrips24[0] ?? null;
+      const sameOrigin = originCenter ? pairTrips24.filter((t) => this.haversineKm(t.origin_lat, t.origin_lng, originCenter.origin_lat, originCenter.origin_lng) * 1000 <= (thresholds.repeated_pair_same_origin_radius_m ?? 250)).length : 0;
+      const sameDest = destCenter ? pairTrips24.filter((t) => this.haversineKm(t.dest_lat, t.dest_lng, destCenter.dest_lat, destCenter.dest_lng) * 1000 <= (thresholds.repeated_pair_same_dest_radius_m ?? 250)).length : 0;
+      const originSimilarity = pair24 > 0 ? sameOrigin / pair24 : 0;
+      const destSimilarity = pair24 > 0 ? sameDest / pair24 : 0;
+      const prices = pairTrips24.map((t) => t.price_final ?? 0).filter((v) => v > 0);
+      const pmin = prices.length ? Math.min(...prices) : 0;
+      const pmax = prices.length ? Math.max(...prices) : 0;
+      const amountTight = prices.length > 1 ? (pmax - pmin) <= Math.max(500, pmin * 0.1) : false;
+
+      const highPattern = (thresholds.repeated_pair_requires_low_distance ?? true)
+        ? (lowDistanceRatio >= 0.7 && originSimilarity >= 0.7 && destSimilarity >= 0.7)
+        : (originSimilarity >= 0.7 && destSimilarity >= 0.7);
+
+      const severity = highPattern ? FraudSeverity.HIGH : FraudSeverity.LOW;
+      const scoreDelta = highPattern ? 25 : 5;
+      const payload = { pair_key: `${driverUserId}:${trip.passenger_user_id}`, count_24h: pair24, count_7d: pair7, low_distance_ratio: lowDistanceRatio, origin_cluster: originSimilarity, dest_cluster: destSimilarity, amount_tight: amountTight };
+      await this.fraud.applySignal({ user_id: trip.passenger_user_id, trip_id: tripId, type: FraudSignalType.REPEATED_PAIR_TRIPS, severity, score_delta: scoreDelta, payload: { ...payload, driver_user_id: driverUserId } });
+      await this.fraud.applySignal({ user_id: driverUserId, trip_id: tripId, type: FraudSignalType.REPEATED_PAIR_TRIPS, severity, score_delta: scoreDelta, payload: { ...payload, passenger_user_id: trip.passenger_user_id } });
     }
 
     this.ws.emitTrip(tripId, 'trip.completed', { trip_id: tripId });

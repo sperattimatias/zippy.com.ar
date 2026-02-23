@@ -39,6 +39,21 @@ describe('LevelAndBonusService', () => {
     expect(svc.performanceIndex(0, 0, 2)).toBe(0);
   });
 
+  it('denies bonus when hold active', async () => {
+    const prisma: any = {
+      commissionPolicy: { findUnique: jest.fn().mockResolvedValue({ value_json: { top_10_discount_bps: 300, min_trips_completed: 0, require_no_show_eq: 0, require_safety_major_alerts_eq: 0 } }) },
+      monthlyPerformance: { findMany: jest.fn().mockResolvedValue([{ user_id: 'd1', trips_completed: 50, no_show_count: 0, safety_major_alerts: 0, performance_index: 0.9 }]) },
+      userHold: { findFirst: jest.fn().mockResolvedValue({ id: 'h1', hold_type: 'PAYOUT_HOLD' }) },
+      fraudSignal: { count: jest.fn().mockResolvedValue(0) },
+      monthlyBonusLedger: { upsert: jest.fn() },
+    };
+    const ws: any = { emitToUser: jest.fn(), emitSosAlert: jest.fn() };
+    const svc = new LevelAndBonusService(prisma, ws);
+    await svc.computeMonthlyBonuses(2026, 1);
+    expect(prisma.monthlyBonusLedger.upsert).not.toHaveBeenCalled();
+    expect(ws.emitSosAlert).toHaveBeenCalledWith('admin.fraud.bonus_denied', expect.any(Object));
+  });
+
   it('bonus percentile assignment picks top discounts', async () => {
     const prisma: any = {
       commissionPolicy: { findUnique: jest.fn().mockResolvedValue({ value_json: { top_10_discount_bps: 300, top_3_discount_bps: 500, top_1_discount_bps: 800, min_trips_completed: 0, require_no_show_eq: 0, require_safety_major_alerts_eq: 0 } }) },

@@ -163,6 +163,7 @@ enum FraudSignalType {
   PAYMENT_REJECT_RATE_HIGH
   SUSPICIOUS_ROUTE_PATTERN
   MANUAL_REVIEW_TRIGGER
+  RISK_DECAY
 }
 
 enum FraudSeverity {
@@ -565,6 +566,7 @@ model FraudCase {
   created_at          DateTime        @default(now())
   updated_at          DateTime        @updatedAt
   assigned_to_user_id String?
+  last_signal_at      DateTime?
 
   links FraudCaseSignalLink[]
 
