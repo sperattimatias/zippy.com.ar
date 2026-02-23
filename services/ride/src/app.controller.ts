@@ -4,11 +4,6 @@ import { Controller, Get } from '@nestjs/common';
 export class AppController {
   @Get('health')
   health() {
-    return {
-      status: 'ok',
-      service: 'ride',
-      timestamp: new Date().toISOString(),
-      notes: 'Ride orchestration + Socket.IO placeholder',
-    };
+    return { status: 'ok', service: 'ride', timestamp: new Date().toISOString() };
   }
 }

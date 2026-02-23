@@ -1,121 +1,86 @@
 # zippy-rideshare
 
-Monorepo para rideshare con auth centralizado, gateway RBAC y onboarding de conductores KYC-lite.
+Monorepo rideshare con Auth centralizado, KYC de conductores y Ride Core con matching híbrido + realtime + OTP.
 
-## Sprint 2 Highlights
-- Onboarding conductor con estados (`PENDING_DOCS`, `IN_REVIEW`, `APPROVED`, `REJECTED`, `SUSPENDED`).
-- Documentos privados en MinIO con URLs firmadas PUT/GET.
-- Auditoría inmutable de acciones (`DriverEvent`).
-- Panel admin para revisión y acciones de aprobación/rechazo/suspensión.
-- Fix de sesión en admin-panel: **sin localStorage** (cookies httpOnly + BFF).
-
-## Estructura
-```text
-apps/
-  api-gateway
-  admin-panel
-services/
-  auth
-  driver
-  ride
-  payment
-shared/
-infra/
-docs/
-  AUTH.md
-  RBAC.md
-  DRIVER_KYC.md
-  SECURITY_NOTES.md
-```
-
-## Variables de entorno
-```bash
-cp .env.example .env
-```
-Asegurar especialmente:
-- `JWT_ACCESS_SECRET`
-- `MINIO_*`
-- `NEXT_PUBLIC_API_GATEWAY_URL`
-- `API_GATEWAY_INTERNAL_URL`
+## Sprint 3 (Ride Core)
+- FSM estricta de viaje.
+- Bidding + accept bid + auto-match al expirar.
+- Presencia de conductores online/offline/ping.
+- OTP pickup (hash, expiración, intentos).
+- Tracking de ubicación con rate limit.
+- Cancelaciones justas + auditoría (`TripEvent`).
+- Socket.IO con auth Bearer en handshake.
 
 ## Comandos
 ```bash
+cp .env.example .env
 docker compose -f infra/docker-compose.yml config
 docker compose -f infra/docker-compose.yml --env-file .env up -d --build
 docker compose -f infra/docker-compose.yml ps
 ```
 
-## Curl de verificación (Auth + Driver KYC)
+## Endpoints principales (gateway)
+- Passenger:
+  - `POST /api/trips/request`
+  - `POST /api/trips/:id/accept-bid`
+  - `POST /api/trips/:id/rate`
+  - `POST /api/trips/:id/cancel`
+- Driver:
+  - `POST /api/drivers/presence/online`
+  - `POST /api/drivers/presence/offline`
+  - `POST /api/drivers/presence/ping`
+  - `POST /api/trips/:id/bids`
+  - `POST /api/trips/:id/driver/en-route`
+  - `POST /api/trips/:id/driver/arrived`
+  - `POST /api/trips/:id/driver/verify-otp`
+  - `POST /api/trips/:id/location`
+  - `POST /api/trips/:id/complete`
+  - `POST /api/trips/:id/driver/cancel`
+- Admin/SOS:
+  - `GET /api/admin/trips`
+  - `GET /api/admin/trips/:id`
 
-### 1) Register + verify + login
+## Curl ejemplo
 ```bash
-curl -i -X POST https://api.zippy.local/api/auth/register \
+# driver online
+curl -i -X POST https://api.zippy.local/api/drivers/presence/online \
+  -H "Authorization: Bearer <DRIVER_ACCESS_TOKEN>" \
   -H 'Content-Type: application/json' \
-  -d '{"email":"driver1@zippy.com.ar","password":"MyS3curePassw0rd!"}'
+  -d '{"lat":-34.60,"lng":-58.38,"category":"AUTO"}'
 
-curl -i -X POST https://api.zippy.local/api/auth/verify-email \
+# passenger request
+curl -i -X POST https://api.zippy.local/api/trips/request \
+  -H "Authorization: Bearer <PASSENGER_ACCESS_TOKEN>" \
   -H 'Content-Type: application/json' \
-  -d '{"email":"driver1@zippy.com.ar","code":"123456"}'
+  -d '{"origin_lat":-34.60,"origin_lng":-58.38,"origin_address":"Obelisco","dest_lat":-34.58,"dest_lng":-58.41,"dest_address":"Palermo","category":"AUTO"}'
 
-curl -i -X POST https://api.zippy.local/api/auth/login \
+# driver bid
+curl -i -X POST https://api.zippy.local/api/trips/<TRIP_ID>/bids \
+  -H "Authorization: Bearer <DRIVER_ACCESS_TOKEN>" \
   -H 'Content-Type: application/json' \
-  -d '{"email":"driver1@zippy.com.ar","password":"MyS3curePassw0rd!"}'
+  -d '{"price_offer":3200,"eta_to_pickup_minutes":6}'
+
+# passenger accept
+curl -i -X POST https://api.zippy.local/api/trips/<TRIP_ID>/accept-bid \
+  -H "Authorization: Bearer <PASSENGER_ACCESS_TOKEN>" \
+  -H 'Content-Type: application/json' \
+  -d '{"bid_id":"<BID_ID>"}'
+
+# driver arrived + verify otp
+curl -i -X POST https://api.zippy.local/api/trips/<TRIP_ID>/driver/arrived -H "Authorization: Bearer <DRIVER_ACCESS_TOKEN>"
+curl -i -X POST https://api.zippy.local/api/trips/<TRIP_ID>/driver/verify-otp \
+  -H "Authorization: Bearer <DRIVER_ACCESS_TOKEN>" \
+  -H 'Content-Type: application/json' -d '{"otp":"123456"}'
 ```
 
-### 2) Solicitar perfil conductor
-```bash
-curl -i -X POST https://api.zippy.local/api/drivers/request \
-  -H "Authorization: Bearer <ACCESS_TOKEN>"
-```
+## Admin panel
+- `/admin/trips`: listado de viajes recientes.
+- `/admin/trips/[id]`: detalle, eventos y locations (con placeholder de mapa).
 
-### 3) Presign documento
-```bash
-curl -i -X POST https://api.zippy.local/api/drivers/me/documents/presign \
-  -H "Authorization: Bearer <ACCESS_TOKEN>" \
-  -H 'Content-Type: application/json' \
-  -d '{"type":"SELFIE","mime_type":"image/jpeg","size_bytes":250000}'
-```
-
-### 4) Cargar archivo usando put_url
-```bash
-curl -X PUT "<PUT_URL>" \
-  -H 'Content-Type: image/jpeg' \
-  --data-binary @selfie.jpg
-```
-
-### 5) Admin pending/detail/review
-```bash
-curl -i https://api.zippy.local/api/admin/drivers/pending \
-  -H "Authorization: Bearer <ADMIN_ACCESS_TOKEN>"
-
-curl -i https://api.zippy.local/api/admin/drivers/<DRIVER_PROFILE_ID> \
-  -H "Authorization: Bearer <ADMIN_ACCESS_TOKEN>"
-
-curl -i -X POST https://api.zippy.local/api/admin/drivers/<DRIVER_PROFILE_ID>/review-start \
-  -H "Authorization: Bearer <ADMIN_ACCESS_TOKEN>"
-
-curl -i -X POST https://api.zippy.local/api/admin/drivers/<DRIVER_PROFILE_ID>/approve \
-  -H "Authorization: Bearer <ADMIN_ACCESS_TOKEN>"
-```
-
-### 6) Rechazar / suspender
-```bash
-curl -i -X POST https://api.zippy.local/api/admin/drivers/<DRIVER_PROFILE_ID>/reject \
-  -H "Authorization: Bearer <ADMIN_ACCESS_TOKEN>" \
-  -H 'Content-Type: application/json' \
-  -d '{"reason":"Documento ilegible"}'
-
-curl -i -X POST https://api.zippy.local/api/admin/drivers/<DRIVER_PROFILE_ID>/suspend \
-  -H "Authorization: Bearer <ADMIN_ACCESS_TOKEN>" \
-  -H 'Content-Type: application/json' \
-  -d '{"reason":"Incumplimiento de políticas"}'
-```
-
-## Checklist Sprint 2
-- [ ] `prisma migrate` aplicado en `services/driver`.
-- [ ] `POST /drivers/request` crea profile `PENDING_DOCS`.
-- [ ] `POST /drivers/me/documents/presign` devuelve `put_url`.
-- [ ] `GET /admin/drivers/pending` lista pendientes con `docs_count`.
-- [ ] `POST /admin/drivers/:id/approve` cambia a `APPROVED` y asigna rol `driver` en auth.
-- [ ] Admin panel `/admin/drivers` y `/admin/drivers/[id]` funcionales.
-- [ ] Sin localStorage para tokens (BFF + cookies httpOnly).
+## Docs
+- `docs/RIDE_FLOW.md`
+- `docs/FSM.md`
+- `docs/DRIVER_KYC.md`
+- `docs/SECURITY_NOTES.md`
+- `docs/AUTH.md`
+- `docs/RBAC.md`
