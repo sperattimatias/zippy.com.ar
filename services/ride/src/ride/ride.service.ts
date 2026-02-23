@@ -179,7 +179,8 @@ export class RideService implements OnModuleInit {
     for (const trip of trips) {
       const bids = await this.prisma.tripBid.findMany({ where: { trip_id: trip.id, status: TripBidStatus.PENDING } });
       if (!bids.length) {
-        await this.prisma.trip.update({ where: { id: trip.id }, data: { status: TripStatus.EXPIRED_NO_DRIVER } });
+        const updated = await this.prisma.trip.updateMany({ where: { id: trip.id, status: TripStatus.BIDDING }, data: { status: TripStatus.EXPIRED_NO_DRIVER } });
+        if (updated.count === 0) continue;
         await this.addEvent(trip.id, null, 'trip.expired_no_driver', {});
         this.ws.emitTrip(trip.id, 'trip.cancelled', { trip_id: trip.id, status: TripStatus.EXPIRED_NO_DRIVER });
         continue;
@@ -189,9 +190,30 @@ export class RideService implements OnModuleInit {
         .map((b) => ({ b, score: b.price_offer + ((b.eta_to_pickup_minutes ?? 0) * 10) }))
         .sort((a, b) => a.score - b.score)[0].b;
 
-      await this.prisma.trip.update({ where: { id: trip.id }, data: { status: TripStatus.MATCHED, driver_user_id: best.driver_user_id, price_final: best.price_offer, matched_at: new Date() } });
-      await this.prisma.tripBid.updateMany({ where: { trip_id: trip.id, id: { not: best.id }, status: TripBidStatus.PENDING }, data: { status: TripBidStatus.REJECTED } });
-      await this.prisma.tripBid.update({ where: { id: best.id }, data: { status: TripBidStatus.AUTO_SELECTED } });
+      // IMPORTANT: AutoMatch must be idempotent and safe under concurrency
+      const tx = await this.prisma.$transaction(async (trx) => {
+        const claim = await trx.trip.updateMany({
+          where: { id: trip.id, status: TripStatus.BIDDING },
+          data: {
+            status: TripStatus.MATCHED,
+            driver_user_id: best.driver_user_id,
+            price_final: best.price_offer,
+            matched_at: new Date(),
+          },
+        });
+
+        if (claim.count === 0) {
+          return { matched: false as const };
+        }
+
+        await trx.tripBid.updateMany({ where: { trip_id: trip.id, id: { not: best.id }, status: TripBidStatus.PENDING }, data: { status: TripBidStatus.REJECTED } });
+        await trx.tripBid.update({ where: { id: best.id }, data: { status: TripBidStatus.AUTO_SELECTED } });
+
+        return { matched: true as const };
+      });
+
+      if (!tx.matched) continue;
+
       await this.addEvent(trip.id, null, 'trip.matched', { bid_id: best.id, auto_selected: true });
       this.ws.emitTrip(trip.id, 'trip.matched', { trip_id: trip.id, driver_user_id: best.driver_user_id, auto_selected: true });
     }
@@ -288,11 +310,15 @@ export class RideService implements OnModuleInit {
     if (trip.passenger_user_id !== passengerUserId) throw new ForbiddenException('Not trip passenger');
 
     if (trip.status === TripStatus.IN_PROGRESS && dto.reason !== CancelReason.SAFETY) throw new BadRequestException('Cannot cancel in_progress without SAFETY');
+    if (trip.status === TripStatus.MATCHED && trip.driver_user_id && dto.reason !== CancelReason.SAFETY) {
+      // allow cancel with moderate penalty (MVP)
+    }
 
     const status = TripStatus.CANCELLED_BY_PASSENGER;
     const updated = await this.prisma.trip.update({ where: { id: tripId }, data: { status, cancelled_at: new Date(), cancelled_by_user_id: passengerUserId, cancel_reason: dto.reason } });
 
-    await this.addEvent(tripId, passengerUserId, 'trip.cancelled', { by: 'passenger', reason: dto.reason, penalty: trip.status === TripStatus.DRIVER_EN_ROUTE ? 'light' : 'none' });
+    const penalty = trip.status === TripStatus.DRIVER_EN_ROUTE ? 'light' : (trip.status === TripStatus.MATCHED && trip.driver_user_id ? 'moderate' : 'none');
+    await this.addEvent(tripId, passengerUserId, 'trip.cancelled', { by: 'passenger', reason: dto.reason, penalty });
     this.ws.emitTrip(tripId, 'trip.cancelled', { trip_id: tripId, status });
     return updated;
   }

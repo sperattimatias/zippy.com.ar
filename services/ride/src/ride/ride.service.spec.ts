@@ -7,24 +7,49 @@ describe('RideService', () => {
     const prisma: any = {
       trip: {
         findMany: jest.fn().mockResolvedValue([{ id: 't1', status: 'BIDDING' }]),
-        update: jest.fn().mockResolvedValue({}),
       },
       tripBid: {
         findMany: jest.fn().mockResolvedValue([
           { id: 'b1', driver_user_id: 'd1', price_offer: 1200, eta_to_pickup_minutes: 9 },
           { id: 'b2', driver_user_id: 'd2', price_offer: 1000, eta_to_pickup_minutes: 1 },
         ]),
-        updateMany: jest.fn().mockResolvedValue({}),
-        update: jest.fn().mockResolvedValue({}),
       },
       tripEvent: { create: jest.fn().mockResolvedValue({}) },
+      $transaction: jest.fn(async (fn: any) => {
+        const trx = {
+          trip: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
+          tripBid: { updateMany: jest.fn().mockResolvedValue({}), update: jest.fn().mockResolvedValue({}) },
+        };
+        return fn(trx);
+      }),
     };
     const ws: any = { emitTrip: jest.fn() };
     const service = new RideService(prisma, ws);
 
     await service.autoMatchExpiredBiddingTrips();
-    expect(prisma.trip.update).toHaveBeenCalled();
-    expect(prisma.tripBid.update).toHaveBeenCalledWith({ where: { id: 'b2' }, data: { status: 'AUTO_SELECTED' } });
+    expect(prisma.$transaction).toHaveBeenCalled();
+    expect(ws.emitTrip).toHaveBeenCalledWith('t1', 'trip.matched', expect.any(Object));
+  });
+
+  it('auto-match concurrent worker skip when claim fails', async () => {
+    const prisma: any = {
+      trip: { findMany: jest.fn().mockResolvedValue([{ id: 't1', status: 'BIDDING' }]) },
+      tripBid: { findMany: jest.fn().mockResolvedValue([{ id: 'b1', driver_user_id: 'd1', price_offer: 1000 }]) },
+      tripEvent: { create: jest.fn().mockResolvedValue({}) },
+      $transaction: jest.fn(async (fn: any) => {
+        const trx = {
+          trip: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
+          tripBid: { updateMany: jest.fn().mockResolvedValue({}), update: jest.fn().mockResolvedValue({}) },
+        };
+        return fn(trx);
+      }),
+    };
+    const ws: any = { emitTrip: jest.fn() };
+    const service = new RideService(prisma, ws);
+
+    await service.autoMatchExpiredBiddingTrips();
+    expect(prisma.tripEvent.create).not.toHaveBeenCalled();
+    expect(ws.emitTrip).not.toHaveBeenCalled();
   });
 
   it('otp verify increments attempts on failure', async () => {
