@@ -1,65 +1,92 @@
-import { Body, Controller, Get, Param, Post, Req } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { DriverService } from './driver.service';
 import { PresignDocumentDto } from '../dto/presign-document.dto';
 import { UpsertVehicleDto } from '../dto/upsert-vehicle.dto';
 import { ReviewActionDto } from '../dto/review-action.dto';
+import { JwtAccessGuard } from '../common/jwt-access.guard';
+import { RolesGuard } from '../common/roles.guard';
+import { Roles } from '../common/roles.decorator';
 
-type ReqUser = { headers: Record<string, string | undefined> };
+type AuthReq = {
+  user: { sub: string; roles?: string[] };
+  headers: { authorization?: string };
+};
 
 @ApiTags('drivers')
 @ApiBearerAuth()
 @Controller()
+@UseGuards(JwtAccessGuard)
 export class DriverController {
   constructor(private readonly driverService: DriverService) {}
 
   @Post('drivers/request')
-  request(@Req() req: ReqUser) {
-    return this.driverService.requestDriver(req.headers['x-user-id']!);
+  request(@Req() req: AuthReq) {
+    return this.driverService.requestDriver(req.user.sub);
   }
 
   @Get('drivers/me')
-  me(@Req() req: ReqUser) {
-    return this.driverService.me(req.headers['x-user-id']!);
+  me(@Req() req: AuthReq) {
+    return this.driverService.me(req.user.sub);
   }
 
   @Post('drivers/me/documents/presign')
-  presign(@Req() req: ReqUser, @Body() dto: PresignDocumentDto) {
-    return this.driverService.presignDocument(req.headers['x-user-id']!, dto);
+  presign(@Req() req: AuthReq, @Body() dto: PresignDocumentDto) {
+    return this.driverService.presignDocument(req.user.sub, dto);
   }
 
   @Post('drivers/me/vehicle')
-  upsertVehicle(@Req() req: ReqUser, @Body() dto: UpsertVehicleDto) {
-    return this.driverService.upsertVehicle(req.headers['x-user-id']!, dto);
+  upsertVehicle(@Req() req: AuthReq, @Body() dto: UpsertVehicleDto) {
+    return this.driverService.upsertVehicle(req.user.sub, dto);
   }
 
   @Get('admin/drivers/pending')
+  @UseGuards(JwtAccessGuard, RolesGuard)
+  @Roles('admin', 'sos')
   adminPending() {
     return this.driverService.adminPending();
   }
 
   @Get('admin/drivers/:id')
+  @UseGuards(JwtAccessGuard, RolesGuard)
+  @Roles('admin', 'sos')
   adminDetail(@Param('id') id: string) {
     return this.driverService.adminDetail(id);
   }
 
   @Post('admin/drivers/:id/review-start')
-  reviewStart(@Param('id') id: string, @Req() req: ReqUser) {
-    return this.driverService.reviewStart(id, req.headers['x-user-id']!);
+  @UseGuards(JwtAccessGuard, RolesGuard)
+  @Roles('admin', 'sos')
+  reviewStart(@Param('id') id: string, @Req() req: AuthReq) {
+    return this.driverService.reviewStart(id, req.user.sub);
   }
 
   @Post('admin/drivers/:id/approve')
-  approve(@Param('id') id: string, @Req() req: ReqUser) {
-    return this.driverService.approve(id, req.headers['x-user-id']!, req.headers.authorization);
+  @UseGuards(JwtAccessGuard, RolesGuard)
+  @Roles('admin', 'sos')
+  approve(@Param('id') id: string, @Req() req: AuthReq) {
+    return this.driverService.approve(id, req.user.sub, req.headers.authorization);
   }
 
   @Post('admin/drivers/:id/reject')
-  reject(@Param('id') id: string, @Req() req: ReqUser, @Body() dto: ReviewActionDto) {
-    return this.driverService.reject(id, req.headers['x-user-id']!, dto.reason ?? 'Rejected by reviewer');
+  @UseGuards(JwtAccessGuard, RolesGuard)
+  @Roles('admin', 'sos')
+  reject(@Param('id') id: string, @Req() req: AuthReq, @Body() dto: ReviewActionDto) {
+    return this.driverService.reject(id, req.user.sub, dto.reason ?? 'Rejected by reviewer');
   }
 
   @Post('admin/drivers/:id/suspend')
-  suspend(@Param('id') id: string, @Req() req: ReqUser, @Body() dto: ReviewActionDto) {
-    return this.driverService.suspend(id, req.headers['x-user-id']!, dto.reason ?? dto.notes ?? 'Suspended');
+  @UseGuards(JwtAccessGuard, RolesGuard)
+  @Roles('admin', 'sos')
+  suspend(@Param('id') id: string, @Req() req: AuthReq, @Body() dto: ReviewActionDto) {
+    return this.driverService.suspend(id, req.user.sub, dto.reason ?? dto.notes ?? 'Suspended');
   }
 }

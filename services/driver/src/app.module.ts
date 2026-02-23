@@ -3,12 +3,15 @@ import { ConfigModule } from '@nestjs/config';
 import * as Joi from 'joi';
 import { LoggerModule } from 'nestjs-pino';
 import { HttpModule } from '@nestjs/axios';
+import { JwtModule } from '@nestjs/jwt';
 import { defaultPinoConfig } from '../../../shared/utils/logger';
 import { AppController } from './app.controller';
 import { DriverController } from './driver/driver.controller';
 import { DriverService } from './driver/driver.service';
 import { PrismaService } from './prisma/prisma.service';
 import { MinioService } from './minio/minio.service';
+import { JwtAccessGuard } from './common/jwt-access.guard';
+import { RolesGuard } from './common/roles.guard';
 
 @Module({
   imports: [
@@ -26,12 +29,14 @@ import { MinioService } from './minio/minio.service';
         MINIO_ROOT_PASSWORD: Joi.string().required(),
         MINIO_BUCKET: Joi.string().default('zippy-private'),
         AUTH_SERVICE_URL: Joi.string().uri().required(),
+        JWT_ACCESS_SECRET: Joi.string().min(32).required(),
       }),
     }),
     HttpModule,
+    JwtModule.register({}),
     LoggerModule.forRoot(defaultPinoConfig),
   ],
   controllers: [AppController, DriverController],
-  providers: [DriverService, PrismaService, MinioService],
+  providers: [DriverService, PrismaService, MinioService, JwtAccessGuard, RolesGuard],
 })
 export class AppModule {}
