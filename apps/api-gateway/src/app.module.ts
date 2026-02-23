@@ -49,6 +49,7 @@ const paymentRoutes: RouteInfo[] = [{ path: 'api/payments/(.*)', method: Request
 const paymentCreatePreferenceRoutes: RouteInfo[] = [{ path: 'api/payments/payments/create-preference', method: RequestMethod.POST }];
 const paymentDriverFinanceRoutes: RouteInfo[] = [{ path: 'api/payments/drivers/finance/(.*)', method: RequestMethod.ALL }];
 const paymentAdminFinanceRoutes: RouteInfo[] = [{ path: 'api/payments/admin/finance/(.*)', method: RequestMethod.ALL }];
+const paymentAdminPaymentRoutes: RouteInfo[] = [{ path: 'api/payments/admin/payments/(.*)', method: RequestMethod.ALL }];
 
 const passengerTripRoutes: RouteInfo[] = [
   { path: 'api/trips/request', method: RequestMethod.POST },
@@ -121,7 +122,7 @@ export class AppModule implements NestModule {
     consumer.apply(attachClientFingerprintHeaders).forRoutes(...tripsRoutes, ...paymentRoutes);
     consumer.apply(JwtClaimsMiddleware, RequirePassengerMiddleware).forRoutes(...paymentCreatePreferenceRoutes);
     consumer.apply(JwtClaimsMiddleware, RequireDriverMiddleware).forRoutes(...paymentDriverFinanceRoutes);
-    consumer.apply(JwtClaimsMiddleware, RequireAdminOrSosMiddleware).forRoutes(...paymentAdminFinanceRoutes);
+    consumer.apply(JwtClaimsMiddleware, RequireAdminOrSosMiddleware).forRoutes(...paymentAdminFinanceRoutes, ...paymentAdminPaymentRoutes);
 
     consumer
       .apply(

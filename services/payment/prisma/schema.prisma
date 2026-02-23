@@ -15,6 +15,13 @@ enum PaymentStatus {
   REFUNDED
 }
 
+enum RefundStatus {
+  CREATED
+  PROCESSING
+  APPROVED
+  FAILED
+}
+
 enum SettlementStatus {
   NOT_SETTLED
   SETTLED
@@ -27,6 +34,9 @@ enum LedgerEntryType {
   DRIVER_EARNING
   BONUS_DISCOUNT
   REFUND
+  REFUND_REVERSAL
+  COMMISSION_REVERSAL
+  DRIVER_NET_REVERSAL
 }
 
 enum LedgerActor {
@@ -79,12 +89,31 @@ model TripPayment {
   driver_net_amount      Int
   mp_payment_id          String?
   mp_preference_id       String?
+  refunded_amount        Int              @default(0)
   status                 PaymentStatus    @default(CREATED)
   settlement_status      SettlementStatus @default(NOT_SETTLED)
   created_at             DateTime         @default(now())
   updated_at             DateTime         @updatedAt
+  refunds                TripRefund[]
 
   @@index([driver_user_id, created_at])
+}
+
+model TripRefund {
+  id               String       @id @default(cuid())
+  trip_payment_id  String
+  amount           Int
+  reason           String
+  status           RefundStatus @default(CREATED)
+  mp_refund_id     String?      @unique
+  idempotency_key  String?      @unique
+  payload_json     Json         @default("{}")
+  created_at       DateTime     @default(now())
+  updated_at       DateTime     @updatedAt
+
+  tripPayment      TripPayment  @relation(fields: [trip_payment_id], references: [id], onDelete: Cascade)
+
+  @@index([trip_payment_id, created_at])
 }
 
 model LedgerEntry {
@@ -108,6 +137,21 @@ model DriverPayoutSummary {
   total_bonus_discount BigInt   @default(0)
   total_net            BigInt   @default(0)
   updated_at           DateTime @updatedAt
+}
+
+model BonusAdjustmentPending {
+  id             String   @id @default(cuid())
+  driver_user_id String
+  trip_id        String
+  year           Int
+  month          Int
+  amount         Int
+  reason         String
+  status         String   @default("PENDING")
+  payload_json   Json     @default("{}")
+  created_at     DateTime @default(now())
+
+  @@index([driver_user_id, year, month])
 }
 
 model Trip {
@@ -182,4 +226,39 @@ model ClientFingerprint {
   created_at              DateTime
 
   @@map("ClientFingerprint")
+}
+
+enum FraudSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum FraudSignalType {
+  REPEATED_PAIR_TRIPS
+  HIGH_VELOCITY_TRIPS
+  HIGH_VELOCITY_PAYMENTS
+  SHARED_IP_MULTIPLE_USERS
+  SHARED_DEVICE_FINGERPRINT
+  MULTIPLE_ACCOUNTS_SAME_DRIVER
+  EXCESSIVE_REFUNDS
+  PAYMENT_REJECT_RATE_HIGH
+  SUSPICIOUS_ROUTE_PATTERN
+  MANUAL_REVIEW_TRIGGER
+  RISK_DECAY
+}
+
+model FraudSignal {
+  id         String          @id
+  user_id    String?
+  trip_id    String?
+  payment_id String?
+  type       FraudSignalType
+  severity   FraudSeverity
+  score_delta Int
+  payload_json Json
+  created_at DateTime
+
+  @@map("FraudSignal")
 }

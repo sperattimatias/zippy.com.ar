@@ -1,9 +1,9 @@
-import { Body, Controller, Get, Headers, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Headers, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { JwtAccessGuard } from '../common/jwt-access.guard';
 import { Roles } from '../common/roles.decorator';
 import { RolesGuard } from '../common/roles.guard';
-import { AdminFinanceTripsFilterDto, AdminLedgerFilterDto, CreatePreferenceDto, ReconciliationDto } from '../dto/payment.dto';
+import { AdminFinanceTripsFilterDto, AdminLedgerFilterDto, AdminRefundDto, AdminRefundsFilterDto, CreatePreferenceDto, ReconciliationDto } from '../dto/payment.dto';
 import { PaymentsService } from './payments.service';
 
 type AuthReq = { user: { sub: string; roles: string[] }; body?: any; rawBody?: string };
@@ -59,5 +59,19 @@ export class PaymentsController {
   @Roles('admin', 'sos')
   adminReconciliation(@Query() query: ReconciliationDto) {
     return this.payments.adminReconciliation(query.date);
+  }
+
+  @Post('admin/payments/:trip_payment_id/refund')
+  @UseGuards(JwtAccessGuard, RolesGuard)
+  @Roles('admin', 'sos')
+  adminRefund(@Param('trip_payment_id') tripPaymentId: string, @Body() dto: AdminRefundDto, @Req() req: AuthReq) {
+    return this.payments.adminRefundTripPayment(tripPaymentId, dto.amount, dto.reason, req.user.sub);
+  }
+
+  @Get('admin/finance/refunds')
+  @UseGuards(JwtAccessGuard, RolesGuard)
+  @Roles('admin', 'sos')
+  adminRefunds(@Query() query: AdminRefundsFilterDto) {
+    return this.payments.adminFinanceRefunds(query);
   }
 }

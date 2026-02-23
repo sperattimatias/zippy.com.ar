@@ -1,5 +1,5 @@
 import { LedgerActor, PaymentStatus } from '@prisma/client';
-import { IsDateString, IsEnum, IsOptional, IsString } from 'class-validator';
+import { IsDateString, IsEnum, IsInt, IsOptional, IsPositive, IsString } from 'class-validator';
 
 export class CreatePreferenceDto {
   @IsString() trip_id!: string;
@@ -18,4 +18,20 @@ export class AdminLedgerFilterDto {
 
 export class ReconciliationDto {
   @IsDateString() date!: string;
+}
+
+export class AdminRefundDto {
+  @IsInt()
+  @IsPositive()
+  amount!: number;
+
+  @IsString()
+  reason!: string;
+}
+
+export class AdminRefundsFilterDto {
+  @IsOptional() @IsString() driver?: string;
+  @IsOptional() @IsString() status?: string;
+  @IsOptional() @IsDateString() from?: string;
+  @IsOptional() @IsDateString() to?: string;
 }

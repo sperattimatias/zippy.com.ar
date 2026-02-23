@@ -1,6 +1,6 @@
 import { BadRequestException, ForbiddenException, Injectable, Logger } from '@nestjs/common';
 import { createHmac, createHash } from 'crypto';
-import { LedgerActor, LedgerEntryType, PaymentStatus, SettlementStatus } from '@prisma/client';
+import { FraudSeverity, FraudSignalType, LedgerActor, LedgerEntryType, PaymentStatus, RefundStatus, SettlementStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
@@ -9,6 +9,30 @@ export class PaymentsService {
   constructor(private readonly prisma: PrismaService) {}
 
   private toInt(v: bigint | number) { return Number(v); }
+
+  private async mpRefund(paymentId: string, amount: number, reason: string) {
+    const token = process.env.MP_ACCESS_TOKEN;
+    if (!token) {
+      return { id: `mock_ref_${paymentId}_${Date.now()}`, status: 'approved', amount, reason };
+    }
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8_000);
+    try {
+      const res = await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}/refunds`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount }),
+        signal: controller.signal,
+      });
+      if (!res.ok) {
+        const body = await res.text();
+        throw new Error(`MP refund failed: ${res.status} ${body}`);
+      }
+      return await res.json();
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
 
   async getActiveCommissionBps(driverUserId: string, at: Date) {
     const defaultRow = await this.prisma.commissionPolicy.findUnique({ where: { key: 'default_commission_bps' } });
@@ -163,7 +187,8 @@ export class PaymentsService {
   }
 
   async driverFinanceTrips(driverUserId: string) {
-    return this.prisma.tripPayment.findMany({ where: { driver_user_id: driverUserId }, orderBy: { created_at: 'desc' }, take: 200 });
+    const rows = await this.prisma.tripPayment.findMany({ where: { driver_user_id: driverUserId }, orderBy: { created_at: 'desc' }, take: 200 });
+    return rows.map((r) => ({ ...r, refund_amount: r.refunded_amount, net_after_refunds: r.driver_net_amount - Math.floor((r.refunded_amount * r.driver_net_amount) / Math.max(1, r.amount_total)) }));
   }
 
   async adminFinanceTrips(filter: { status?: PaymentStatus; driver?: string; from?: string; to?: string }) {
@@ -188,5 +213,129 @@ export class PaymentsService {
     const approved = await this.prisma.tripPayment.count({ where: { status: PaymentStatus.APPROVED, updated_at: { gte: start, lte: end } } });
     const settled = await this.prisma.tripPayment.count({ where: { settlement_status: SettlementStatus.SETTLED, updated_at: { gte: start, lte: end } } });
     return { date, approved_internal: approved, settled_internal: settled, drift: approved - settled, notes: 'MP API reconciliation adapter pending credentials; internal consistency check performed' };
+  }
+
+  private proportional(amount: number, total: number, part: number) {
+    return Math.floor((amount * part) / Math.max(1, total));
+  }
+
+  private async maybeCreateRefundFraudSignal(driverUserId: string, refundedAmount: number, totalAmount: number) {
+    const ratio = totalAmount > 0 ? refundedAmount / totalAmount : 0;
+    if (ratio < 0.4) return;
+    const severity = ratio >= 0.7 ? FraudSeverity.HIGH : FraudSeverity.MEDIUM;
+    await this.prisma.fraudSignal.create({
+      data: {
+        id: `fs_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        user_id: driverUserId,
+        type: FraudSignalType.EXCESSIVE_REFUNDS,
+        severity,
+        score_delta: severity === FraudSeverity.HIGH ? 15 : 8,
+        payload_json: { ratio_7d: ratio, source: 'refund-flow' } as any,
+        created_at: new Date(),
+      },
+    });
+  }
+
+  async adminRefundTripPayment(tripPaymentId: string, amount: number, reason: string, adminUserId: string) {
+    return this.prisma.$transaction(async (trx) => {
+      await trx.$executeRawUnsafe('SELECT id FROM "TripPayment" WHERE id = $1 FOR UPDATE', tripPaymentId);
+      const payment = await trx.tripPayment.findUnique({ where: { id: tripPaymentId } });
+      if (!payment) throw new BadRequestException('TripPayment not found');
+      if (payment.status !== PaymentStatus.APPROVED && payment.status !== PaymentStatus.REFUNDED) throw new BadRequestException('TripPayment must be APPROVED/REFUNDED');
+
+      const processing = await trx.tripRefund.findFirst({ where: { trip_payment_id: tripPaymentId, status: RefundStatus.PROCESSING } });
+      if (processing) throw new BadRequestException('Refund already processing for this payment');
+
+      const refundable = payment.amount_total - payment.refunded_amount;
+      if (amount > refundable) throw new BadRequestException('Refund amount exceeds refundable balance');
+
+      const idempotencyKey = createHash('sha256').update(`${tripPaymentId}:${amount}:${reason}`).digest('hex');
+      const existingByKey = await trx.tripRefund.findUnique({ where: { idempotency_key: idempotencyKey } });
+      if (existingByKey) return { refund: existingByKey, idempotent: true };
+
+      const refund = await trx.tripRefund.create({
+        data: {
+          trip_payment_id: tripPaymentId,
+          amount,
+          reason,
+          status: RefundStatus.PROCESSING,
+          idempotency_key: idempotencyKey,
+          payload_json: { requested_by: adminUserId } as any,
+        },
+      });
+
+      try {
+        const mp = await this.mpRefund(payment.mp_payment_id ?? payment.trip_id, amount, reason);
+        const mpRefundId = String(mp?.id ?? '');
+        if (!mpRefundId) throw new Error('Missing mp_refund_id');
+
+        const existingByMp = await trx.tripRefund.findUnique({ where: { mp_refund_id: mpRefundId } });
+        if (existingByMp && existingByMp.id !== refund.id) return { refund: existingByMp, idempotent: true };
+
+        const commissionReversal = this.proportional(amount, payment.amount_total, payment.commission_amount);
+        const driverNetReversal = this.proportional(amount, payment.amount_total, payment.driver_net_amount);
+
+        await trx.ledgerEntry.createMany({
+          data: [
+            { actor_type: LedgerActor.PLATFORM, actor_user_id: null, trip_id: payment.trip_id, type: LedgerEntryType.REFUND_REVERSAL, amount: -amount, reference_id: mpRefundId, payload_json: { refund_id: refund.id } as any },
+            { actor_type: LedgerActor.PLATFORM, actor_user_id: null, trip_id: payment.trip_id, type: LedgerEntryType.COMMISSION_REVERSAL, amount: -commissionReversal, reference_id: mpRefundId, payload_json: { refund_id: refund.id } as any },
+            { actor_type: LedgerActor.DRIVER, actor_user_id: payment.driver_user_id, trip_id: payment.trip_id, type: LedgerEntryType.DRIVER_NET_REVERSAL, amount: -driverNetReversal, reference_id: mpRefundId, payload_json: { refund_id: refund.id } as any },
+          ],
+        });
+
+        const nextRefunded = payment.refunded_amount + amount;
+        await trx.tripPayment.update({
+          where: { id: payment.id },
+          data: {
+            refunded_amount: nextRefunded,
+            status: nextRefunded >= payment.amount_total ? PaymentStatus.REFUNDED : payment.status,
+          },
+        });
+
+        await trx.tripRefund.update({ where: { id: refund.id }, data: { status: RefundStatus.APPROVED, mp_refund_id: mpRefundId, payload_json: { requested_by: adminUserId, mp } as any } });
+
+        const summary = await trx.driverPayoutSummary.findUnique({ where: { driver_user_id: payment.driver_user_id } });
+        const nextSummary = {
+          total_gross: BigInt((summary?.total_gross ?? BigInt(0)) - BigInt(amount)),
+          total_commission: BigInt((summary?.total_commission ?? BigInt(0)) - BigInt(commissionReversal)),
+          total_bonus_discount: BigInt(summary?.total_bonus_discount ?? BigInt(0)),
+          total_net: BigInt((summary?.total_net ?? BigInt(0)) - BigInt(driverNetReversal)),
+        };
+        await trx.driverPayoutSummary.upsert({ where: { driver_user_id: payment.driver_user_id }, update: nextSummary, create: { driver_user_id: payment.driver_user_id, ...nextSummary } });
+
+        const trip = await trx.trip.findUnique({ where: { id: payment.trip_id } });
+        if (trip?.completed_at) {
+          const y = trip.completed_at.getUTCFullYear();
+          const m = trip.completed_at.getUTCMonth() + 1;
+          const now = new Date();
+          const sameMonth = y === now.getUTCFullYear() && m === now.getUTCMonth() + 1;
+          if (!sameMonth) {
+            await trx.bonusAdjustmentPending.create({ data: { driver_user_id: payment.driver_user_id, trip_id: payment.trip_id, year: y, month: m, amount, reason: 'refund_closed_month', payload_json: { refund_id: refund.id } as any } });
+          }
+        }
+
+        const from7d = new Date(Date.now() - 7 * 24 * 3600 * 1000);
+        const agg = await trx.tripRefund.aggregate({ _sum: { amount: true }, where: { status: RefundStatus.APPROVED, created_at: { gte: from7d }, tripPayment: { driver_user_id: payment.driver_user_id } as any } as any });
+        await this.maybeCreateRefundFraudSignal(payment.driver_user_id, agg._sum.amount ?? 0, payment.amount_total);
+
+        return { refund: await trx.tripRefund.findUnique({ where: { id: refund.id } }), idempotent: false };
+      } catch (error: any) {
+        this.logger.error(`Refund failed for payment=${tripPaymentId}: ${error?.message ?? error}`);
+        await trx.tripRefund.update({ where: { id: refund.id }, data: { status: RefundStatus.FAILED, payload_json: { requested_by: adminUserId, error: String(error?.message ?? error) } as any } });
+        return { refund: await trx.tripRefund.findUnique({ where: { id: refund.id } }), idempotent: false, failed: true };
+      }
+    });
+  }
+
+  async adminFinanceRefunds(filter: { status?: string; driver?: string; from?: string; to?: string }) {
+    return this.prisma.tripRefund.findMany({
+      where: {
+        ...(filter.status ? { status: filter.status as any } : {}),
+        ...(filter.from || filter.to ? { created_at: { ...(filter.from ? { gte: new Date(filter.from) } : {}), ...(filter.to ? { lte: new Date(filter.to) } : {}) } } : {}),
+        ...(filter.driver ? { tripPayment: { driver_user_id: filter.driver } as any } : {}),
+      } as any,
+      orderBy: { created_at: 'desc' },
+      take: 500,
+    });
   }
 }
