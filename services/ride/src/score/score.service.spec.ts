@@ -14,7 +14,7 @@ describe('ScoreService', () => {
       $transaction: jest.fn(async (fn: any) => fn({ userScore: prisma.userScore, scoreEvent: prisma.scoreEvent, userRestriction: prisma.userRestriction })),
     };
     const ws: any = { emitToUser: jest.fn(), emitSosAlert: jest.fn() };
-    const svc = new ScoreService(prisma, ws);
+    const svc = new ScoreService(prisma, ws, { updateBadge: jest.fn() } as any);
     const out = await svc.applyScoreEvent({ user_id: 'u1', actor_type: ActorType.DRIVER, type: ScoreEventType.MANUAL_ADJUST, delta: 20 });
     expect(out.updatedScore.score).toBe(100);
   });
@@ -30,7 +30,7 @@ describe('ScoreService', () => {
       $transaction: jest.fn(async (fn: any) => fn({ userScore: prisma.userScore, scoreEvent: prisma.scoreEvent, userRestriction: prisma.userRestriction })),
     };
     const ws: any = { emitToUser: jest.fn(), emitSosAlert: jest.fn() };
-    const svc = new ScoreService(prisma, ws);
+    const svc = new ScoreService(prisma, ws, { updateBadge: jest.fn() } as any);
     const out = await svc.applyScoreEvent({ user_id: 'u1', actor_type: ActorType.DRIVER, type: ScoreEventType.DRIVER_CANCEL_LATE, delta: -15 });
     expect(out.autoRestriction).toBeTruthy();
     expect(prisma.userRestriction.create).toHaveBeenCalled();
@@ -40,7 +40,7 @@ describe('ScoreService', () => {
     const prisma: any = {
       userRestriction: { findFirst: jest.fn().mockResolvedValue({ status: RestrictionStatus.BLOCKED, ends_at: new Date(Date.now() + 1000) }) },
     };
-    const svc = new ScoreService(prisma, { emitToUser: jest.fn(), emitSosAlert: jest.fn() } as any);
+    const svc = new ScoreService(prisma, { emitToUser: jest.fn(), emitSosAlert: jest.fn() } as any, { updateBadge: jest.fn() } as any);
     await expect(svc.ensureDriverCanGoOnline('d1')).rejects.toBeInstanceOf(ForbiddenException);
   });
 });

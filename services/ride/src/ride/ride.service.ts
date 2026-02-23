@@ -16,6 +16,7 @@ import { createHash } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { RideGateway } from './ride.gateway';
 import { ScoreService } from '../score/score.service';
+import { MeritocracyService } from '../meritocracy/meritocracy.service';
 import {
   AcceptBidDto,
   CancelDto,
@@ -38,7 +39,7 @@ export class RideService implements OnModuleInit {
   private deviationWindow = new Map<string, { over300Since?: number; over700Since?: number; majorCount: number }>();
   private trackingAlertState = new Map<string, 'none' | 'minor' | 'major'>();
 
-  constructor(private readonly prisma: PrismaService, private readonly ws: RideGateway, private readonly scoreService: ScoreService) {}
+  constructor(private readonly prisma: PrismaService, private readonly ws: RideGateway, private readonly scoreService: ScoreService, private readonly merit: MeritocracyService) {}
 
   onModuleInit() {
     setInterval(() => void this.autoMatchExpiredBiddingTrips(), 1000);
@@ -143,18 +144,39 @@ export class RideService implements OnModuleInit {
 
   async presenceOnline(driverUserId: string, dto: PresenceOnlineDto) {
     const gate = await this.scoreService.ensureDriverCanGoOnline(driverUserId);
+    const score = await this.scoreService.getOrCreateUserScore(driverUserId, ActorType.DRIVER);
+    const peak = await this.merit.evaluatePeakGate(driverUserId, ActorType.DRIVER, score.score, score.status);
+    if (!peak.allowed) throw new ForbiddenException('Peak gate denied for driver');
+
+    const premium = await this.merit.getPremiumContext({ lat: dto.lat, lng: dto.lng }, ActorType.DRIVER, score.score);
+    const premiumCfg = (await this.prisma.appConfig.findUnique({ where: { key: 'premium_zones' } }))?.value_json as any ?? { deny_low_driver: false };
+    if (premium.zone && !premium.eligible && premiumCfg.deny_low_driver) {
+      throw new ForbiddenException('Driver score not eligible for premium zone');
+    }
+
     return this.prisma.driverPresence.upsert({
       where: { driver_user_id: driverUserId },
-      update: { is_online: true, is_limited: gate.isLimited, last_lat: dto.lat, last_lng: dto.lng, last_seen_at: new Date(), vehicle_category: dto.category },
-      create: { driver_user_id: driverUserId, is_online: true, is_limited: gate.isLimited, last_lat: dto.lat, last_lng: dto.lng, last_seen_at: new Date(), vehicle_category: dto.category },
+      update: { is_online: true, is_limited: gate.isLimited || peak.limitedMode || (premium.zone ? !premium.eligible : false), last_lat: dto.lat, last_lng: dto.lng, last_seen_at: new Date(), vehicle_category: dto.category },
+      create: { driver_user_id: driverUserId, is_online: true, is_limited: gate.isLimited || peak.limitedMode || (premium.zone ? !premium.eligible : false), last_lat: dto.lat, last_lng: dto.lng, last_seen_at: new Date(), vehicle_category: dto.category },
     });
   }
   async presenceOffline(driverUserId: string) { await this.prisma.driverPresence.updateMany({ where: { driver_user_id: driverUserId }, data: { is_online: false } }); return { message: 'offline' }; }
   async presencePing(driverUserId: string, dto: PresencePingDto) { await this.prisma.driverPresence.updateMany({ where: { driver_user_id: driverUserId }, data: { last_lat: dto.lat, last_lng: dto.lng, last_seen_at: new Date() } }); return { message: 'pong' }; }
 
   async requestTrip(passengerUserId: string, dto: TripRequestDto) {
+    const passengerScore = await this.scoreService.getOrCreateUserScore(passengerUserId, ActorType.PASSENGER);
+    const peakGate = await this.merit.evaluatePeakGate(passengerUserId, ActorType.PASSENGER, passengerScore.score, passengerScore.status);
+    if (!peakGate.allowed) throw new ForbiddenException('Peak gate denied for passenger');
+
+    const premium = await this.merit.getPremiumContext({ lat: dto.origin_lat, lng: dto.origin_lng }, ActorType.PASSENGER, passengerScore.score);
+    const premiumCfg = (await this.prisma.appConfig.findUnique({ where: { key: 'premium_zones' } }))?.value_json as any ?? { deny_low_passenger: false };
+    if (premium.zone && !premium.eligible && premiumCfg.deny_low_passenger) throw new ForbiddenException('Passenger score not eligible for premium zone');
+
+    const isRestrictedPassenger = passengerScore.status === RestrictionStatus.BLOCKED || passengerScore.score < 60;
+    const biddingWindowMs = isRestrictedPassenger ? 25_000 : 45_000;
+
     const price_base = this.computeBasePrice(dto.distance_km, dto.eta_minutes);
-    const expires = new Date(this.nowMs() + 45_000);
+    const expires = new Date(this.nowMs() + biddingWindowMs);
 
     const trip = await this.prisma.trip.create({ data: { passenger_user_id: passengerUserId, status: TripStatus.BIDDING, origin_lat: dto.origin_lat, origin_lng: dto.origin_lng, origin_address: dto.origin_address, dest_lat: dto.dest_lat, dest_lng: dto.dest_lng, dest_address: dto.dest_address, distance_km: dto.distance_km, eta_minutes: dto.eta_minutes, price_base, bidding_expires_at: expires } });
 
@@ -163,19 +185,47 @@ export class RideService implements OnModuleInit {
     await this.prisma.tripSafetyState.create({ data: { trip_id: trip.id, safety_score: 100, deviation_level: DeviationLevel.NONE } });
 
     await this.addEvent(trip.id, passengerUserId, 'trip.created', { price_base, baseline: 'heuristic_mvp' });
-    await this.addEvent(trip.id, passengerUserId, 'trip.bidding.started', { bidding_expires_at: expires.toISOString() });
+    await this.addEvent(trip.id, passengerUserId, 'trip.bidding.started', { bidding_expires_at: expires.toISOString(), merit_mode: isRestrictedPassenger ? 'limited' : 'normal' });
 
     this.ws.emitTrip(trip.id, 'trip.created', { trip_id: trip.id, status: trip.status });
+    this.ws.emitToUser(passengerUserId, 'trip.priority.info', { trip_id: trip.id, mode: isRestrictedPassenger ? 'limited' : 'normal', premium_eligible: premium.eligible });
 
     const presences = await this.prisma.driverPresence.findMany({ where: { is_online: true, vehicle_category: dto.category } });
     const activeNearby = presences.filter((p) => this.onlineRecent(p.last_seen_at));
     const driverIds = activeNearby.map((p) => p.driver_user_id);
-    const scores = await this.prisma.userScore.findMany({ where: { actor_type: ActorType.DRIVER, user_id: { in: driverIds } } });
-    const scoreMap = new Map(scores.map((s) => [s.user_id, s.score]));
-    const prioritized = activeNearby
-      .map((p) => ({ p, score: scoreMap.get(p.driver_user_id) ?? 100, distance: this.haversineKm(dto.origin_lat, dto.origin_lng, p.last_lat ?? dto.origin_lat, p.last_lng ?? dto.origin_lng) }))
-      .sort((a, b) => (b.score - a.score) || (a.distance - b.distance));
-    for (const { p } of prioritized.slice(0, 15)) this.ws.emitToDriver(p.driver_user_id, 'trip.bidding.started', { trip_id: trip.id, origin_address: trip.origin_address, dest_address: trip.dest_address, price_base: trip.price_base, bidding_expires_at: trip.bidding_expires_at });
+    const [scores, weightsCfg, peakNow] = await Promise.all([
+      this.prisma.userScore.findMany({ where: { actor_type: ActorType.DRIVER, user_id: { in: driverIds } } }),
+      this.prisma.appConfig.findUnique({ where: { key: 'matching_weights' } }),
+      this.merit.isPeakNow(),
+    ]);
+    const weights = (weightsCfg?.value_json as any) ?? { w_score: 0.45, w_distance: 0.35, w_reliability: 0.15, w_status: 0.05, w_peak: 0.10, w_zone: 0.10, top_n: 15 };
+
+    const scoreMap = new Map(scores.map((sc) => [sc.user_id, sc]));
+    const maxDistance = Math.max(...activeNearby.map((p) => this.haversineKm(dto.origin_lat, dto.origin_lng, p.last_lat ?? dto.origin_lat, p.last_lng ?? dto.origin_lng)), 1);
+
+    const prioritized = [] as Array<{ p: any; match: number }>;
+    for (const p of activeNearby) {
+      const us = scoreMap.get(p.driver_user_id);
+      if (us?.status === RestrictionStatus.BLOCKED) continue;
+      const driverScore = us?.score ?? 100;
+      const distance = this.haversineKm(dto.origin_lat, dto.origin_lng, p.last_lat ?? dto.origin_lat, p.last_lng ?? dto.origin_lng);
+      const normScore = driverScore / 100;
+      const normDistanceInv = 1 - Math.min(1, distance / maxDistance);
+      const statusBonus = us?.status === RestrictionStatus.NONE ? 1 : us?.status === RestrictionStatus.WARNING ? 0.5 : 0.2;
+      const peakBonus = peakNow && driverScore >= 80 ? 0.3 : 0;
+      const zone = await this.merit.getPremiumContext({ lat: dto.origin_lat, lng: dto.origin_lng }, ActorType.DRIVER, driverScore);
+      const premiumBonus = zone.premium_bonus;
+      const reliability = 1 - Math.min(1, (await this.prisma.scoreEvent.count({ where: { user_id: p.driver_user_id, actor_type: ActorType.DRIVER, type: { in: [ScoreEventType.DRIVER_CANCEL_LATE, ScoreEventType.DRIVER_NO_SHOW] }, created_at: { gte: new Date(Date.now() - 30 * 24 * 3600 * 1000) } } })) / 10);
+
+      const matchingScore = (weights.w_score * normScore) + (weights.w_distance * normDistanceInv) + (weights.w_reliability * reliability) + (weights.w_status * statusBonus) + (weights.w_peak * peakBonus) + (weights.w_zone * premiumBonus);
+      prioritized.push({ p, match: matchingScore });
+    }
+
+    prioritized.sort((a, b) => b.match - a.match);
+    const topN = isRestrictedPassenger ? Math.min(10, weights.top_n ?? 15) : (weights.top_n ?? 15);
+    for (const { p } of prioritized.slice(0, topN)) {
+      this.ws.emitToDriver(p.driver_user_id, 'trip.bidding.started', { trip_id: trip.id, origin_address: trip.origin_address, dest_address: trip.dest_address, price_base: trip.price_base, bidding_expires_at: trip.bidding_expires_at });
+    }
     return trip;
   }
 
@@ -389,6 +439,8 @@ export class RideService implements OnModuleInit {
     await this.addEvent(tripId, driverUserId, 'trip.completed', {});
     await this.scoreService.applyScoreEvent({ user_id: driverUserId, actor_type: ActorType.DRIVER, type: ScoreEventType.TRIP_COMPLETED_CLEAN, delta: 2, trip_id: tripId });
     await this.scoreService.applyScoreEvent({ user_id: trip.passenger_user_id, actor_type: ActorType.PASSENGER, type: ScoreEventType.TRIP_COMPLETED_CLEAN, delta: 1, trip_id: tripId });
+    await this.scoreService.applyRecoveryOnTripCompletion(driverUserId, ActorType.DRIVER);
+    await this.scoreService.applyRecoveryOnTripCompletion(trip.passenger_user_id, ActorType.PASSENGER);
     this.ws.emitTrip(tripId, 'trip.completed', { trip_id: tripId });
     return updated;
   }
@@ -499,6 +551,35 @@ export class RideService implements OnModuleInit {
 
   async adjustScore(userId: string, actorUserId: string, dto: { actor_type: ActorType; delta: number; notes?: string }) {
     return this.scoreService.adjustScore(userId, dto.actor_type, dto.delta, dto.notes, actorUserId);
+  }
+
+  async myBadge(userId: string, actorType: ActorType) {
+    return this.merit.getMyBadge(userId, actorType);
+  }
+
+  async getConfig(key: string) {
+    return this.merit.getConfigByKey(key);
+  }
+
+  async putConfig(key: string, value: unknown) {
+    return this.merit.putConfig(key, value);
+  }
+
+  async listPremiumZones() {
+    return this.prisma.premiumZone.findMany({ orderBy: { created_at: 'desc' } });
+  }
+
+  async createPremiumZone(dto: any) {
+    return this.prisma.premiumZone.create({ data: dto });
+  }
+
+  async patchPremiumZone(id: string, dto: any) {
+    return this.prisma.premiumZone.update({ where: { id }, data: dto });
+  }
+
+  async deletePremiumZone(id: string) {
+    await this.prisma.premiumZone.delete({ where: { id } });
+    return { message: 'deleted' };
   }
 
   async listTripsRecent() { return this.prisma.trip.findMany({ orderBy: { created_at: 'desc' }, take: 100 }); }

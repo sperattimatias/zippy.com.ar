@@ -1,4 +1,4 @@
-import { ActorType, CancelReason, GeoZoneType, RestrictionReason, RestrictionStatus, SafetyAlertStatus, TripStatus, VehicleCategory } from '@prisma/client';
+import { ActorType, CancelReason, GeoZoneType, PremiumZoneType, RestrictionReason, RestrictionStatus, SafetyAlertStatus, TripStatus, VehicleCategory } from '@prisma/client';
 import { IsArray, IsBoolean, IsDateString, IsEnum, IsInt, IsNumber, IsOptional, IsString, Max, Min } from 'class-validator';
 
 export class PresenceOnlineDto { @IsNumber() lat!: number; @IsNumber() lng!: number; @IsEnum(VehicleCategory) category!: VehicleCategory; }
@@ -35,6 +35,28 @@ export class GeoZonePatchDto {
   @IsOptional() @IsEnum(GeoZoneType) type?: GeoZoneType;
   @IsOptional() @IsArray() polygon_json?: Array<{ lat: number; lng: number }>;
   @IsOptional() @IsBoolean() is_active?: boolean;
+}
+
+export class PremiumZoneCreateDto {
+  @IsString() name!: string;
+  @IsEnum(PremiumZoneType) type!: PremiumZoneType;
+  @IsArray() polygon_json!: Array<{ lat: number; lng: number }>;
+  @IsOptional() @IsBoolean() is_active?: boolean;
+  @IsOptional() @IsInt() min_driver_score?: number;
+  @IsOptional() @IsInt() min_passenger_score?: number;
+}
+
+export class PremiumZonePatchDto {
+  @IsOptional() @IsString() name?: string;
+  @IsOptional() @IsEnum(PremiumZoneType) type?: PremiumZoneType;
+  @IsOptional() @IsArray() polygon_json?: Array<{ lat: number; lng: number }>;
+  @IsOptional() @IsBoolean() is_active?: boolean;
+  @IsOptional() @IsInt() min_driver_score?: number;
+  @IsOptional() @IsInt() min_passenger_score?: number;
+}
+
+export class ConfigPutDto {
+  value_json!: unknown;
 }
 
 export class SafetyAlertUpdateDto {

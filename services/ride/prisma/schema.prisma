@@ -97,6 +97,7 @@ enum ScoreEventType {
   TRACKING_LOST_MAJOR
   OTP_FAILED_MULTIPLE
   MANUAL_ADJUST
+  TRIP_RECOVERY_BONUS
 }
 
 enum RestrictionStatus {
@@ -111,6 +112,20 @@ enum RestrictionReason {
   SAFETY_PATTERN
   FRAUD_PATTERN
   MANUAL_ADMIN
+}
+
+enum PremiumZoneType {
+  PREMIUM
+  EVENT
+  TERMINAL
+  HIGH_DEMAND
+}
+
+enum BadgeTier {
+  EXCELLENT
+  TRUSTED
+  WATCHLIST
+  RESTRICTED
 }
 
 model Trip {
@@ -321,4 +336,47 @@ model UserRestriction {
 
   @@index([user_id, ends_at])
   @@index([status])
+}
+
+
+model AppConfig {
+  key        String   @id
+  value_json Json
+  updated_at DateTime @updatedAt
+}
+
+model PremiumZone {
+  id                 String          @id @default(cuid())
+  name               String
+  type               PremiumZoneType
+  polygon_json       Json
+  is_active          Boolean         @default(true)
+  min_driver_score   Int             @default(75)
+  min_passenger_score Int            @default(60)
+  created_at         DateTime        @default(now())
+  updated_at         DateTime        @updatedAt
+
+  @@index([type, is_active])
+}
+
+model UserBadge {
+  id         String    @id @default(cuid())
+  user_id    String
+  actor_type ActorType
+  tier       BadgeTier
+  label      String
+  updated_at DateTime  @updatedAt
+
+  @@unique([user_id, actor_type])
+}
+
+model PeakGateEvent {
+  id         String    @id @default(cuid())
+  user_id    String
+  actor_type ActorType
+  allowed    Boolean
+  reason     String
+  created_at DateTime  @default(now())
+
+  @@index([user_id, created_at])
 }

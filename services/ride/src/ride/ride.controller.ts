@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Query, Req, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { JwtAccessGuard } from '../common/jwt-access.guard';
 import { Roles } from '../common/roles.decorator';
@@ -22,6 +22,9 @@ import {
   AdminScoreActorDto,
   CreateRestrictionDto,
   AdjustScoreDto,
+  ConfigPutDto,
+  PremiumZoneCreateDto,
+  PremiumZonePatchDto,
 } from '../dto/ride.dto';
 
 type AuthReq = { user: { sub: string; roles: string[] } };
@@ -32,6 +35,11 @@ type AuthReq = { user: { sub: string; roles: string[] } };
 @UseGuards(JwtAccessGuard, RolesGuard)
 export class RideController {
   constructor(private readonly rideService: RideService) {}
+
+  @Get('public/badges/me')
+  myBadge(@Req() req: AuthReq, @Query() query: AdminScoreActorDto) {
+    return this.rideService.myBadge(req.user.sub, query.actor_type);
+  }
 
   @Post('drivers/presence/online')
   @Roles('driver')
@@ -150,5 +158,30 @@ export class RideController {
   adminAdjustScore(@Req() req: AuthReq, @Param('user_id') userId: string, @Body() dto: AdjustScoreDto) {
     return this.rideService.adjustScore(userId, req.user.sub, dto);
   }
+
+
+  @Get('admin/config/:key')
+  @Roles('admin', 'sos')
+  adminGetConfig(@Param('key') key: string) { return this.rideService.getConfig(key); }
+
+  @Put('admin/config/:key')
+  @Roles('admin', 'sos')
+  adminPutConfig(@Param('key') key: string, @Body() dto: ConfigPutDto) { return this.rideService.putConfig(key, dto.value_json); }
+
+  @Post('admin/premium-zones')
+  @Roles('admin', 'sos')
+  adminCreatePremiumZone(@Body() dto: PremiumZoneCreateDto) { return this.rideService.createPremiumZone(dto); }
+
+  @Get('admin/premium-zones')
+  @Roles('admin', 'sos')
+  adminListPremiumZones() { return this.rideService.listPremiumZones(); }
+
+  @Patch('admin/premium-zones/:id')
+  @Roles('admin', 'sos')
+  adminPatchPremiumZone(@Param('id') id: string, @Body() dto: PremiumZonePatchDto) { return this.rideService.patchPremiumZone(id, dto); }
+
+  @Delete('admin/premium-zones/:id')
+  @Roles('admin', 'sos')
+  adminDeletePremiumZone(@Param('id') id: string) { return this.rideService.deletePremiumZone(id); }
 
 }

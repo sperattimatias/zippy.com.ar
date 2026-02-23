@@ -24,6 +24,13 @@ Monorepo rideshare con Auth centralizado, KYC de conductores y Ride Core con mat
 - Priorización de matching por score.
 - Restricciones manuales y ajustes auditables.
 
+## Sprint 6 (Meritocracy Layer)
+- Badges públicos (sin score numérico).
+- Gate de horarios pico para drivers/passengers.
+- Zonas premium con elegibilidad por score.
+- Matching multicriterio configurable.
+- Recovery de score con reglas diarias.
+
 ## Comandos
 ```bash
 cp .env.example .env
@@ -38,6 +45,8 @@ docker compose -f infra/docker-compose.yml ps
   - `POST /api/trips/:id/accept-bid`
   - `POST /api/trips/:id/rate`
   - `POST /api/trips/:id/cancel`
+- Public:
+  - `GET /api/public/badges/me`
 - Driver:
   - `POST /api/drivers/presence/online`
   - `POST /api/drivers/presence/offline`
@@ -64,6 +73,12 @@ docker compose -f infra/docker-compose.yml ps
   - `POST /api/admin/users/:user_id/restrictions`
   - `POST /api/admin/restrictions/:id/lift`
   - `POST /api/admin/users/:user_id/score/adjust`
+  - `GET /api/admin/config/:key`
+  - `PUT /api/admin/config/:key`
+  - `POST /api/admin/premium-zones`
+  - `GET /api/admin/premium-zones`
+  - `PATCH /api/admin/premium-zones/:id`
+  - `DELETE /api/admin/premium-zones/:id`
 
 ## Curl ejemplo
 ```bash
@@ -103,6 +118,8 @@ curl -i -X POST https://api.zippy.local/api/trips/<TRIP_ID>/driver/verify-otp \
 - `/admin/trips/[id]`: detalle, eventos, locations y sección safety.
 - `/admin/geozones`: CRUD de zonas (MVP con JSON).
 - `/admin/safety-alerts`: cola de alertas con acciones.
+- `/admin/merit/config`: editor de configuración Meritocracy.
+- `/admin/premium-zones`: CRUD de zonas premium.
 
 ## Docs
 - `docs/RIDE_FLOW.md`
@@ -116,3 +133,7 @@ curl -i -X POST https://api.zippy.local/api/trips/<TRIP_ID>/driver/verify-otp \
 - `docs/ALERTS.md`
 - `docs/ZIPPY_SCORE.md`
 - `docs/RESTRICTIONS.md`
+- `docs/MATCHING_WEIGHTS.md`
+- `docs/PREMIUM_ZONES.md`
+- `docs/PEAK_HOURS.md`
+- `docs/MERITOCRACY.md`

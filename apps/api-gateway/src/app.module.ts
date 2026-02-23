@@ -36,6 +36,9 @@ const adminSafetyAlertsRoutes: RouteInfo[] = [{ path: 'api/admin/safety-alerts/(
 const adminScoresRoutes: RouteInfo[] = [{ path: 'api/admin/scores/(.*)', method: RequestMethod.ALL }, { path: 'api/admin/scores', method: RequestMethod.ALL }];
 const adminUserScoreRoutes: RouteInfo[] = [{ path: 'api/admin/users/:user_id/score', method: RequestMethod.ALL }, { path: 'api/admin/users/:user_id/score/adjust', method: RequestMethod.ALL }, { path: 'api/admin/users/:user_id/restrictions', method: RequestMethod.ALL }];
 const adminRestrictionsRoutes: RouteInfo[] = [{ path: 'api/admin/restrictions/:id/lift', method: RequestMethod.ALL }];
+const adminConfigRoutes: RouteInfo[] = [{ path: 'api/admin/config/:key', method: RequestMethod.ALL }];
+const adminPremiumZoneRoutes: RouteInfo[] = [{ path: 'api/admin/premium-zones/(.*)', method: RequestMethod.ALL }, { path: 'api/admin/premium-zones', method: RequestMethod.ALL }];
+const publicBadgeRoutes: RouteInfo[] = [{ path: 'api/public/badges/me', method: RequestMethod.GET }];
 const paymentRoutes: RouteInfo[] = [{ path: 'api/payments/(.*)', method: RequestMethod.ALL }];
 
 const passengerTripRoutes: RouteInfo[] = [
@@ -92,8 +95,8 @@ const driverTripRoutes: RouteInfo[] = [
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    consumer.apply(JwtClaimsMiddleware, RequirePassengerOrDriverMiddleware).forRoutes(...driverRoutes);
-    consumer.apply(JwtClaimsMiddleware, RequireAdminOrSosMiddleware).forRoutes(...adminDriverRoutes, ...adminTripsRoutes, ...adminGeoZonesRoutes, ...adminSafetyAlertsRoutes, ...adminScoresRoutes, ...adminUserScoreRoutes, ...adminRestrictionsRoutes);
+    consumer.apply(JwtClaimsMiddleware, RequirePassengerOrDriverMiddleware).forRoutes(...driverRoutes, ...publicBadgeRoutes);
+    consumer.apply(JwtClaimsMiddleware, RequireAdminOrSosMiddleware).forRoutes(...adminDriverRoutes, ...adminTripsRoutes, ...adminGeoZonesRoutes, ...adminSafetyAlertsRoutes, ...adminScoresRoutes, ...adminUserScoreRoutes, ...adminRestrictionsRoutes, ...adminConfigRoutes, ...adminPremiumZoneRoutes);
     consumer.apply(JwtClaimsMiddleware, RequireDriverMiddleware).forRoutes(...driverPresenceRoutes);
     consumer.apply(JwtClaimsMiddleware, RequirePassengerMiddleware).forRoutes(...passengerTripRoutes);
     consumer.apply(JwtClaimsMiddleware, RequireDriverMiddleware).forRoutes(...driverTripRoutes);
@@ -162,6 +165,24 @@ export class AppModule implements NestModule {
         createProxyMiddleware({ target: process.env.RIDE_SERVICE_URL, changeOrigin: true, pathRewrite: { '^/api/admin/restrictions': '/admin/restrictions' } }),
       )
       .forRoutes(...adminRestrictionsRoutes);
+
+    consumer
+      .apply(
+        createProxyMiddleware({ target: process.env.RIDE_SERVICE_URL, changeOrigin: true, pathRewrite: { '^/api/admin/config': '/admin/config' } }),
+      )
+      .forRoutes(...adminConfigRoutes);
+
+    consumer
+      .apply(
+        createProxyMiddleware({ target: process.env.RIDE_SERVICE_URL, changeOrigin: true, pathRewrite: { '^/api/admin/premium-zones': '/admin/premium-zones' } }),
+      )
+      .forRoutes(...adminPremiumZoneRoutes);
+
+    consumer
+      .apply(
+        createProxyMiddleware({ target: process.env.RIDE_SERVICE_URL, changeOrigin: true, pathRewrite: { '^/api/public/badges': '/public/badges' } }),
+      )
+      .forRoutes(...publicBadgeRoutes);
 
     consumer
       .apply(

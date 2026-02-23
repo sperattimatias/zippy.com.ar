@@ -23,6 +23,8 @@ export default function DashboardPage() {
         <Link href="/admin/geozones">GeoZones</Link>
         <Link href="/admin/safety-alerts">Safety Alerts</Link>
         <Link href="/admin/scores">Scores</Link>
+        <Link href="/admin/merit/config">Merit Config</Link>
+        <Link href="/admin/premium-zones">Premium Zones</Link>
       </div>
 
     </main>

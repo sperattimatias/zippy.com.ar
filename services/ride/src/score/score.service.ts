@@ -2,10 +2,11 @@ import { ForbiddenException, Injectable } from '@nestjs/common';
 import { ActorType, RestrictionReason, RestrictionStatus, ScoreEventType } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { RideGateway } from '../ride/ride.gateway';
+import { MeritocracyService } from '../meritocracy/meritocracy.service';
 
 @Injectable()
 export class ScoreService {
-  constructor(private readonly prisma: PrismaService, private readonly ws: RideGateway) {}
+  constructor(private readonly prisma: PrismaService, private readonly ws: RideGateway, private readonly merit: MeritocracyService) {}
 
   async getOrCreateUserScore(userId: string, actorType: ActorType) {
     return this.prisma.userScore.upsert({
@@ -110,6 +111,7 @@ export class ScoreService {
       delta: input.delta,
     });
 
+    await this.merit.updateBadge(input.user_id, input.actor_type, result.updatedScore.score);
     return result;
   }
 
@@ -126,16 +128,20 @@ export class ScoreService {
       orderBy: { created_at: 'desc' },
     });
     const byKey = new Map(restrictions.map((r) => [`${r.user_id}:${r.actor_type}`, r]));
-    return rows.map((r) => ({ ...r, restriction_active: byKey.get(`${r.user_id}:${r.actor_type}`) ?? null }));
+    const badges = await this.prisma.userBadge.findMany({ where: { OR: rows.map((r) => ({ user_id: r.user_id, actor_type: r.actor_type })) } });
+    const badgeByKey = new Map(badges.map((b) => [`${b.user_id}:${b.actor_type}`, b]));
+
+    return rows.map((r) => ({ ...r, badge: badgeByKey.get(`${r.user_id}:${r.actor_type}`) ?? null, restriction_active: byKey.get(`${r.user_id}:${r.actor_type}`) ?? null }));
   }
 
   async getUserScoreDetail(userId: string, actorType: ActorType) {
     const score = await this.getOrCreateUserScore(userId, actorType);
-    const [events, restrictions] = await Promise.all([
+    const [events, restrictions, badge] = await Promise.all([
       this.prisma.scoreEvent.findMany({ where: { user_id: userId, actor_type: actorType }, orderBy: { created_at: 'desc' }, take: 50 }),
       this.prisma.userRestriction.findMany({ where: { user_id: userId, actor_type: actorType }, orderBy: { created_at: 'desc' }, take: 50 }),
+      this.prisma.userBadge.findUnique({ where: { user_id_actor_type: { user_id: userId, actor_type: actorType } } }),
     ]);
-    return { score, events, restrictions };
+    return { score, badge, events, restrictions };
   }
 
   async createManualRestriction(input: {
@@ -193,5 +199,33 @@ export class ScoreService {
       payload: { notes: notes ?? null, by: actorUserId },
     });
     return result.updatedScore;
+  }
+
+  async applyRecoveryOnTripCompletion(userId: string, actorType: ActorType) {
+    const rules = (await this.prisma.appConfig.findUnique({ where: { key: 'recovery_rules' } }))?.value_json as any ?? { limited_clean_trips: 5, limited_bonus: 5, blocked_clean_trips: 3, daily_cap: 6 };
+    const score = await this.getOrCreateUserScore(userId, actorType);
+    if (![RestrictionStatus.LIMITED, RestrictionStatus.BLOCKED].includes(score.status)) return;
+
+    const since = new Date(Date.now() - 30 * 24 * 3600 * 1000);
+    const clean = await this.prisma.scoreEvent.count({ where: { user_id: userId, actor_type: actorType, type: ScoreEventType.TRIP_COMPLETED_CLEAN, created_at: { gte: since } } });
+
+    const dayStart = new Date(); dayStart.setHours(0, 0, 0, 0);
+    const gainedToday = await this.prisma.scoreEvent.aggregate({ _sum: { delta: true }, where: { user_id: userId, actor_type: actorType, type: ScoreEventType.TRIP_RECOVERY_BONUS, created_at: { gte: dayStart } } });
+    const used = gainedToday._sum.delta ?? 0;
+    const cap = rules.daily_cap ?? 6;
+    if (used >= cap) return;
+
+    if (score.status === RestrictionStatus.LIMITED && clean >= (rules.limited_clean_trips ?? 5)) {
+      const delta = Math.min(rules.limited_bonus ?? 5, cap - used);
+      if (delta > 0) await this.applyScoreEvent({ user_id: userId, actor_type: actorType, type: ScoreEventType.TRIP_RECOVERY_BONUS, delta, payload: { reason: 'limited_recovery' } });
+    }
+
+    if (score.status === RestrictionStatus.BLOCKED) {
+      const auto = await this.prisma.userRestriction.findFirst({ where: { user_id: userId, actor_type: actorType, reason: RestrictionReason.LOW_SCORE_AUTO }, orderBy: { created_at: 'desc' } });
+      if (auto && auto.ends_at && auto.ends_at <= new Date() && clean >= (rules.blocked_clean_trips ?? 3)) {
+        const delta = Math.min(5, cap - used);
+        if (delta > 0) await this.applyScoreEvent({ user_id: userId, actor_type: actorType, type: ScoreEventType.TRIP_RECOVERY_BONUS, delta, payload: { reason: 'blocked_recovery' } });
+      }
+    }
   }
 }
