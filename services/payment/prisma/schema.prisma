@@ -1,0 +1,185 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum PaymentStatus {
+  CREATED
+  PENDING
+  APPROVED
+  REJECTED
+  REFUNDED
+}
+
+enum SettlementStatus {
+  NOT_SETTLED
+  SETTLED
+  FAILED
+}
+
+enum LedgerEntryType {
+  TRIP_REVENUE
+  PLATFORM_COMMISSION
+  DRIVER_EARNING
+  BONUS_DISCOUNT
+  REFUND
+}
+
+enum LedgerActor {
+  DRIVER
+  PLATFORM
+}
+
+enum TripStatus {
+  DRAFT
+  REQUESTED
+  BIDDING
+  MATCHED
+  DRIVER_EN_ROUTE
+  ARRIVED
+  OTP_PENDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED_BY_PASSENGER
+  CANCELLED_BY_DRIVER
+  EXPIRED_NO_DRIVER
+}
+
+enum BonusStatus {
+  ACTIVE
+  EXPIRED
+  REVOKED
+}
+
+enum HoldType {
+  PAYOUT_HOLD
+  FEATURE_LIMIT
+  ACCOUNT_BLOCK
+}
+
+enum HoldStatus {
+  ACTIVE
+  RELEASED
+  EXPIRED
+}
+
+model TripPayment {
+  id                     String           @id @default(cuid())
+  trip_id                String           @unique
+  passenger_user_id      String
+  driver_user_id         String
+  amount_total           Int
+  currency               String           @default("ARS")
+  commission_bps_applied Int
+  commission_amount      Int
+  driver_net_amount      Int
+  mp_payment_id          String?
+  mp_preference_id       String?
+  status                 PaymentStatus    @default(CREATED)
+  settlement_status      SettlementStatus @default(NOT_SETTLED)
+  created_at             DateTime         @default(now())
+  updated_at             DateTime         @updatedAt
+
+  @@index([driver_user_id, created_at])
+}
+
+model LedgerEntry {
+  id            String          @id @default(cuid())
+  actor_type    LedgerActor
+  actor_user_id String?
+  trip_id       String?
+  type          LedgerEntryType
+  amount        Int
+  reference_id  String?
+  payload_json  Json            @default("{}")
+  created_at    DateTime        @default(now())
+
+  @@index([actor_type, actor_user_id, created_at])
+}
+
+model DriverPayoutSummary {
+  driver_user_id       String   @id
+  total_gross          BigInt   @default(0)
+  total_commission     BigInt   @default(0)
+  total_bonus_discount BigInt   @default(0)
+  total_net            BigInt   @default(0)
+  updated_at           DateTime @updatedAt
+}
+
+model Trip {
+  id                String    @id
+  passenger_user_id String
+  driver_user_id    String?
+  status            TripStatus
+  price_final       Int?
+  currency          String
+  completed_at      DateTime?
+
+  @@map("Trip")
+}
+
+model CommissionPolicy {
+  id         String   @id
+  key        String   @unique
+  value_json Json
+  updated_at DateTime
+
+  @@map("CommissionPolicy")
+}
+
+model MonthlyBonusLedger {
+  id             String     @id
+  driver_user_id String
+  year           Int
+  month          Int
+  discount_bps   Int
+  status         BonusStatus
+  starts_at      DateTime
+  ends_at        DateTime
+
+  @@map("MonthlyBonusLedger")
+}
+
+model DriverProfile {
+  id            String  @id
+  user_id       String  @unique
+  mp_account_id String?
+
+  @@map("DriverProfile")
+}
+
+
+model UserHold {
+  id         String     @id
+  user_id    String
+  hold_type  HoldType
+  status     HoldStatus
+  reason     String
+  starts_at  DateTime
+  ends_at    DateTime?
+  payload_json Json
+
+  @@map("UserHold")
+}
+
+
+enum ActorType {
+  DRIVER
+  PASSENGER
+}
+
+model ClientFingerprint {
+  id                      String    @id
+  user_id                 String
+  actor_type              ActorType
+  ip_hash                 String
+  user_agent_hash         String
+  device_fingerprint_hash String?
+  created_at              DateTime
+
+  @@map("ClientFingerprint")
+}
