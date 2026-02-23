@@ -1,4 +1,4 @@
-import { ActorType, CancelReason, GeoZoneType, LevelTier, PremiumZoneType, RestrictionReason, RestrictionStatus, SafetyAlertStatus, VehicleCategory } from '@prisma/client';
+import { ActorType, CancelReason, FraudCaseStatus, FraudSeverity, GeoZoneType, HoldType, LevelTier, PremiumZoneType, RestrictionReason, RestrictionStatus, SafetyAlertStatus, VehicleCategory } from '@prisma/client';
 import { IsArray, IsBoolean, IsDateString, IsEnum, IsInt, IsNumber, IsOptional, IsString, Max, Min } from 'class-validator';
 
 export class PresenceOnlineDto { @IsNumber() lat!: number; @IsNumber() lng!: number; @IsEnum(VehicleCategory) category!: VehicleCategory; }
@@ -111,4 +111,24 @@ export class AdminBonusesFilterDto {
 
 export class BonusRevokeDto {
   @IsString() reason!: string;
+}
+
+
+export class FraudCaseFilterDto {
+  @IsOptional() @IsEnum(FraudCaseStatus) status?: FraudCaseStatus;
+  @IsOptional() @IsEnum(FraudSeverity) severity?: FraudSeverity;
+  @IsOptional() @IsString() q?: string;
+}
+
+export class FraudCaseActionDto {
+  @IsOptional() @IsString() notes?: string;
+  @IsOptional() @IsString() assigned_to_user_id?: string;
+}
+
+export class CreateHoldDto {
+  @IsString() user_id!: string;
+  @IsEnum(HoldType) hold_type!: HoldType;
+  @IsString() reason!: string;
+  @IsOptional() @IsDateString() ends_at?: string;
+  @IsOptional() notes?: unknown;
 }

@@ -153,3 +153,10 @@ curl -i -X POST https://api.zippy.local/api/trips/<TRIP_ID>/driver/verify-otp \
 - Driver finance endpoints: `/api/payments/drivers/finance/summary`, `/api/payments/drivers/finance/trips`.
 - Admin finance endpoints: `/api/payments/admin/finance/trips`, `/api/payments/admin/finance/ledger`, `/api/payments/admin/finance/reconciliation`.
 - Docs: `docs/PAYMENTS.md`, `docs/LEDGER.md`.
+
+
+## Sprint 9 — Financial Anti-Fraud + Holds
+- Ride service adds fraud entities/signals/cases/risk score/holds and admin review endpoints under `/api/admin/fraud/*`.
+- Fingerprints are hashed (IP/UA/device) and persisted for trip request, bid and payment preference actions.
+- Payment settlement integrates payout holds (`PAYOUT_HOLD`) and keeps held approvals as `NOT_SETTLED`.
+- Docs: `docs/ANTIFRAUD.md`, `docs/HOLDS.md`.

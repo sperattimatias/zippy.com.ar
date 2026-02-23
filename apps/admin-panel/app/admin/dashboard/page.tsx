@@ -29,6 +29,8 @@ export default function DashboardPage() {
         <Link href="/admin/performance">Performance</Link>
         <Link href="/admin/bonuses">Bonuses</Link>
         <Link href="/admin/policies">Policies</Link>
+        <Link href="/admin/fraud/cases">Fraud Cases</Link>
+        <Link href="/admin/fraud/config">Fraud Config</Link>
       </div>
 
     </main>

@@ -38,6 +38,7 @@ const adminUserScoreRoutes: RouteInfo[] = [{ path: 'api/admin/users/:user_id/sco
 const adminRestrictionsRoutes: RouteInfo[] = [{ path: 'api/admin/restrictions/:id/lift', method: RequestMethod.ALL }];
 const adminConfigRoutes: RouteInfo[] = [{ path: 'api/admin/config/:key', method: RequestMethod.ALL }];
 const adminPremiumZoneRoutes: RouteInfo[] = [{ path: 'api/admin/premium-zones/(.*)', method: RequestMethod.ALL }, { path: 'api/admin/premium-zones', method: RequestMethod.ALL }];
+const adminFraudRoutes: RouteInfo[] = [{ path: 'api/admin/fraud/(.*)', method: RequestMethod.ALL }];
 const publicBadgeRoutes: RouteInfo[] = [{ path: 'api/public/badges/me', method: RequestMethod.GET }];
 const adminLevelsRoutes: RouteInfo[] = [{ path: 'api/admin/levels', method: RequestMethod.ALL }];
 const adminMonthlyPerformanceRoutes: RouteInfo[] = [{ path: 'api/admin/monthly-performance', method: RequestMethod.ALL }];
@@ -55,6 +56,15 @@ const passengerTripRoutes: RouteInfo[] = [
   { path: 'api/trips/:id/rate', method: RequestMethod.POST },
   { path: 'api/trips/:id/cancel', method: RequestMethod.POST },
 ];
+const attachClientFingerprintHeaders = (req: any, _res: any, next: any) => {
+  const xff = req.headers['x-forwarded-for'];
+  const ip = Array.isArray(xff) ? xff[0] : (typeof xff === 'string' ? xff.split(',')[0].trim() : req.ip);
+  req.headers['x-client-ip'] = req.headers['x-client-ip'] ?? ip ?? '';
+  req.headers['x-client-ua'] = req.headers['x-client-ua'] ?? req.headers['user-agent'] ?? '';
+  if (req.headers['x-device-fp']) req.headers['x-device-fp'] = req.headers['x-device-fp'];
+  next();
+};
+
 const driverTripRoutes: RouteInfo[] = [
   { path: 'api/trips/:id/bids', method: RequestMethod.POST },
   { path: 'api/trips/:id/driver/en-route', method: RequestMethod.POST },
@@ -104,10 +114,11 @@ const driverTripRoutes: RouteInfo[] = [
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
     consumer.apply(JwtClaimsMiddleware, RequirePassengerOrDriverMiddleware).forRoutes(...driverRoutes, ...publicBadgeRoutes);
-    consumer.apply(JwtClaimsMiddleware, RequireAdminOrSosMiddleware).forRoutes(...adminDriverRoutes, ...adminTripsRoutes, ...adminGeoZonesRoutes, ...adminSafetyAlertsRoutes, ...adminScoresRoutes, ...adminUserScoreRoutes, ...adminRestrictionsRoutes, ...adminConfigRoutes, ...adminPremiumZoneRoutes, ...adminLevelsRoutes, ...adminMonthlyPerformanceRoutes, ...adminBonusesRoutes, ...adminPoliciesRoutes);
+    consumer.apply(JwtClaimsMiddleware, RequireAdminOrSosMiddleware).forRoutes(...adminDriverRoutes, ...adminTripsRoutes, ...adminGeoZonesRoutes, ...adminSafetyAlertsRoutes, ...adminScoresRoutes, ...adminUserScoreRoutes, ...adminRestrictionsRoutes, ...adminConfigRoutes, ...adminPremiumZoneRoutes, ...adminFraudRoutes, ...adminLevelsRoutes, ...adminMonthlyPerformanceRoutes, ...adminBonusesRoutes, ...adminPoliciesRoutes);
     consumer.apply(JwtClaimsMiddleware, RequireDriverMiddleware).forRoutes(...driverPresenceRoutes, ...driverCommissionRoutes);
     consumer.apply(JwtClaimsMiddleware, RequirePassengerMiddleware).forRoutes(...passengerTripRoutes);
     consumer.apply(JwtClaimsMiddleware, RequireDriverMiddleware).forRoutes(...driverTripRoutes);
+    consumer.apply(attachClientFingerprintHeaders).forRoutes(...tripsRoutes, ...paymentRoutes);
     consumer.apply(JwtClaimsMiddleware, RequirePassengerMiddleware).forRoutes(...paymentCreatePreferenceRoutes);
     consumer.apply(JwtClaimsMiddleware, RequireDriverMiddleware).forRoutes(...paymentDriverFinanceRoutes);
     consumer.apply(JwtClaimsMiddleware, RequireAdminOrSosMiddleware).forRoutes(...paymentAdminFinanceRoutes);
@@ -188,6 +199,12 @@ export class AppModule implements NestModule {
         createProxyMiddleware({ target: process.env.RIDE_SERVICE_URL, changeOrigin: true, pathRewrite: { '^/api/admin/premium-zones': '/admin/premium-zones' } }),
       )
       .forRoutes(...adminPremiumZoneRoutes);
+
+    consumer
+      .apply(
+        createProxyMiddleware({ target: process.env.RIDE_SERVICE_URL, changeOrigin: true, pathRewrite: { '^/api/admin/fraud': '/admin/fraud' } }),
+      )
+      .forRoutes(...adminFraudRoutes);
 
     consumer
       .apply(

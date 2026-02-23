@@ -1,5 +1,5 @@
 import { BadRequestException, ForbiddenException, Injectable, Logger } from '@nestjs/common';
-import { createHmac } from 'crypto';
+import { createHmac, createHash } from 'crypto';
 import { LedgerActor, LedgerEntryType, PaymentStatus, SettlementStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -23,7 +23,25 @@ export class PaymentsService {
     return { default_bps: defaultBps, discount_bps: discount, effective_bps: Math.max(defaultBps - discount, floor) };
   }
 
-  async createPreference(passengerUserId: string, tripId: string) {
+  private hash(v?: string | null) { return v ? createHash('sha256').update(v).digest('hex') : null; }
+
+  private async captureFingerprint(userId: string, headers?: { ip?: string; ua?: string; device?: string }) {
+    await this.prisma.clientFingerprint.create({
+      data: {
+        id: `fp_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        user_id: userId,
+        actor_type: 'PASSENGER' as any,
+        ip_hash: this.hash(headers?.ip) ?? this.hash('unknown')!,
+        user_agent_hash: this.hash(headers?.ua) ?? this.hash('unknown')!,
+        device_fingerprint_hash: this.hash(headers?.device),
+        created_at: new Date(),
+      },
+    });
+  }
+
+  async createPreference(passengerUserId: string, tripId: string, headers?: { ip?: string; ua?: string; device?: string }) {
+
+    await this.captureFingerprint(passengerUserId, headers);
     const trip = await this.prisma.trip.findUnique({ where: { id: tripId } });
     if (!trip) throw new BadRequestException('Trip not found');
     if (trip.status !== 'COMPLETED') throw new BadRequestException('Trip must be completed');
@@ -88,17 +106,18 @@ export class PaymentsService {
 
     if (normalizedStatus === 'APPROVED') {
       await this.prisma.$transaction(async (trx) => {
-        await trx.tripPayment.update({ where: { id: tripPayment.id }, data: { status: PaymentStatus.APPROVED, settlement_status: SettlementStatus.SETTLED, mp_payment_id: paymentId ?? tripPayment.mp_payment_id } });
+        const payoutHold = await trx.userHold.findFirst({ where: { user_id: tripPayment.driver_user_id, hold_type: 'PAYOUT_HOLD' as any, status: 'ACTIVE' as any, OR: [{ ends_at: null }, { ends_at: { gt: new Date() } }] } });
+        await trx.tripPayment.update({ where: { id: tripPayment.id }, data: { status: PaymentStatus.APPROVED, settlement_status: payoutHold ? SettlementStatus.NOT_SETTLED : SettlementStatus.SETTLED, mp_payment_id: paymentId ?? tripPayment.mp_payment_id } });
 
         const existing = await trx.ledgerEntry.count({ where: { trip_id: tripPayment.trip_id, type: LedgerEntryType.DRIVER_EARNING } });
         if (existing > 0) return;
 
         await trx.ledgerEntry.createMany({
           data: [
-            { actor_type: LedgerActor.PLATFORM, actor_user_id: null, trip_id: tripPayment.trip_id, type: LedgerEntryType.PLATFORM_COMMISSION, amount: tripPayment.commission_amount, reference_id: paymentId ?? null },
-            { actor_type: LedgerActor.DRIVER, actor_user_id: tripPayment.driver_user_id, trip_id: tripPayment.trip_id, type: LedgerEntryType.DRIVER_EARNING, amount: tripPayment.driver_net_amount, reference_id: paymentId ?? null },
-            { actor_type: LedgerActor.DRIVER, actor_user_id: tripPayment.driver_user_id, trip_id: tripPayment.trip_id, type: LedgerEntryType.TRIP_REVENUE, amount: tripPayment.amount_total, reference_id: paymentId ?? null },
-            { actor_type: LedgerActor.PLATFORM, actor_user_id: null, trip_id: tripPayment.trip_id, type: LedgerEntryType.BONUS_DISCOUNT, amount: Math.max(0, Math.floor((tripPayment.amount_total * ((await this.getActiveCommissionBps(tripPayment.driver_user_id, new Date())).discount_bps)) / 10000)), reference_id: paymentId ?? null },
+            { actor_type: LedgerActor.PLATFORM, actor_user_id: null, trip_id: tripPayment.trip_id, type: LedgerEntryType.PLATFORM_COMMISSION, amount: tripPayment.commission_amount, reference_id: paymentId ?? null, payload_json: { held: !!payoutHold } as any },
+            { actor_type: LedgerActor.DRIVER, actor_user_id: tripPayment.driver_user_id, trip_id: tripPayment.trip_id, type: LedgerEntryType.DRIVER_EARNING, amount: tripPayment.driver_net_amount, reference_id: paymentId ?? null, payload_json: { held: !!payoutHold } as any },
+            { actor_type: LedgerActor.DRIVER, actor_user_id: tripPayment.driver_user_id, trip_id: tripPayment.trip_id, type: LedgerEntryType.TRIP_REVENUE, amount: tripPayment.amount_total, reference_id: paymentId ?? null, payload_json: { held: !!payoutHold } as any },
+            { actor_type: LedgerActor.PLATFORM, actor_user_id: null, trip_id: tripPayment.trip_id, type: LedgerEntryType.BONUS_DISCOUNT, amount: Math.max(0, Math.floor((tripPayment.amount_total * ((await this.getActiveCommissionBps(tripPayment.driver_user_id, new Date())).discount_bps)) / 10000)), reference_id: paymentId ?? null, payload_json: { held: !!payoutHold } as any },
           ],
         });
 

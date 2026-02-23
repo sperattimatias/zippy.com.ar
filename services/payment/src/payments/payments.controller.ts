@@ -17,8 +17,8 @@ export class PaymentsController {
   @Post('payments/create-preference')
   @UseGuards(JwtAccessGuard, RolesGuard)
   @Roles('passenger')
-  createPreference(@Req() req: AuthReq, @Body() dto: CreatePreferenceDto) {
-    return this.payments.createPreference(req.user.sub, dto.trip_id);
+  createPreference(@Req() req: any, @Body() dto: CreatePreferenceDto) {
+    return this.payments.createPreference(req.user.sub, dto.trip_id, { ip: req.headers['x-client-ip'], ua: req.headers['x-client-ua'], device: req.headers['x-device-fp'] });
   }
 
   @Post('payments/webhook')

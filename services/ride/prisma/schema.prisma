@@ -151,6 +151,46 @@ enum BonusStatus {
   REVOKED
 }
 
+
+enum FraudSignalType {
+  REPEATED_PAIR_TRIPS
+  HIGH_VELOCITY_TRIPS
+  HIGH_VELOCITY_PAYMENTS
+  SHARED_IP_MULTIPLE_USERS
+  SHARED_DEVICE_FINGERPRINT
+  MULTIPLE_ACCOUNTS_SAME_DRIVER
+  EXCESSIVE_REFUNDS
+  PAYMENT_REJECT_RATE_HIGH
+  SUSPICIOUS_ROUTE_PATTERN
+  MANUAL_REVIEW_TRIGGER
+}
+
+enum FraudSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum FraudCaseStatus {
+  OPEN
+  IN_REVIEW
+  RESOLVED
+  DISMISSED
+}
+
+enum HoldType {
+  PAYOUT_HOLD
+  FEATURE_LIMIT
+  ACCOUNT_BLOCK
+}
+
+enum HoldStatus {
+  ACTIVE
+  RELEASED
+  EXPIRED
+}
+
 model Trip {
   id                    String       @id @default(cuid())
   passenger_user_id     String
@@ -481,4 +521,86 @@ model ExternalDriverProfile {
   mp_account_id String?
 
   @@map("DriverProfile")
+}
+
+
+model ClientFingerprint {
+  id                      String    @id @default(cuid())
+  user_id                 String
+  actor_type              ActorType
+  ip_hash                 String
+  user_agent_hash         String
+  device_fingerprint_hash String?
+  created_at              DateTime  @default(now())
+
+  @@index([ip_hash, created_at])
+  @@index([device_fingerprint_hash, created_at])
+}
+
+model FraudSignal {
+  id           String          @id @default(cuid())
+  user_id      String?
+  trip_id      String?
+  payment_id   String?
+  type         FraudSignalType
+  severity     FraudSeverity
+  score_delta  Int
+  payload_json Json
+  created_at   DateTime        @default(now())
+
+  @@index([type, created_at])
+  @@index([user_id, created_at])
+}
+
+model FraudCase {
+  id                  String          @id @default(cuid())
+  primary_user_id     String?
+  status              FraudCaseStatus @default(OPEN)
+  severity            FraudSeverity
+  title               String
+  summary             String
+  related_trip_ids    Json?
+  related_user_ids    Json?
+  related_payment_ids Json?
+  created_at          DateTime        @default(now())
+  updated_at          DateTime        @updatedAt
+  assigned_to_user_id String?
+
+  links FraudCaseSignalLink[]
+
+  @@index([status, severity, created_at])
+}
+
+model FraudCaseSignalLink {
+  id              String   @id @default(cuid())
+  fraud_case_id   String
+  fraud_signal_id String
+  created_at      DateTime @default(now())
+
+  fraud_case FraudCase @relation(fields: [fraud_case_id], references: [id], onDelete: Cascade)
+
+  @@unique([fraud_case_id, fraud_signal_id])
+}
+
+model FinancialRiskScore {
+  id         String   @id @default(cuid())
+  user_id    String   @unique
+  score      Int      @default(0)
+  level      String   @default("LOW")
+  updated_at DateTime @updatedAt
+}
+
+model UserHold {
+  id                 String     @id @default(cuid())
+  user_id            String
+  hold_type          HoldType
+  status             HoldStatus @default(ACTIVE)
+  reason             String
+  starts_at          DateTime
+  ends_at            DateTime?
+  created_by_user_id String?
+  payload_json       Json
+  created_at         DateTime   @default(now())
+
+  @@index([user_id, status])
 }

@@ -15,6 +15,7 @@ import { RideGateway } from './ride/ride.gateway';
 import { ScoreService } from './score/score.service';
 import { MeritocracyService } from './meritocracy/meritocracy.service';
 import { LevelAndBonusService } from './levels/level-bonus.service';
+import { FraudService } from './fraud/fraud.service';
 
 @Module({
   imports: [
@@ -34,6 +35,6 @@ import { LevelAndBonusService } from './levels/level-bonus.service';
     LoggerModule.forRoot(defaultPinoConfig),
   ],
   controllers: [AppController, RideController],
-  providers: [PrismaService, JwtAccessGuard, RolesGuard, RideService, RideGateway, MeritocracyService, ScoreService, LevelAndBonusService],
+  providers: [PrismaService, JwtAccessGuard, RolesGuard, RideService, RideGateway, MeritocracyService, ScoreService, LevelAndBonusService, FraudService],
 })
 export class AppModule {}

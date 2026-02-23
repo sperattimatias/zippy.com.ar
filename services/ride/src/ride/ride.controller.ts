@@ -29,6 +29,9 @@ import {
   AdminMonthlyPerformanceFilterDto,
   AdminBonusesFilterDto,
   BonusRevokeDto,
+  FraudCaseFilterDto,
+  FraudCaseActionDto,
+  CreateHoldDto,
 } from '../dto/ride.dto';
 
 type AuthReq = { user: { sub: string; roles: string[] } };
@@ -64,11 +67,11 @@ export class RideController {
 
   @Post('trips/request')
   @Roles('passenger')
-  requestTrip(@Req() req: AuthReq, @Body() dto: TripRequestDto) { return this.rideService.requestTrip(req.user.sub, dto); }
+  requestTrip(@Req() req: any, @Body() dto: TripRequestDto) { return this.rideService.requestTrip(req.user.sub, dto, { ip: req.headers['x-client-ip'] as string | undefined, ua: req.headers['x-client-ua'] as string | undefined, device: req.headers['x-device-fp'] as string | undefined }); }
 
   @Post('trips/:id/bids')
   @Roles('driver')
-  createBid(@Req() req: AuthReq, @Param('id') id: string, @Body() dto: CreateBidDto) { return this.rideService.createBid(id, req.user.sub, dto); }
+  createBid(@Req() req: any, @Param('id') id: string, @Body() dto: CreateBidDto) { return this.rideService.createBid(id, req.user.sub, dto, { ip: req.headers['x-client-ip'] as string | undefined, ua: req.headers['x-client-ua'] as string | undefined, device: req.headers['x-device-fp'] as string | undefined }); }
 
   @Post('trips/:id/accept-bid')
   @Roles('passenger')
@@ -177,6 +180,39 @@ export class RideController {
   @Roles('admin', 'sos')
   adminPutConfig(@Param('key') key: string, @Body() dto: ConfigPutDto) { return this.rideService.putConfig(key, dto.value_json); }
 
+
+
+  @Get('admin/fraud/cases')
+  @Roles('admin', 'sos')
+  adminFraudCases(@Query() query: FraudCaseFilterDto) { return this.rideService.listFraudCases(query); }
+
+  @Get('admin/fraud/cases/:id')
+  @Roles('admin', 'sos')
+  adminFraudCase(@Param('id') id: string) { return this.rideService.getFraudCase(id); }
+
+  @Post('admin/fraud/cases/:id/assign')
+  @Roles('admin', 'sos')
+  adminFraudAssign(@Req() req: AuthReq, @Param('id') id: string, @Body() dto: FraudCaseActionDto) { return this.rideService.assignFraudCase(id, dto.assigned_to_user_id ?? req.user.sub); }
+
+  @Post('admin/fraud/cases/:id/resolve')
+  @Roles('admin', 'sos')
+  adminFraudResolve(@Param('id') id: string, @Body() dto: FraudCaseActionDto) { return this.rideService.resolveFraudCase(id, dto.notes ?? ''); }
+
+  @Post('admin/fraud/cases/:id/dismiss')
+  @Roles('admin', 'sos')
+  adminFraudDismiss(@Param('id') id: string, @Body() dto: FraudCaseActionDto) { return this.rideService.dismissFraudCase(id, dto.notes ?? ''); }
+
+  @Get('admin/fraud/users/:user_id/risk')
+  @Roles('admin', 'sos')
+  adminFraudUserRisk(@Param('user_id') userId: string) { return this.rideService.userFraudRisk(userId); }
+
+  @Post('admin/fraud/holds/create')
+  @Roles('admin', 'sos')
+  adminFraudCreateHold(@Req() req: AuthReq, @Body() dto: CreateHoldDto) { return this.rideService.createFraudHold(req.user.sub, dto); }
+
+  @Post('admin/fraud/holds/:id/release')
+  @Roles('admin', 'sos')
+  adminFraudReleaseHold(@Req() req: AuthReq, @Param('id') id: string) { return this.rideService.releaseFraudHold(id, req.user.sub); }
 
   @Get('admin/levels')
   @Roles('admin', 'sos')

@@ -3,6 +3,8 @@ import {
   ActorType,
   CancelReason,
   DeviationLevel,
+  FraudSeverity,
+  FraudSignalType,
   GeoZoneType,
   RestrictionStatus,
   SafetyAlertStatus,
@@ -19,6 +21,7 @@ import { RideGateway } from './ride.gateway';
 import { ScoreService } from '../score/score.service';
 import { MeritocracyService } from '../meritocracy/meritocracy.service';
 import { LevelAndBonusService } from '../levels/level-bonus.service';
+import { FraudService } from '../fraud/fraud.service';
 import {
   AcceptBidDto,
   CancelDto,
@@ -41,11 +44,12 @@ export class RideService implements OnModuleInit {
   private deviationWindow = new Map<string, { over300Since?: number; over700Since?: number; majorCount: number }>();
   private trackingAlertState = new Map<string, 'none' | 'minor' | 'major'>();
 
-  constructor(private readonly prisma: PrismaService, private readonly ws: RideGateway, private readonly scoreService: ScoreService, private readonly merit: MeritocracyService, private readonly levelBonus: LevelAndBonusService) {}
+  constructor(private readonly prisma: PrismaService, private readonly ws: RideGateway, private readonly scoreService: ScoreService, private readonly merit: MeritocracyService, private readonly levelBonus: LevelAndBonusService, private readonly fraud: FraudService) {}
 
   onModuleInit() {
     setInterval(() => void this.autoMatchExpiredBiddingTrips(), 1000);
     setInterval(() => void this.scanTrackingLostTrips(), 5000);
+    setInterval(() => void this.fraud.runPeriodicDetections(), 10 * 60 * 1000);
   }
 
   private nowMs() { return Date.now(); }
@@ -165,8 +169,9 @@ export class RideService implements OnModuleInit {
   async presenceOffline(driverUserId: string) { await this.prisma.driverPresence.updateMany({ where: { driver_user_id: driverUserId }, data: { is_online: false } }); return { message: 'offline' }; }
   async presencePing(driverUserId: string, dto: PresencePingDto) { await this.prisma.driverPresence.updateMany({ where: { driver_user_id: driverUserId }, data: { last_lat: dto.lat, last_lng: dto.lng, last_seen_at: new Date() } }); return { message: 'pong' }; }
 
-  async requestTrip(passengerUserId: string, dto: TripRequestDto) {
+  async requestTrip(passengerUserId: string, dto: TripRequestDto, headers?: { ip?: string; ua?: string; device?: string }) {
     const passengerScore = await this.scoreService.getOrCreateUserScore(passengerUserId, ActorType.PASSENGER);
+    await this.fraud.captureFingerprint(passengerUserId, ActorType.PASSENGER, headers ?? {});
     const peakGate = await this.merit.evaluatePeakGate(passengerUserId, ActorType.PASSENGER, passengerScore.score, passengerScore.status);
     if (!peakGate.allowed) throw new ForbiddenException('Peak gate denied for passenger');
 
@@ -231,13 +236,15 @@ export class RideService implements OnModuleInit {
     return trip;
   }
 
-  async createBid(tripId: string, driverUserId: string, dto: CreateBidDto) {
+  async createBid(tripId: string, driverUserId: string, dto: CreateBidDto, headers?: { ip?: string; ua?: string; device?: string }) {
     const trip = await this.prisma.trip.findUnique({ where: { id: tripId } });
     if (!trip) throw new NotFoundException('Trip not found');
     if (trip.status !== TripStatus.BIDDING) throw new BadRequestException('Trip is not in bidding');
 
     const presence = await this.prisma.driverPresence.findUnique({ where: { driver_user_id: driverUserId } });
     if (!presence || !presence.is_online || !this.onlineRecent(presence.last_seen_at)) throw new ForbiddenException('Driver is offline');
+
+    await this.fraud.captureFingerprint(driverUserId, ActorType.DRIVER, headers ?? {});
 
     const mp = await this.prisma.externalDriverProfile.findUnique({ where: { user_id: driverUserId } });
     if (!mp?.mp_account_id) throw new ForbiddenException('Driver must connect MercadoPago account before accepting trips');
@@ -448,6 +455,20 @@ export class RideService implements OnModuleInit {
     await this.scoreService.applyRecoveryOnTripCompletion(trip.passenger_user_id, ActorType.PASSENGER);
     await this.levelBonus.computeDriverLevel(driverUserId);
     await this.levelBonus.computePassengerLevel(trip.passenger_user_id);
+
+    const since24 = new Date(Date.now() - 24 * 3600 * 1000);
+    const since7d = new Date(Date.now() - 7 * 24 * 3600 * 1000);
+    const pair24 = await this.prisma.trip.count({ where: { passenger_user_id: trip.passenger_user_id, driver_user_id: driverUserId, status: TripStatus.COMPLETED, completed_at: { gte: since24 } } });
+    const pair7 = await this.prisma.trip.count({ where: { passenger_user_id: trip.passenger_user_id, driver_user_id: driverUserId, status: TripStatus.COMPLETED, completed_at: { gte: since7d } } });
+    const thresholds = (await this.prisma.appConfig.findUnique({ where: { key: 'fraud_thresholds' } }))?.value_json as any ?? { repeated_pair_24h: 4, repeated_pair_7d: 12, low_distance_km: 1.0 };
+    if (pair24 > (thresholds.repeated_pair_24h ?? 4) || pair7 > (thresholds.repeated_pair_7d ?? 12)) {
+      await this.fraud.applySignal({ user_id: trip.passenger_user_id, trip_id: tripId, type: FraudSignalType.REPEATED_PAIR_TRIPS, severity: pair24 > (thresholds.repeated_pair_24h ?? 4) + 2 ? FraudSeverity.HIGH : FraudSeverity.MEDIUM, score_delta: 15, payload: { pair24, pair7, driver_user_id: driverUserId } });
+      await this.fraud.applySignal({ user_id: driverUserId, trip_id: tripId, type: FraudSignalType.REPEATED_PAIR_TRIPS, severity: pair24 > (thresholds.repeated_pair_24h ?? 4) + 2 ? FraudSeverity.HIGH : FraudSeverity.MEDIUM, score_delta: 15, payload: { pair24, pair7, passenger_user_id: trip.passenger_user_id } });
+    }
+    if ((trip.distance_km ?? 0) < (thresholds.low_distance_km ?? 1.0) && pair24 > 1) {
+      await this.fraud.applySignal({ user_id: trip.passenger_user_id, trip_id: tripId, type: FraudSignalType.SUSPICIOUS_ROUTE_PATTERN, severity: FraudSeverity.MEDIUM, score_delta: 10, payload: { distance_km: trip.distance_km, pair24 } });
+    }
+
     this.ws.emitTrip(tripId, 'trip.completed', { trip_id: tripId });
     return updated;
   }
@@ -614,6 +635,20 @@ export class RideService implements OnModuleInit {
   async adminRevokeBonus(id: string, reason: string) {
     return this.levelBonus.revokeBonus(id, reason);
   }
+
+
+
+  async listFraudCases(filter: { status?: any; severity?: any; q?: string }) { return this.fraud.listCases(filter); }
+  async getFraudCase(id: string) { return this.fraud.getCase(id); }
+  async assignFraudCase(id: string, assignedToUserId: string) { return this.fraud.assignCase(id, assignedToUserId); }
+  async resolveFraudCase(id: string, notes: string) { return this.fraud.resolveCase(id, notes); }
+  async dismissFraudCase(id: string, notes: string) { return this.fraud.dismissCase(id, notes); }
+  async userFraudRisk(userId: string) { return this.fraud.userRisk(userId); }
+  async createFraudHold(actorUserId: string, dto: { user_id: string; hold_type: any; reason: string; ends_at?: string; notes?: unknown }) {
+    const hours = dto.ends_at ? Math.max(1, Math.ceil((new Date(dto.ends_at).getTime() - Date.now()) / 3600000)) : undefined;
+    return this.fraud.createHoldIfAbsent(dto.user_id, dto.hold_type, dto.reason, hours, actorUserId, { notes: dto.notes ?? null });
+  }
+  async releaseFraudHold(id: string, actorUserId: string) { return this.fraud.releaseHold(id, actorUserId); }
 
   async listTripsRecent() { return this.prisma.trip.findMany({ orderBy: { created_at: 'desc' }, take: 100 }); }
   async tripDetail(id: string) {
