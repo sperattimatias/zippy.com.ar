@@ -14,6 +14,7 @@ async function bootstrap() {
     .setTitle('Zippy API Gateway')
     .setDescription('Gateway API docs and entrypoint for backend services')
     .setVersion('1.0.0')
+    .addBearerAuth()
     .build();
 
   const document = SwaggerModule.createDocument(app, swaggerConfig);

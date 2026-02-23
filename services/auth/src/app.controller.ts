@@ -8,7 +8,6 @@ export class AppController {
       status: 'ok',
       service: 'auth',
       timestamp: new Date().toISOString(),
-      notes: 'Auth + Prisma base service',
     };
   }
 }
