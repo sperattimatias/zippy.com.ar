@@ -35,3 +35,9 @@ export class AdminRefundsFilterDto {
   @IsOptional() @IsDateString() from?: string;
   @IsOptional() @IsDateString() to?: string;
 }
+
+
+export class RevokeBonusLedgerDto {
+  @IsString()
+  reason!: string;
+}

@@ -1,6 +1,6 @@
 import { BadRequestException, ForbiddenException, Injectable, Logger } from '@nestjs/common';
 import { createHmac, createHash } from 'crypto';
-import { FraudSeverity, FraudSignalType, LedgerActor, LedgerEntryType, PaymentStatus, RefundStatus, SettlementStatus } from '@prisma/client';
+import { FraudSeverity, FraudSignalType, HoldStatus, HoldType, LedgerActor, LedgerEntryType, PaymentStatus, RefundStatus, SettlementStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
@@ -12,9 +12,8 @@ export class PaymentsService {
 
   private async mpRefund(paymentId: string, amount: number, reason: string) {
     const token = process.env.MP_ACCESS_TOKEN;
-    if (!token) {
-      return { id: `mock_ref_${paymentId}_${Date.now()}`, status: 'approved', amount, reason };
-    }
+    if (!token) return { id: `mock_ref_${paymentId}_${Date.now()}`, status: 'approved', amount, reason };
+
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 8_000);
     try {
@@ -24,10 +23,7 @@ export class PaymentsService {
         body: JSON.stringify({ amount }),
         signal: controller.signal,
       });
-      if (!res.ok) {
-        const body = await res.text();
-        throw new Error(`MP refund failed: ${res.status} ${body}`);
-      }
+      if (!res.ok) throw new Error(`MP refund failed: ${res.status} ${await res.text()}`);
       return await res.json();
     } finally {
       clearTimeout(timeout);
@@ -64,7 +60,6 @@ export class PaymentsService {
   }
 
   async createPreference(passengerUserId: string, tripId: string, headers?: { ip?: string; ua?: string; device?: string }) {
-
     await this.captureFingerprint(passengerUserId, headers);
     const trip = await this.prisma.trip.findUnique({ where: { id: tripId } });
     if (!trip) throw new BadRequestException('Trip not found');
@@ -141,7 +136,6 @@ export class PaymentsService {
             { actor_type: LedgerActor.PLATFORM, actor_user_id: null, trip_id: tripPayment.trip_id, type: LedgerEntryType.PLATFORM_COMMISSION, amount: tripPayment.commission_amount, reference_id: paymentId ?? null, payload_json: { held: !!payoutHold } as any },
             { actor_type: LedgerActor.DRIVER, actor_user_id: tripPayment.driver_user_id, trip_id: tripPayment.trip_id, type: LedgerEntryType.DRIVER_EARNING, amount: tripPayment.driver_net_amount, reference_id: paymentId ?? null, payload_json: { held: !!payoutHold } as any },
             { actor_type: LedgerActor.DRIVER, actor_user_id: tripPayment.driver_user_id, trip_id: tripPayment.trip_id, type: LedgerEntryType.TRIP_REVENUE, amount: tripPayment.amount_total, reference_id: paymentId ?? null, payload_json: { held: !!payoutHold } as any },
-            { actor_type: LedgerActor.PLATFORM, actor_user_id: null, trip_id: tripPayment.trip_id, type: LedgerEntryType.BONUS_DISCOUNT, amount: Math.max(0, Math.floor((tripPayment.amount_total * ((await this.getActiveCommissionBps(tripPayment.driver_user_id, new Date())).discount_bps)) / 10000)), reference_id: paymentId ?? null, payload_json: { held: !!payoutHold } as any },
           ],
         });
 
@@ -170,8 +164,8 @@ export class PaymentsService {
     const summary = await this.prisma.driverPayoutSummary.findUnique({ where: { driver_user_id: driverUserId } });
     const from = new Date(Date.now() - 30 * 24 * 3600 * 1000);
     const last30 = await this.prisma.tripPayment.aggregate({
-      _sum: { amount_total: true, commission_amount: true, driver_net_amount: true },
-      where: { driver_user_id: driverUserId, created_at: { gte: from }, status: PaymentStatus.APPROVED },
+      _sum: { amount_total: true, commission_amount: true, driver_net_amount: true, refunded_amount: true },
+      where: { driver_user_id: driverUserId, created_at: { gte: from }, status: { in: [PaymentStatus.APPROVED, PaymentStatus.REFUNDED] } },
     });
     return {
       total_gross: this.toInt(summary?.total_gross ?? 0),
@@ -179,7 +173,7 @@ export class PaymentsService {
       total_bonus_discount: this.toInt(summary?.total_bonus_discount ?? 0),
       total_net: this.toInt(summary?.total_net ?? 0),
       last_30_days: {
-        gross: last30._sum.amount_total ?? 0,
+        gross: (last30._sum.amount_total ?? 0) - (last30._sum.refunded_amount ?? 0),
         commission: last30._sum.commission_amount ?? 0,
         net: last30._sum.driver_net_amount ?? 0,
       },
@@ -188,7 +182,11 @@ export class PaymentsService {
 
   async driverFinanceTrips(driverUserId: string) {
     const rows = await this.prisma.tripPayment.findMany({ where: { driver_user_id: driverUserId }, orderBy: { created_at: 'desc' }, take: 200 });
-    return rows.map((r) => ({ ...r, refund_amount: r.refunded_amount, net_after_refunds: r.driver_net_amount - Math.floor((r.refunded_amount * r.driver_net_amount) / Math.max(1, r.amount_total)) }));
+    return rows.map((r) => {
+      const commissionReversed = Math.floor((r.refunded_amount * r.commission_amount) / Math.max(1, r.amount_total));
+      const driverReversed = r.refunded_amount - commissionReversed;
+      return { ...r, refund_amount: r.refunded_amount, net_after_refunds: r.driver_net_amount - driverReversed };
+    });
   }
 
   async adminFinanceTrips(filter: { status?: PaymentStatus; driver?: string; from?: string; to?: string }) {
@@ -215,25 +213,65 @@ export class PaymentsService {
     return { date, approved_internal: approved, settled_internal: settled, drift: approved - settled, notes: 'MP API reconciliation adapter pending credentials; internal consistency check performed' };
   }
 
-  private proportional(amount: number, total: number, part: number) {
-    return Math.floor((amount * part) / Math.max(1, total));
+  private computeRefundSplit(refundAmount: number, amountTotal: number, commissionAmount: number) {
+    const commissionReversal = Math.floor((refundAmount * commissionAmount) / Math.max(1, amountTotal));
+    const driverReversal = refundAmount - commissionReversal;
+    return { commissionReversal, driverReversal };
   }
 
-  private async maybeCreateRefundFraudSignal(driverUserId: string, refundedAmount: number, totalAmount: number) {
-    const ratio = totalAmount > 0 ? refundedAmount / totalAmount : 0;
-    if (ratio < 0.4) return;
-    const severity = ratio >= 0.7 ? FraudSeverity.HIGH : FraudSeverity.MEDIUM;
-    await this.prisma.fraudSignal.create({
-      data: {
-        id: `fs_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-        user_id: driverUserId,
-        type: FraudSignalType.EXCESSIVE_REFUNDS,
-        severity,
-        score_delta: severity === FraudSeverity.HIGH ? 15 : 8,
-        payload_json: { ratio_7d: ratio, source: 'refund-flow' } as any,
-        created_at: new Date(),
-      },
-    });
+  private async ensureRefundFraudSignals(trx: any, driverUserId: string) {
+    const now = new Date();
+    const since7 = new Date(now.getTime() - 7 * 24 * 3600 * 1000);
+    const since30 = new Date(now.getTime() - 30 * 24 * 3600 * 1000);
+
+    const refunds7d = await trx.tripRefund.count({ where: { status: RefundStatus.APPROVED, created_at: { gte: since7 }, tripPayment: { driver_user_id: driverUserId } } });
+    const refunds30d = await trx.tripRefund.count({ where: { status: RefundStatus.APPROVED, created_at: { gte: since30 }, tripPayment: { driver_user_id: driverUserId } } });
+    const approved30d = await trx.tripPayment.count({ where: { driver_user_id: driverUserId, status: { in: [PaymentStatus.APPROVED, PaymentStatus.REFUNDED] }, updated_at: { gte: since30 } } });
+    const ratio30d = approved30d > 0 ? refunds30d / approved30d : 0;
+
+    if (refunds7d > 3) {
+      await trx.fraudSignal.create({
+        data: {
+          id: `fs_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+          user_id: driverUserId,
+          type: FraudSignalType.REFUND_VELOCITY_HIGH,
+          severity: FraudSeverity.MEDIUM,
+          score_delta: 10,
+          payload_json: { refunds_7d: refunds7d } as any,
+          created_at: now,
+        },
+      });
+    }
+
+    if (ratio30d > 0.25) {
+      await trx.fraudSignal.create({
+        data: {
+          id: `fs_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+          user_id: driverUserId,
+          type: FraudSignalType.REFUND_RATIO_HIGH,
+          severity: FraudSeverity.HIGH,
+          score_delta: 18,
+          payload_json: { refunds_30d: refunds30d, approved_30d: approved30d, ratio_30d: ratio30d } as any,
+          created_at: now,
+        },
+      });
+
+      const hasActive = await trx.userHold.findFirst({ where: { user_id: driverUserId, hold_type: HoldType.PAYOUT_HOLD, status: HoldStatus.ACTIVE, OR: [{ ends_at: null }, { ends_at: { gt: now } }] } });
+      if (!hasActive) {
+        await trx.userHold.create({
+          data: {
+            id: `hold_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+            user_id: driverUserId,
+            hold_type: HoldType.PAYOUT_HOLD,
+            status: HoldStatus.ACTIVE,
+            reason: 'auto_refund_ratio_high',
+            starts_at: now,
+            ends_at: new Date(now.getTime() + 7 * 24 * 3600 * 1000),
+            payload_json: { ratio_30d: ratio30d } as any,
+          },
+        });
+      }
+    }
   }
 
   async adminRefundTripPayment(tripPaymentId: string, amount: number, reason: string, adminUserId: string) {
@@ -247,6 +285,7 @@ export class PaymentsService {
       if (processing) throw new BadRequestException('Refund already processing for this payment');
 
       const refundable = payment.amount_total - payment.refunded_amount;
+      if (amount <= 0) throw new BadRequestException('Refund amount must be > 0');
       if (amount > refundable) throw new BadRequestException('Refund amount exceeds refundable balance');
 
       const idempotencyKey = createHash('sha256').update(`${tripPaymentId}:${amount}:${reason}`).digest('hex');
@@ -272,23 +311,31 @@ export class PaymentsService {
         const existingByMp = await trx.tripRefund.findUnique({ where: { mp_refund_id: mpRefundId } });
         if (existingByMp && existingByMp.id !== refund.id) return { refund: existingByMp, idempotent: true };
 
-        const commissionReversal = this.proportional(amount, payment.amount_total, payment.commission_amount);
-        const driverNetReversal = this.proportional(amount, payment.amount_total, payment.driver_net_amount);
+        const { commissionReversal, driverReversal } = this.computeRefundSplit(amount, payment.amount_total, payment.commission_amount);
 
         await trx.ledgerEntry.createMany({
           data: [
             { actor_type: LedgerActor.PLATFORM, actor_user_id: null, trip_id: payment.trip_id, type: LedgerEntryType.REFUND_REVERSAL, amount: -amount, reference_id: mpRefundId, payload_json: { refund_id: refund.id } as any },
             { actor_type: LedgerActor.PLATFORM, actor_user_id: null, trip_id: payment.trip_id, type: LedgerEntryType.COMMISSION_REVERSAL, amount: -commissionReversal, reference_id: mpRefundId, payload_json: { refund_id: refund.id } as any },
-            { actor_type: LedgerActor.DRIVER, actor_user_id: payment.driver_user_id, trip_id: payment.trip_id, type: LedgerEntryType.DRIVER_NET_REVERSAL, amount: -driverNetReversal, reference_id: mpRefundId, payload_json: { refund_id: refund.id } as any },
+            { actor_type: LedgerActor.DRIVER, actor_user_id: payment.driver_user_id, trip_id: payment.trip_id, type: LedgerEntryType.DRIVER_NET_REVERSAL, amount: -driverReversal, reference_id: mpRefundId, payload_json: { refund_id: refund.id } as any },
           ],
         });
 
         const nextRefunded = payment.refunded_amount + amount;
+        const full = nextRefunded >= payment.amount_total;
+        let nextSettlement = payment.settlement_status;
+        if (full) nextSettlement = SettlementStatus.FAILED;
+        else if (payment.settlement_status === SettlementStatus.NOT_SETTLED) nextSettlement = SettlementStatus.NOT_SETTLED;
+        else nextSettlement = SettlementStatus.SETTLED;
+
         await trx.tripPayment.update({
           where: { id: payment.id },
           data: {
             refunded_amount: nextRefunded,
-            status: nextRefunded >= payment.amount_total ? PaymentStatus.REFUNDED : payment.status,
+            refunded_at: full ? new Date() : null,
+            is_fully_refunded: full,
+            status: full ? PaymentStatus.REFUNDED : PaymentStatus.APPROVED,
+            settlement_status: nextSettlement,
           },
         });
 
@@ -299,7 +346,7 @@ export class PaymentsService {
           total_gross: BigInt((summary?.total_gross ?? BigInt(0)) - BigInt(amount)),
           total_commission: BigInt((summary?.total_commission ?? BigInt(0)) - BigInt(commissionReversal)),
           total_bonus_discount: BigInt(summary?.total_bonus_discount ?? BigInt(0)),
-          total_net: BigInt((summary?.total_net ?? BigInt(0)) - BigInt(driverNetReversal)),
+          total_net: BigInt((summary?.total_net ?? BigInt(0)) - BigInt(driverReversal)),
         };
         await trx.driverPayoutSummary.upsert({ where: { driver_user_id: payment.driver_user_id }, update: nextSummary, create: { driver_user_id: payment.driver_user_id, ...nextSummary } });
 
@@ -309,14 +356,23 @@ export class PaymentsService {
           const m = trip.completed_at.getUTCMonth() + 1;
           const now = new Date();
           const sameMonth = y === now.getUTCFullYear() && m === now.getUTCMonth() + 1;
-          if (!sameMonth) {
-            await trx.bonusAdjustmentPending.create({ data: { driver_user_id: payment.driver_user_id, trip_id: payment.trip_id, year: y, month: m, amount, reason: 'refund_closed_month', payload_json: { refund_id: refund.id } as any } });
+          if (!sameMonth && full) {
+            await trx.bonusAdjustment.create({
+              data: {
+                driver_user_id: payment.driver_user_id,
+                trip_id: payment.trip_id,
+                year: y,
+                month: m,
+                amount,
+                reason: 'revoke_next_month_discount',
+                status: 'PENDING',
+                payload_json: { refund_id: refund.id, revoke_next_month_discount: true } as any,
+              },
+            });
           }
         }
 
-        const from7d = new Date(Date.now() - 7 * 24 * 3600 * 1000);
-        const agg = await trx.tripRefund.aggregate({ _sum: { amount: true }, where: { status: RefundStatus.APPROVED, created_at: { gte: from7d }, tripPayment: { driver_user_id: payment.driver_user_id } as any } as any });
-        await this.maybeCreateRefundFraudSignal(payment.driver_user_id, agg._sum.amount ?? 0, payment.amount_total);
+        await this.ensureRefundFraudSignals(trx, payment.driver_user_id);
 
         return { refund: await trx.tripRefund.findUnique({ where: { id: refund.id } }), idempotent: false };
       } catch (error: any) {
@@ -328,14 +384,46 @@ export class PaymentsService {
   }
 
   async adminFinanceRefunds(filter: { status?: string; driver?: string; from?: string; to?: string }) {
-    return this.prisma.tripRefund.findMany({
+    const rows = await this.prisma.tripRefund.findMany({
       where: {
         ...(filter.status ? { status: filter.status as any } : {}),
         ...(filter.from || filter.to ? { created_at: { ...(filter.from ? { gte: new Date(filter.from) } : {}), ...(filter.to ? { lte: new Date(filter.to) } : {}) } } : {}),
-        ...(filter.driver ? { tripPayment: { driver_user_id: filter.driver } as any } : {}),
+        ...(filter.driver ? { tripPayment: { driver_user_id: filter.driver } } : {}),
       } as any,
+      include: { tripPayment: true },
       orderBy: { created_at: 'desc' },
       take: 500,
     });
+
+    return rows.map((r: any) => ({
+      ...r,
+      refunded_amount: r.tripPayment?.refunded_amount ?? 0,
+      is_fully_refunded: r.tripPayment?.is_fully_refunded ?? false,
+    }));
+  }
+
+  async adminBonusAdjustments() {
+    return this.prisma.bonusAdjustment.findMany({ where: { status: 'PENDING' as any }, orderBy: { created_at: 'asc' }, take: 500 });
+  }
+
+  async applyBonusAdjustment(id: string) {
+    const adj = await this.prisma.bonusAdjustment.findUnique({ where: { id } });
+    if (!adj) throw new BadRequestException('Bonus adjustment not found');
+    if (adj.status === 'APPLIED') return { adjustment: adj, idempotent: true };
+
+    const nextMonth = new Date(Date.UTC(adj.year, adj.month, 1));
+    const y = nextMonth.getUTCFullYear();
+    const m = nextMonth.getUTCMonth() + 1;
+
+    const target = await this.prisma.monthlyBonusLedger.findFirst({ where: { driver_user_id: adj.driver_user_id, year: y, month: m, status: 'ACTIVE' as any }, orderBy: { starts_at: 'desc' } });
+    if (target) await this.prisma.monthlyBonusLedger.update({ where: { id: target.id }, data: { status: 'REVOKED' as any } });
+
+    const applied = await this.prisma.bonusAdjustment.update({ where: { id }, data: { status: 'APPLIED' as any, payload_json: { ...(adj.payload_json as any), applied_at: new Date().toISOString(), target_bonus_id: target?.id ?? null } as any } });
+    return { adjustment: applied, revoked_bonus_id: target?.id ?? null };
+  }
+
+  async revokeBonusLedger(id: string, reason: string) {
+    const row = await this.prisma.monthlyBonusLedger.update({ where: { id }, data: { status: 'REVOKED' as any } });
+    return { ...row, reason };
   }
 }

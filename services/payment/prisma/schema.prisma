@@ -90,6 +90,8 @@ model TripPayment {
   mp_payment_id          String?
   mp_preference_id       String?
   refunded_amount        Int              @default(0)
+  refunded_at            DateTime?
+  is_fully_refunded      Boolean          @default(false)
   status                 PaymentStatus    @default(CREATED)
   settlement_status      SettlementStatus @default(NOT_SETTLED)
   created_at             DateTime         @default(now())
@@ -139,7 +141,12 @@ model DriverPayoutSummary {
   updated_at           DateTime @updatedAt
 }
 
-model BonusAdjustmentPending {
+enum BonusAdjustmentStatus {
+  PENDING
+  APPLIED
+}
+
+model BonusAdjustment {
   id             String   @id @default(cuid())
   driver_user_id String
   trip_id        String
@@ -147,12 +154,13 @@ model BonusAdjustmentPending {
   month          Int
   amount         Int
   reason         String
-  status         String   @default("PENDING")
+  status         BonusAdjustmentStatus   @default(PENDING)
   payload_json   Json     @default("{}")
   created_at     DateTime @default(now())
 
   @@index([driver_user_id, year, month])
 }
+
 
 model Trip {
   id                String    @id
@@ -243,6 +251,8 @@ enum FraudSignalType {
   SHARED_DEVICE_FINGERPRINT
   MULTIPLE_ACCOUNTS_SAME_DRIVER
   EXCESSIVE_REFUNDS
+  REFUND_VELOCITY_HIGH
+  REFUND_RATIO_HIGH
   PAYMENT_REJECT_RATE_HIGH
   SUSPICIOUS_ROUTE_PATTERN
   MANUAL_REVIEW_TRIGGER

@@ -54,6 +54,33 @@ describe('LevelAndBonusService', () => {
     expect(ws.emitSosAlert).toHaveBeenCalledWith('admin.fraud.bonus_denied', expect.any(Object));
   });
 
+
+
+  it('monthly performance excludes fully refunded completed trips', async () => {
+    const prisma: any = {
+      trip: {
+        findMany: jest.fn()
+          .mockResolvedValueOnce([
+            { id: 't1', driver_user_id: 'd1', status: 'COMPLETED' },
+            { id: 't2', driver_user_id: 'd1', status: 'COMPLETED' },
+          ])
+          .mockResolvedValueOnce([
+            { id: 't1', passenger_user_id: 'p1', status: 'COMPLETED' },
+            { id: 't2', passenger_user_id: 'p1', status: 'COMPLETED' },
+          ]),
+      },
+      externalTripPayment: { findMany: jest.fn().mockResolvedValue([{ trip_id: 't1', refunded_amount: 1000, amount_total: 1000 }]) },
+      scoreEvent: { count: jest.fn().mockResolvedValue(0) },
+      safetyAlert: { count: jest.fn().mockResolvedValue(0) },
+      userScore: { findUnique: jest.fn().mockResolvedValue({ score: 90 }) },
+      monthlyPerformance: { upsert: jest.fn() },
+    };
+    const svc = new LevelAndBonusService(prisma, { emitToUser: jest.fn(), emitSosAlert: jest.fn() } as any);
+    await svc.computeMonthlyPerformance(2026, 1);
+    const driverUpsert = prisma.monthlyPerformance.upsert.mock.calls.find((c: any[]) => c[0].create.actor_type === ActorType.DRIVER);
+    expect(driverUpsert[0].create.trips_completed).toBe(1);
+  });
+
   it('bonus percentile assignment picks top discounts', async () => {
     const prisma: any = {
       commissionPolicy: { findUnique: jest.fn().mockResolvedValue({ value_json: { top_10_discount_bps: 300, top_3_discount_bps: 500, top_1_discount_bps: 800, min_trips_completed: 0, require_no_show_eq: 0, require_safety_major_alerts_eq: 0 } }) },

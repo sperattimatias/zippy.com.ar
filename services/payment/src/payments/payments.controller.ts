@@ -3,7 +3,7 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { JwtAccessGuard } from '../common/jwt-access.guard';
 import { Roles } from '../common/roles.decorator';
 import { RolesGuard } from '../common/roles.guard';
-import { AdminFinanceTripsFilterDto, AdminLedgerFilterDto, AdminRefundDto, AdminRefundsFilterDto, CreatePreferenceDto, ReconciliationDto } from '../dto/payment.dto';
+import { AdminFinanceTripsFilterDto, AdminLedgerFilterDto, AdminRefundDto, AdminRefundsFilterDto, CreatePreferenceDto, ReconciliationDto, RevokeBonusLedgerDto } from '../dto/payment.dto';
 import { PaymentsService } from './payments.service';
 
 type AuthReq = { user: { sub: string; roles: string[] }; body?: any; rawBody?: string };
@@ -74,4 +74,26 @@ export class PaymentsController {
   adminRefunds(@Query() query: AdminRefundsFilterDto) {
     return this.payments.adminFinanceRefunds(query);
   }
+
+  @Get('admin/finance/bonus-adjustments')
+  @UseGuards(JwtAccessGuard, RolesGuard)
+  @Roles('admin', 'sos')
+  adminBonusAdjustments() {
+    return this.payments.adminBonusAdjustments();
+  }
+
+  @Post('admin/finance/bonus-adjustments/:id/apply')
+  @UseGuards(JwtAccessGuard, RolesGuard)
+  @Roles('admin', 'sos')
+  adminApplyBonusAdjustment(@Param('id') id: string) {
+    return this.payments.applyBonusAdjustment(id);
+  }
+
+  @Post('admin/finance/bonus-ledger/:id/revoke')
+  @UseGuards(JwtAccessGuard, RolesGuard)
+  @Roles('admin', 'sos')
+  adminRevokeBonusLedger(@Param('id') id: string, @Body() dto: RevokeBonusLedgerDto) {
+    return this.payments.revokeBonusLedger(id, dto.reason);
+  }
+
 }

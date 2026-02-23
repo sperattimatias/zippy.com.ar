@@ -160,6 +160,8 @@ enum FraudSignalType {
   SHARED_DEVICE_FINGERPRINT
   MULTIPLE_ACCOUNTS_SAME_DRIVER
   EXCESSIVE_REFUNDS
+  REFUND_VELOCITY_HIGH
+  REFUND_RATIO_HIGH
   PAYMENT_REJECT_RATE_HIGH
   SUSPICIOUS_ROUTE_PATTERN
   MANUAL_REVIEW_TRIGGER
@@ -515,6 +517,20 @@ model CommissionPolicy {
   updated_at DateTime @updatedAt
 }
 
+
+
+model ExternalTripPayment {
+  id               String  @id
+  trip_id          String  @unique
+  amount_total     Int
+  commission_amount Int
+  driver_net_amount Int
+  refunded_amount  Int     @default(0)
+  status           String
+  created_at       DateTime
+
+  @@map("TripPayment")
+}
 
 model ExternalDriverProfile {
   id            String  @id

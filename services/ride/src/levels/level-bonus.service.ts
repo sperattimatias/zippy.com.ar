@@ -107,10 +107,18 @@ export class LevelAndBonusService {
     const from = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0));
     const to = new Date(Date.UTC(year, month, 1, 0, 0, 0));
 
-    const [driverTrips, passengerTrips] = await Promise.all([
-      this.prisma.trip.findMany({ where: { OR: [{ completed_at: { gte: from, lt: to } }, { cancelled_at: { gte: from, lt: to } }], driver_user_id: { not: null } }, select: { driver_user_id: true, status: true } }),
-      this.prisma.trip.findMany({ where: { OR: [{ completed_at: { gte: from, lt: to } }, { cancelled_at: { gte: from, lt: to } }] }, select: { passenger_user_id: true, status: true } }),
+    const [driverTripsRaw, passengerTripsRaw] = await Promise.all([
+      this.prisma.trip.findMany({ where: { OR: [{ completed_at: { gte: from, lt: to } }, { cancelled_at: { gte: from, lt: to } }], driver_user_id: { not: null } }, select: { id: true, driver_user_id: true, status: true } }),
+      this.prisma.trip.findMany({ where: { OR: [{ completed_at: { gte: from, lt: to } }, { cancelled_at: { gte: from, lt: to } }] }, select: { id: true, passenger_user_id: true, status: true } }),
     ]);
+
+    const completedIds = [...new Set(driverTripsRaw.filter((t) => t.status === TripStatus.COMPLETED).map((t) => t.id))];
+    const refundedFull = completedIds.length
+      ? await this.prisma.externalTripPayment.findMany({ where: { trip_id: { in: completedIds }, refunded_amount: { gte: 1 } }, select: { trip_id: true, refunded_amount: true, amount_total: true } })
+      : [];
+    const fullyRefundedTripIds = new Set(refundedFull.filter((p) => p.refunded_amount >= p.amount_total).map((p) => p.trip_id));
+    const driverTrips = driverTripsRaw.filter((t) => !(t.status === TripStatus.COMPLETED && fullyRefundedTripIds.has(t.id)));
+    const passengerTrips = passengerTripsRaw.filter((t) => !(t.status === TripStatus.COMPLETED && fullyRefundedTripIds.has(t.id)));
 
     const collect = async (actor: ActorType, users: string[], getTripCounts: (u: string) => { completed: number; cancelled: number }) => {
       for (const userId of users) {
