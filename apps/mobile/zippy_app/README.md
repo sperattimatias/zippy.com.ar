@@ -29,3 +29,17 @@ Aplicación Android Flutter para Passenger + Driver con realtime Socket.IO y map
 2. Abrir sesión driver y poner Online.
 3. Enviar oferta, aceptar desde passenger.
 4. Driver marca llegado + OTP + iniciar/finalizar viaje.
+
+## UX Guide (Sprint 11.1)
+- Home pasajero full-map con barra flotante de búsqueda.
+- Request flow en 2 pasos visibles: Home -> Sheet -> Solicitar.
+- Bottom sheets consistentes con handle + radius 24.
+- Estados vacíos con CTA (sin conductores, sin ofertas, cuenta en revisión).
+- Chips de estado de viaje animados.
+
+### Screenshots esperados (QA)
+1. Passenger Home con search bar flotante y action card.
+2. Destination Sheet completo (destino + slider oferta + CTA).
+3. Waiting screen con skeleton/empty y luego oferta.
+4. Driver Home con toggle grande + badges.
+5. Driver incoming request card con timer circular.

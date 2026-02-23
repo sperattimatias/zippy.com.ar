@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'zippy_primary_button.dart';
+
 class ZippyButton extends StatelessWidget {
   final String label;
   final VoidCallback? onPressed;
@@ -9,15 +11,6 @@ class ZippyButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: double.infinity,
-      height: 52,
-      child: ElevatedButton(
-        onPressed: busy ? null : onPressed,
-        child: busy
-            ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-            : Text(label),
-      ),
-    );
+    return ZippyPrimaryButton(label: label, loading: busy, onPressed: onPressed);
   }
 }
