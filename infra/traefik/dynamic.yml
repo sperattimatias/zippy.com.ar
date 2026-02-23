@@ -17,4 +17,6 @@ http:
         stsIncludeSubdomains: true
         stsPreload: true
         contentTypeNosniff: true
+        browserXssFilter: true
         frameDeny: true
+        referrerPolicy: no-referrer

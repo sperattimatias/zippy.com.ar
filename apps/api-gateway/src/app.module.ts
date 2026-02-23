@@ -1,4 +1,10 @@
-import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
+import {
+  MiddlewareConsumer,
+  Module,
+  NestModule,
+  RequestMethod,
+  RouteInfo,
+} from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import * as Joi from 'joi';
 import { LoggerModule } from 'nestjs-pino';
@@ -7,6 +13,11 @@ import { APP_GUARD } from '@nestjs/core';
 import { createProxyMiddleware } from 'http-proxy-middleware';
 import { AppController } from './app.controller';
 import { defaultPinoConfig } from '../../../shared/utils/logger';
+
+const authRoutes: RouteInfo[] = [{ path: 'api/auth/(.*)', method: RequestMethod.ALL }];
+const rideRoutes: RouteInfo[] = [{ path: 'api/rides/(.*)', method: RequestMethod.ALL }];
+const driverRoutes: RouteInfo[] = [{ path: 'api/drivers/(.*)', method: RequestMethod.ALL }];
+const paymentRoutes: RouteInfo[] = [{ path: 'api/payments/(.*)', method: RequestMethod.ALL }];
 
 @Module({
   imports: [
@@ -43,7 +54,7 @@ export class AppModule implements NestModule {
           pathRewrite: { '^/api/auth': '/' },
         }),
       )
-      .forRoutes('/api/auth/(.*)');
+      .forRoutes(...authRoutes);
 
     consumer
       .apply(
@@ -53,7 +64,7 @@ export class AppModule implements NestModule {
           pathRewrite: { '^/api/rides': '/' },
         }),
       )
-      .forRoutes('/api/rides/(.*)');
+      .forRoutes(...rideRoutes);
 
     consumer
       .apply(
@@ -63,7 +74,7 @@ export class AppModule implements NestModule {
           pathRewrite: { '^/api/drivers': '/' },
         }),
       )
-      .forRoutes('/api/drivers/(.*)');
+      .forRoutes(...driverRoutes);
 
     consumer
       .apply(
@@ -73,6 +84,6 @@ export class AppModule implements NestModule {
           pathRewrite: { '^/api/payments': '/' },
         }),
       )
-      .forRoutes('/api/payments/(.*)');
+      .forRoutes(...paymentRoutes);
   }
 }

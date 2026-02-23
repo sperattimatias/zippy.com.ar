@@ -93,6 +93,51 @@ Bajar stack:
 docker compose -f infra/docker-compose.yml down -v
 ```
 
+
+## Checklist de verificación (Sprint 0)
+
+Ejecutar en este orden:
+
+```bash
+cp .env.example .env
+```
+
+```bash
+docker compose -f infra/docker-compose.yml config
+```
+
+```bash
+docker compose -f infra/docker-compose.yml --env-file .env up -d --build
+```
+
+```bash
+docker compose -f infra/docker-compose.yml ps
+```
+
+```bash
+curl -i https://api.${TRAEFIK_DOMAIN}/health
+```
+
+```bash
+curl -i https://api.${TRAEFIK_DOMAIN}/api/auth/health
+```
+
+```bash
+curl -i https://api.${TRAEFIK_DOMAIN}/api/rides/health
+```
+
+```bash
+curl -i https://api.${TRAEFIK_DOMAIN}/api/drivers/health
+```
+
+```bash
+curl -i https://api.${TRAEFIK_DOMAIN}/api/payments/health
+```
+
+```bash
+docker compose -f infra/docker-compose.yml logs -f --tail=100 traefik api-gateway auth ride driver payment admin-panel
+```
+
 ## Servicios y endpoints de health
 
 - Gateway: `https://api.<TRAEFIK_DOMAIN>/health`

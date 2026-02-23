@@ -1,5 +1,3 @@
-version: '3.9'
-
 name: zippy-rideshare
 
 services:
@@ -17,16 +15,17 @@ services:
       - --certificatesresolvers.cloudflare.acme.storage=/letsencrypt/acme.json
       - --api.dashboard=true
     ports:
-      - '80:80'
-      - '443:443'
-      - '8080:8080'
+      - 80:80
+      - 443:443
+      - 127.0.0.1:8080:8080
     environment:
-      - CF_DNS_API_TOKEN=${CF_DNS_API_TOKEN}
+      CF_DNS_API_TOKEN: ${CF_DNS_API_TOKEN}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./traefik/dynamic.yml:/etc/traefik/dynamic.yml:ro
       - ./traefik/letsencrypt:/letsencrypt
-    networks: [zippy]
+    networks:
+      - zippy
 
   postgres:
     image: postgres:16-alpine
@@ -36,11 +35,13 @@ services:
       POSTGRES_DB: ${POSTGRES_DB}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    networks: [zippy]
+    networks:
+      - zippy
 
   redis:
     image: redis:7-alpine
-    networks: [zippy]
+    networks:
+      - zippy
 
   minio:
     image: minio/minio:latest
@@ -50,10 +51,12 @@ services:
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
     volumes:
       - minio_data:/data
-    networks: [zippy]
+    networks:
+      - zippy
 
   api-gateway:
-    build: ../apps/api-gateway
+    build:
+      context: ../apps/api-gateway
     environment:
       NODE_ENV: ${NODE_ENV}
       LOG_LEVEL: ${LOG_LEVEL}
@@ -62,105 +65,135 @@ services:
       RIDE_SERVICE_URL: http://ride:3002
       DRIVER_SERVICE_URL: http://driver:3003
       PAYMENT_SERVICE_URL: http://payment:3004
-    depends_on: [auth, ride, driver, payment]
+    depends_on:
+      - auth
+      - ride
+      - driver
+      - payment
     labels:
-      - traefik.enable=true
-      - traefik.http.routers.api.rule=Host(`api.${TRAEFIK_DOMAIN}`)
-      - traefik.http.routers.api.entrypoints=websecure
-      - traefik.http.routers.api.tls=true
-      - traefik.http.routers.api.tls.certresolver=cloudflare
-      - traefik.http.services.api.loadbalancer.server.port=3000
-    networks: [zippy]
+      traefik.enable: "true"
+      traefik.http.routers.api.rule: Host(`api.${TRAEFIK_DOMAIN}`)
+      traefik.http.routers.api.entrypoints: websecure
+      traefik.http.routers.api.tls: "true"
+      traefik.http.routers.api.tls.certresolver: cloudflare
+      traefik.http.routers.api.middlewares: security-headers@file
+      traefik.http.services.api.loadbalancer.server.port: "3000"
+    networks:
+      - zippy
 
   auth:
-    build: ../services/auth
+    build:
+      context: ../services/auth
     environment:
       NODE_ENV: ${NODE_ENV}
       LOG_LEVEL: ${LOG_LEVEL}
       AUTH_SERVICE_PORT: 3001
       DATABASE_URL: ${DATABASE_URL}
       REDIS_URL: ${REDIS_URL}
-    depends_on: [postgres, redis]
+    depends_on:
+      - postgres
+      - redis
     labels:
-      - traefik.enable=true
-      - traefik.http.routers.auth.rule=Host(`auth.${TRAEFIK_DOMAIN}`)
-      - traefik.http.routers.auth.entrypoints=websecure
-      - traefik.http.routers.auth.tls=true
-      - traefik.http.routers.auth.tls.certresolver=cloudflare
-      - traefik.http.services.auth.loadbalancer.server.port=3001
-    networks: [zippy]
+      traefik.enable: "true"
+      traefik.http.routers.auth.rule: Host(`auth.${TRAEFIK_DOMAIN}`)
+      traefik.http.routers.auth.entrypoints: websecure
+      traefik.http.routers.auth.tls: "true"
+      traefik.http.routers.auth.tls.certresolver: cloudflare
+      traefik.http.routers.auth.middlewares: security-headers@file
+      traefik.http.services.auth.loadbalancer.server.port: "3001"
+    networks:
+      - zippy
 
   ride:
-    build: ../services/ride
+    build:
+      context: ../services/ride
     environment:
       NODE_ENV: ${NODE_ENV}
       LOG_LEVEL: ${LOG_LEVEL}
       RIDE_SERVICE_PORT: 3002
       DATABASE_URL: ${DATABASE_URL}
       REDIS_URL: ${REDIS_URL}
-    depends_on: [postgres, redis]
+    depends_on:
+      - postgres
+      - redis
     labels:
-      - traefik.enable=true
-      - traefik.http.routers.ride.rule=Host(`ride.${TRAEFIK_DOMAIN}`)
-      - traefik.http.routers.ride.entrypoints=websecure
-      - traefik.http.routers.ride.tls=true
-      - traefik.http.routers.ride.tls.certresolver=cloudflare
-      - traefik.http.services.ride.loadbalancer.server.port=3002
-    networks: [zippy]
+      traefik.enable: "true"
+      traefik.http.routers.ride.rule: Host(`ride.${TRAEFIK_DOMAIN}`)
+      traefik.http.routers.ride.entrypoints: websecure
+      traefik.http.routers.ride.tls: "true"
+      traefik.http.routers.ride.tls.certresolver: cloudflare
+      traefik.http.routers.ride.middlewares: security-headers@file
+      traefik.http.services.ride.loadbalancer.server.port: "3002"
+    networks:
+      - zippy
 
   driver:
-    build: ../services/driver
+    build:
+      context: ../services/driver
     environment:
       NODE_ENV: ${NODE_ENV}
       LOG_LEVEL: ${LOG_LEVEL}
       DRIVER_SERVICE_PORT: 3003
       DATABASE_URL: ${DATABASE_URL}
       REDIS_URL: ${REDIS_URL}
-    depends_on: [postgres, redis]
+    depends_on:
+      - postgres
+      - redis
     labels:
-      - traefik.enable=true
-      - traefik.http.routers.driver.rule=Host(`driver.${TRAEFIK_DOMAIN}`)
-      - traefik.http.routers.driver.entrypoints=websecure
-      - traefik.http.routers.driver.tls=true
-      - traefik.http.routers.driver.tls.certresolver=cloudflare
-      - traefik.http.services.driver.loadbalancer.server.port=3003
-    networks: [zippy]
+      traefik.enable: "true"
+      traefik.http.routers.driver.rule: Host(`driver.${TRAEFIK_DOMAIN}`)
+      traefik.http.routers.driver.entrypoints: websecure
+      traefik.http.routers.driver.tls: "true"
+      traefik.http.routers.driver.tls.certresolver: cloudflare
+      traefik.http.routers.driver.middlewares: security-headers@file
+      traefik.http.services.driver.loadbalancer.server.port: "3003"
+    networks:
+      - zippy
 
   payment:
-    build: ../services/payment
+    build:
+      context: ../services/payment
     environment:
       NODE_ENV: ${NODE_ENV}
       LOG_LEVEL: ${LOG_LEVEL}
       PAYMENT_SERVICE_PORT: 3004
       DATABASE_URL: ${DATABASE_URL}
       REDIS_URL: ${REDIS_URL}
-    depends_on: [postgres, redis]
+    depends_on:
+      - postgres
+      - redis
     labels:
-      - traefik.enable=true
-      - traefik.http.routers.payment.rule=Host(`payment.${TRAEFIK_DOMAIN}`)
-      - traefik.http.routers.payment.entrypoints=websecure
-      - traefik.http.routers.payment.tls=true
-      - traefik.http.routers.payment.tls.certresolver=cloudflare
-      - traefik.http.services.payment.loadbalancer.server.port=3004
-    networks: [zippy]
+      traefik.enable: "true"
+      traefik.http.routers.payment.rule: Host(`payment.${TRAEFIK_DOMAIN}`)
+      traefik.http.routers.payment.entrypoints: websecure
+      traefik.http.routers.payment.tls: "true"
+      traefik.http.routers.payment.tls.certresolver: cloudflare
+      traefik.http.routers.payment.middlewares: security-headers@file
+      traefik.http.services.payment.loadbalancer.server.port: "3004"
+    networks:
+      - zippy
 
   admin-panel:
-    build: ../apps/admin-panel
+    build:
+      context: ../apps/admin-panel
     environment:
       NODE_ENV: ${NODE_ENV}
       ADMIN_PANEL_PORT: 3005
       NEXT_PUBLIC_API_GATEWAY_URL: https://api.${TRAEFIK_DOMAIN}
     labels:
-      - traefik.enable=true
-      - traefik.http.routers.admin.rule=Host(`admin.${TRAEFIK_DOMAIN}`)
-      - traefik.http.routers.admin.entrypoints=websecure
-      - traefik.http.routers.admin.tls=true
-      - traefik.http.routers.admin.tls.certresolver=cloudflare
-      - traefik.http.services.admin.loadbalancer.server.port=3005
-    networks: [zippy]
+      traefik.enable: "true"
+      traefik.http.routers.admin.rule: Host(`admin.${TRAEFIK_DOMAIN}`)
+      traefik.http.routers.admin.entrypoints: websecure
+      traefik.http.routers.admin.tls: "true"
+      traefik.http.routers.admin.tls.certresolver: cloudflare
+      traefik.http.routers.admin.middlewares: security-headers@file
+      traefik.http.services.admin.loadbalancer.server.port: "3005"
+    networks:
+      - zippy
 
 networks:
   zippy:
+    driver: bridge
 
 volumes:
   postgres_data:
