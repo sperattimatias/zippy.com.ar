@@ -16,10 +16,16 @@ import { AppController } from './app.controller';
 import { defaultPinoConfig } from '../../../shared/utils/logger';
 import { AuthGuard } from './auth/auth.guard';
 import { RolesGuard } from './auth/roles.guard';
+import { JwtClaimsMiddleware } from './auth/jwt-claims.middleware';
+import {
+  RequireAdminOrSosMiddleware,
+  RequirePassengerOrDriverMiddleware,
+} from './auth/require-roles.middleware';
 
 const authRoutes: RouteInfo[] = [{ path: 'api/auth/(.*)', method: RequestMethod.ALL }];
 const rideRoutes: RouteInfo[] = [{ path: 'api/rides/(.*)', method: RequestMethod.ALL }];
 const driverRoutes: RouteInfo[] = [{ path: 'api/drivers/(.*)', method: RequestMethod.ALL }];
+const adminDriverRoutes: RouteInfo[] = [{ path: 'api/admin/drivers/(.*)', method: RequestMethod.ALL }];
 const paymentRoutes: RouteInfo[] = [{ path: 'api/payments/(.*)', method: RequestMethod.ALL }];
 
 @Module({
@@ -46,6 +52,9 @@ const paymentRoutes: RouteInfo[] = [{ path: 'api/payments/(.*)', method: Request
     AuthGuard,
     RolesGuard,
     Reflector,
+    JwtClaimsMiddleware,
+    RequireAdminOrSosMiddleware,
+    RequirePassengerOrDriverMiddleware,
     {
       provide: APP_GUARD,
       useClass: ThrottlerGuard,
@@ -54,6 +63,9 @@ const paymentRoutes: RouteInfo[] = [{ path: 'api/payments/(.*)', method: Request
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
+    consumer.apply(JwtClaimsMiddleware, RequirePassengerOrDriverMiddleware).forRoutes(...driverRoutes);
+    consumer.apply(JwtClaimsMiddleware, RequireAdminOrSosMiddleware).forRoutes(...adminDriverRoutes);
+
     consumer
       .apply(
         createProxyMiddleware({
@@ -64,6 +76,30 @@ export class AppModule implements NestModule {
       )
       .forRoutes(...authRoutes);
 
+    const driverProxy = createProxyMiddleware({
+      target: process.env.DRIVER_SERVICE_URL,
+      changeOrigin: true,
+      onProxyReq: (proxyReq, req: any) => {
+        if (req.user?.sub) proxyReq.setHeader('x-user-id', req.user.sub);
+        if (req.user?.roles) proxyReq.setHeader('x-user-roles', JSON.stringify(req.user.roles));
+      },
+    });
+
+    consumer.apply(driverProxy).forRoutes(...driverRoutes);
+    consumer
+      .apply(
+        createProxyMiddleware({
+          target: process.env.DRIVER_SERVICE_URL,
+          changeOrigin: true,
+          pathRewrite: { '^/api/admin/drivers': '/admin/drivers' },
+          onProxyReq: (proxyReq, req: any) => {
+            if (req.user?.sub) proxyReq.setHeader('x-user-id', req.user.sub);
+            if (req.user?.roles) proxyReq.setHeader('x-user-roles', JSON.stringify(req.user.roles));
+          },
+        }),
+      )
+      .forRoutes(...adminDriverRoutes);
+
     consumer
       .apply(
         createProxyMiddleware({
@@ -73,16 +109,6 @@ export class AppModule implements NestModule {
         }),
       )
       .forRoutes(...rideRoutes);
-
-    consumer
-      .apply(
-        createProxyMiddleware({
-          target: process.env.DRIVER_SERVICE_URL,
-          changeOrigin: true,
-          pathRewrite: { '^/api/drivers': '/' },
-        }),
-      )
-      .forRoutes(...driverRoutes);
 
     consumer
       .apply(

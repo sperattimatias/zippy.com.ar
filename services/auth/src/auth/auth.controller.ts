@@ -8,6 +8,7 @@ import {
   Post,
   Req,
   UseGuards,
+  ForbiddenException,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
@@ -17,6 +18,7 @@ import { VerifyEmailDto } from '../dto/verify-email.dto';
 import { LoginDto } from '../dto/login.dto';
 import { RefreshDto } from '../dto/refresh.dto';
 import { LogoutDto } from '../dto/logout.dto';
+import { GrantRoleDto } from '../dto/grant-role.dto';
 import { JwtAccessGuard } from '../common/jwt-access.guard';
 
 @ApiTags('auth')
@@ -74,6 +76,18 @@ export class AuthController {
     return this.authService.logout(dto);
   }
 
+
+  @Post('admin/grant-role')
+  @UseGuards(JwtAccessGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Grant role to a user (admin/sos only)' })
+  async grantRole(@Req() req: { user: { roles: string[] } }, @Body() dto: GrantRoleDto) {
+    const roles = req.user.roles ?? [];
+    if (!roles.includes('admin') && !roles.includes('sos')) {
+      throw new ForbiddenException('admin/sos role required');
+    }
+    return this.authService.grantRole(dto.user_id, dto.role);
+  }
   @Get('me')
   @UseGuards(JwtAccessGuard)
   @ApiBearerAuth()

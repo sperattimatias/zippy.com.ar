@@ -14,3 +14,8 @@
 ## Extensión recomendada
 - Evolucionar a matriz de permisos por recurso/acción.
 - Agregar políticas por tenant/región y auditoría de permisos efectivos.
+
+
+## Auth admin operation
+- `POST /auth/admin/grant-role` permite asignar rol `driver` a un `user_id`.
+- Protegido para `admin|sos`.

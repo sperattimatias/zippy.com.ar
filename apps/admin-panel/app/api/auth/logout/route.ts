@@ -3,7 +3,8 @@ import { cookies } from 'next/headers';
 const gatewayBase = process.env.API_GATEWAY_INTERNAL_URL ?? process.env.NEXT_PUBLIC_API_GATEWAY_URL!;
 
 export async function POST() {
-  const refreshToken = cookies().get('zippy_refresh_token')?.value;
+  const store = cookies();
+  const refreshToken = store.get('zippy_refresh_token')?.value;
 
   if (refreshToken) {
     await fetch(`${gatewayBase}/api/auth/logout`, {
@@ -14,6 +15,7 @@ export async function POST() {
     });
   }
 
-  cookies().delete('zippy_refresh_token');
+  store.delete('zippy_refresh_token');
+  store.delete('zippy_access_token');
   return Response.json({ message: 'ok' });
 }

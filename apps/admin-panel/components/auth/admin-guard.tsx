@@ -9,15 +9,7 @@ export function AdminGuard({ children }: { children: React.ReactNode }) {
   const [allowed, setAllowed] = useState(false);
 
   useEffect(() => {
-    const token = localStorage.getItem('zippy_access_token');
-    if (!token) {
-      router.replace('/login');
-      return;
-    }
-
-    fetch('/api/auth/me', {
-      headers: { Authorization: `Bearer ${token}` },
-    })
+    fetch('/api/auth/me', { cache: 'no-store' })
       .then(async (res) => {
         if (!res.ok) throw new Error('unauthorized');
         const data = await res.json();
@@ -25,15 +17,11 @@ export function AdminGuard({ children }: { children: React.ReactNode }) {
         if (!roles.includes('admin') && !roles.includes('sos')) throw new Error('forbidden');
         setAllowed(true);
       })
-      .catch(() => {
-        localStorage.removeItem('zippy_access_token');
-        router.replace('/login');
-      })
+      .catch(() => router.replace('/login'))
       .finally(() => setLoading(false));
   }, [router]);
 
   if (loading) return <p className="p-6">Checking session...</p>;
   if (!allowed) return null;
-
   return <>{children}</>;
 }

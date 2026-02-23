@@ -199,7 +199,21 @@ export class AuthService {
     return { message: 'logged out' };
   }
 
-  async me(userId: string) {
+  
+  async grantRole(userId: string, roleName: 'driver') {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new NotFoundException('User not found');
+
+    const role = await this.prisma.role.upsert({ where: { name: roleName }, create: { name: roleName }, update: {} });
+    await this.prisma.userRole.upsert({
+      where: { user_id_role_id: { user_id: userId, role_id: role.id } },
+      create: { user_id: userId, role_id: role.id },
+      update: {},
+    });
+
+    return { message: 'role granted', user_id: userId, role: roleName };
+  }
+async me(userId: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       include: { roles: { include: { role: true } } },

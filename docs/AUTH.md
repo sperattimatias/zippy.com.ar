@@ -24,5 +24,5 @@
 
 ## Modelo de sesión admin-panel (MVP)
 - `refresh_token` en cookie httpOnly (`zippy_refresh_token`) via Next API route.
-- `access_token` en memoria/localStorage para llamadas desde cliente.
-- Riesgo documentado: localStorage expone token ante XSS; en producción se recomienda BFF completo o cookie httpOnly + CSRF protection.
+- `access_token` en cookie httpOnly manejada por BFF del admin-panel.
+- Se evita `localStorage` para tokens en Sprint 2; mantener protección CSRF al evolucionar formularios sensibles.

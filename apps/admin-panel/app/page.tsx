@@ -14,6 +14,7 @@ export default function HomePage() {
           <Link href="/admin/dashboard" className="rounded-md border border-slate-700 px-4 py-2">
             Admin dashboard
           </Link>
+        <Link href="/admin/drivers" className="rounded-md border border-slate-700 px-4 py-2">Driver reviews</Link>
         </div>
       </section>
     </main>

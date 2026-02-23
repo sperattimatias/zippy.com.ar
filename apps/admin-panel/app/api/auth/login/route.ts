@@ -15,13 +15,21 @@ export async function POST(request: Request) {
   const payload = await response.json();
   if (!response.ok) return Response.json(payload, { status: response.status });
 
-  cookies().set('zippy_refresh_token', payload.refresh_token, {
+  const store = cookies();
+  store.set('zippy_refresh_token', payload.refresh_token, {
     httpOnly: true,
     secure: true,
     sameSite: 'lax',
     path: '/',
     maxAge: 60 * 60 * 24 * 30,
   });
+  store.set('zippy_access_token', payload.access_token, {
+    httpOnly: true,
+    secure: true,
+    sameSite: 'lax',
+    path: '/',
+    maxAge: 60 * 15,
+  });
 
-  return Response.json({ access_token: payload.access_token });
+  return Response.json({ ok: true });
 }

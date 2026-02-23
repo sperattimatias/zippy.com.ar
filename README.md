@@ -1,127 +1,121 @@
 # zippy-rideshare
 
-Monorepo profesional para plataforma rideshare con arquitectura orientada a microservicios.
+Monorepo para rideshare con auth centralizado, gateway RBAC y onboarding de conductores KYC-lite.
 
-## Stack
-- **Gateway/API**: NestJS + Swagger + Throttling + reverse proxy interno + Bearer RBAC.
-- **Servicios**: NestJS + Prisma (auth, ride, driver, payment).
-- **Admin**: Next.js 14 + TailwindCSS + login real (MVP).
-- **Infra**: Docker Compose + Traefik + PostgreSQL + Redis + MinIO.
+## Sprint 2 Highlights
+- Onboarding conductor con estados (`PENDING_DOCS`, `IN_REVIEW`, `APPROVED`, `REJECTED`, `SUSPENDED`).
+- Documentos privados en MinIO con URLs firmadas PUT/GET.
+- Auditoría inmutable de acciones (`DriverEvent`).
+- Panel admin para revisión y acciones de aprobación/rechazo/suspensión.
+- Fix de sesión en admin-panel: **sin localStorage** (cookies httpOnly + BFF).
 
-## Estructura del monorepo
-
+## Estructura
 ```text
-zippy-rideshare/
-├── apps/
-│   ├── api-gateway/
-│   └── admin-panel/
-├── services/
-│   ├── auth/
-│   ├── ride/
-│   ├── driver/
-│   └── payment/
-├── shared/
-├── infra/
-├── docs/
-│   ├── AUTH.md
-│   └── RBAC.md
-└── README.md
+apps/
+  api-gateway
+  admin-panel
+services/
+  auth
+  driver
+  ride
+  payment
+shared/
+infra/
+docs/
+  AUTH.md
+  RBAC.md
+  DRIVER_KYC.md
+  SECURITY_NOTES.md
 ```
 
-## Variables de entorno clave
-
+## Variables de entorno
 ```bash
 cp .env.example .env
 ```
+Asegurar especialmente:
+- `JWT_ACCESS_SECRET`
+- `MINIO_*`
+- `NEXT_PUBLIC_API_GATEWAY_URL`
+- `API_GATEWAY_INTERNAL_URL`
 
-- `JWT_ACCESS_SECRET`: secreto HS256 (>=32 chars)
-- `JWT_ACCESS_EXPIRES_IN`: default `15m`
-- `REFRESH_TOKEN_EXPIRES_DAYS`: default `30`
-- `EMAIL_VERIFICATION_TTL_MIN`: default `10`
-- `NEXT_PUBLIC_API_GATEWAY_URL`: URL pública del gateway
-- `API_GATEWAY_INTERNAL_URL`: URL interna desde Next API routes
-
-## Levantar entorno
-
+## Comandos
 ```bash
+docker compose -f infra/docker-compose.yml config
 docker compose -f infra/docker-compose.yml --env-file .env up -d --build
-```
-
-```bash
 docker compose -f infra/docker-compose.yml ps
 ```
 
-## Verificación Sprint 1 (curl end-to-end)
+## Curl de verificación (Auth + Driver KYC)
 
-> Asumiendo `TRAEFIK_DOMAIN=zippy.local` y gateway en `https://api.zippy.local`.
-
-### 1) Register
+### 1) Register + verify + login
 ```bash
 curl -i -X POST https://api.zippy.local/api/auth/register \
   -H 'Content-Type: application/json' \
-  -d '{"email":"admin@zippy.com.ar","password":"MyS3curePassw0rd!"}'
-```
+  -d '{"email":"driver1@zippy.com.ar","password":"MyS3curePassw0rd!"}'
 
-### 2) Verify email
-Tomar el código que imprime `services/auth` en logs de desarrollo.
-```bash
 curl -i -X POST https://api.zippy.local/api/auth/verify-email \
   -H 'Content-Type: application/json' \
-  -d '{"email":"admin@zippy.com.ar","code":"123456"}'
-```
+  -d '{"email":"driver1@zippy.com.ar","code":"123456"}'
 
-### 3) Login
-```bash
 curl -i -X POST https://api.zippy.local/api/auth/login \
   -H 'Content-Type: application/json' \
-  -d '{"email":"admin@zippy.com.ar","password":"MyS3curePassw0rd!"}'
+  -d '{"email":"driver1@zippy.com.ar","password":"MyS3curePassw0rd!"}'
 ```
 
-### 4) Me
+### 2) Solicitar perfil conductor
 ```bash
-curl -i https://api.zippy.local/api/auth/me \
+curl -i -X POST https://api.zippy.local/api/drivers/request \
   -H "Authorization: Bearer <ACCESS_TOKEN>"
 ```
 
-### 5) Refresh (rotativo)
+### 3) Presign documento
 ```bash
-curl -i -X POST https://api.zippy.local/api/auth/refresh \
+curl -i -X POST https://api.zippy.local/api/drivers/me/documents/presign \
+  -H "Authorization: Bearer <ACCESS_TOKEN>" \
   -H 'Content-Type: application/json' \
-  -d '{"refresh_token":"<REFRESH_TOKEN>"}'
+  -d '{"type":"SELFIE","mime_type":"image/jpeg","size_bytes":250000}'
 ```
 
-### 6) Logout
+### 4) Cargar archivo usando put_url
 ```bash
-curl -i -X POST https://api.zippy.local/api/auth/logout \
+curl -X PUT "<PUT_URL>" \
+  -H 'Content-Type: image/jpeg' \
+  --data-binary @selfie.jpg
+```
+
+### 5) Admin pending/detail/review
+```bash
+curl -i https://api.zippy.local/api/admin/drivers/pending \
+  -H "Authorization: Bearer <ADMIN_ACCESS_TOKEN>"
+
+curl -i https://api.zippy.local/api/admin/drivers/<DRIVER_PROFILE_ID> \
+  -H "Authorization: Bearer <ADMIN_ACCESS_TOKEN>"
+
+curl -i -X POST https://api.zippy.local/api/admin/drivers/<DRIVER_PROFILE_ID>/review-start \
+  -H "Authorization: Bearer <ADMIN_ACCESS_TOKEN>"
+
+curl -i -X POST https://api.zippy.local/api/admin/drivers/<DRIVER_PROFILE_ID>/approve \
+  -H "Authorization: Bearer <ADMIN_ACCESS_TOKEN>"
+```
+
+### 6) Rechazar / suspender
+```bash
+curl -i -X POST https://api.zippy.local/api/admin/drivers/<DRIVER_PROFILE_ID>/reject \
+  -H "Authorization: Bearer <ADMIN_ACCESS_TOKEN>" \
   -H 'Content-Type: application/json' \
-  -d '{"refresh_token":"<REFRESH_TOKEN>"}'
+  -d '{"reason":"Documento ilegible"}'
+
+curl -i -X POST https://api.zippy.local/api/admin/drivers/<DRIVER_PROFILE_ID>/suspend \
+  -H "Authorization: Bearer <ADMIN_ACCESS_TOKEN>" \
+  -H 'Content-Type: application/json' \
+  -d '{"reason":"Incumplimiento de políticas"}'
 ```
 
-### 7) Proxy checks desde gateway
-```bash
-curl -i https://api.zippy.local/api/auth/health
-curl -i https://api.zippy.local/api/rides/health
-curl -i https://api.zippy.local/api/drivers/health
-curl -i https://api.zippy.local/api/payments/health
-```
-
-## Swagger
-- Gateway docs: `https://api.<TRAEFIK_DOMAIN>/docs`
-- Auth docs: `https://auth.<TRAEFIK_DOMAIN>/docs`
-
-## Checklist de verificación
-- [ ] `docker compose -f infra/docker-compose.yml config` sin errores.
-- [ ] `POST /api/auth/register` crea usuario + código de verificación.
-- [ ] `POST /api/auth/verify-email` marca email verificado.
-- [ ] `POST /api/auth/login` retorna access+refresh.
-- [ ] `POST /api/auth/refresh` rota refresh token y el viejo deja de servir.
-- [ ] `POST /api/auth/logout` revoca sesión.
-- [ ] `GET /api/auth/me` retorna roles.
-- [ ] Admin panel `/login` funciona y `/admin/dashboard` restringe a `admin|sos`.
-
-## Seguridad aplicada
-- Access token corto (HS256).
-- Refresh token rotativo con revocación.
-- Hash Argon2id para password.
-- Hash SHA-256 para verification code y refresh token.
-- Rate limiting en endpoints críticos de auth.
+## Checklist Sprint 2
+- [ ] `prisma migrate` aplicado en `services/driver`.
+- [ ] `POST /drivers/request` crea profile `PENDING_DOCS`.
+- [ ] `POST /drivers/me/documents/presign` devuelve `put_url`.
+- [ ] `GET /admin/drivers/pending` lista pendientes con `docs_count`.
+- [ ] `POST /admin/drivers/:id/approve` cambia a `APPROVED` y asigna rol `driver` en auth.
+- [ ] Admin panel `/admin/drivers` y `/admin/drivers/[id]` funcionales.
+- [ ] Sin localStorage para tokens (BFF + cookies httpOnly).

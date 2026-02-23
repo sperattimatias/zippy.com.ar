@@ -4,11 +4,6 @@ import { Controller, Get } from '@nestjs/common';
 export class AppController {
   @Get('health')
   health() {
-    return {
-      status: 'ok',
-      service: 'driver',
-      timestamp: new Date().toISOString(),
-      notes: 'Driver lifecycle + Prisma base service',
-    };
+    return { status: 'ok', service: 'driver', timestamp: new Date().toISOString() };
   }
 }
