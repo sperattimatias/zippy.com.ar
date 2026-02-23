@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { JwtAccessGuard } from '../common/jwt-access.guard';
 import { Roles } from '../common/roles.decorator';
@@ -8,10 +8,14 @@ import {
   AcceptBidDto,
   CancelDto,
   CreateBidDto,
+  GeoZoneCreateDto,
+  GeoZonePatchDto,
   LocationDto,
   PresenceOnlineDto,
   PresencePingDto,
   RateTripDto,
+  SafetyAlertFilterDto,
+  SafetyAlertUpdateDto,
   TripRequestDto,
   VerifyOtpDto,
 } from '../dto/ride.dto';
@@ -88,4 +92,34 @@ export class RideController {
   @Get('admin/trips/:id')
   @Roles('admin', 'sos')
   adminTripDetail(@Param('id') id: string) { return this.rideService.tripDetail(id); }
+
+  @Get('admin/trips/:id/safety')
+  @Roles('admin', 'sos')
+  adminTripSafety(@Param('id') id: string) { return this.rideService.tripSafety(id); }
+
+  @Post('admin/geozones')
+  @Roles('admin', 'sos')
+  createGeoZone(@Body() dto: GeoZoneCreateDto) { return this.rideService.createGeoZone(dto); }
+
+  @Get('admin/geozones')
+  @Roles('admin', 'sos')
+  listGeoZones() { return this.rideService.listGeoZones(); }
+
+  @Patch('admin/geozones/:id')
+  @Roles('admin', 'sos')
+  patchGeoZone(@Param('id') id: string, @Body() dto: GeoZonePatchDto) { return this.rideService.patchGeoZone(id, dto); }
+
+  @Delete('admin/geozones/:id')
+  @Roles('admin', 'sos')
+  deleteGeoZone(@Param('id') id: string) { return this.rideService.deleteGeoZone(id); }
+
+  @Get('admin/safety-alerts')
+  @Roles('admin', 'sos')
+  listSafetyAlerts(@Query() filter: SafetyAlertFilterDto) { return this.rideService.listSafetyAlerts(filter); }
+
+  @Patch('admin/safety-alerts/:id')
+  @Roles('admin', 'sos')
+  updateSafetyAlert(@Req() req: AuthReq, @Param('id') id: string, @Body() dto: SafetyAlertUpdateDto) {
+    return this.rideService.updateSafetyAlert(id, req.user.sub, dto);
+  }
 }

@@ -20,6 +20,14 @@
 - Solo si claim exitoso se actualizan bids (`AUTO_SELECTED` / `REJECTED`) y luego se emiten eventos.
 - Esto hace el proceso idempotente y seguro bajo concurrencia.
 
+## Safety (Sprint 4)
+- El estado del viaje no cambia por sí solo al detectar riesgo, pero se actualiza `TripSafetyState` y se crean `SafetyAlert`.
+- `safety_score` arranca en 100 y va decrementando por reglas de zona/desvío/tracking.
+- Umbrales:
+  - `<=70` -> `safety.checkin_required`
+  - `<=50` -> alerta `MANUAL_SOS_TRIGGER`
+  - `<=35` -> evento `trip.safety.flagged`
+
 ## Reglas inválidas
 - Completar si no está `IN_PROGRESS`.
 - Verificar OTP fuera de `OTP_PENDING`.

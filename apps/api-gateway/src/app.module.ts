@@ -31,6 +31,8 @@ const driverPresenceRoutes: RouteInfo[] = [{ path: 'api/drivers/presence/(.*)', 
 const driverRoutes: RouteInfo[] = [{ path: 'api/drivers/(.*)', method: RequestMethod.ALL }];
 const adminDriverRoutes: RouteInfo[] = [{ path: 'api/admin/drivers/(.*)', method: RequestMethod.ALL }];
 const adminTripsRoutes: RouteInfo[] = [{ path: 'api/admin/trips/(.*)', method: RequestMethod.ALL }];
+const adminGeoZonesRoutes: RouteInfo[] = [{ path: 'api/admin/geozones/(.*)', method: RequestMethod.ALL }, { path: 'api/admin/geozones', method: RequestMethod.ALL }];
+const adminSafetyAlertsRoutes: RouteInfo[] = [{ path: 'api/admin/safety-alerts/(.*)', method: RequestMethod.ALL }, { path: 'api/admin/safety-alerts', method: RequestMethod.ALL }];
 const paymentRoutes: RouteInfo[] = [{ path: 'api/payments/(.*)', method: RequestMethod.ALL }];
 
 const passengerTripRoutes: RouteInfo[] = [
@@ -88,7 +90,7 @@ const driverTripRoutes: RouteInfo[] = [
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
     consumer.apply(JwtClaimsMiddleware, RequirePassengerOrDriverMiddleware).forRoutes(...driverRoutes);
-    consumer.apply(JwtClaimsMiddleware, RequireAdminOrSosMiddleware).forRoutes(...adminDriverRoutes, ...adminTripsRoutes);
+    consumer.apply(JwtClaimsMiddleware, RequireAdminOrSosMiddleware).forRoutes(...adminDriverRoutes, ...adminTripsRoutes, ...adminGeoZonesRoutes, ...adminSafetyAlertsRoutes);
     consumer.apply(JwtClaimsMiddleware, RequireDriverMiddleware).forRoutes(...driverPresenceRoutes);
     consumer.apply(JwtClaimsMiddleware, RequirePassengerMiddleware).forRoutes(...passengerTripRoutes);
     consumer.apply(JwtClaimsMiddleware, RequireDriverMiddleware).forRoutes(...driverTripRoutes);
@@ -127,6 +129,18 @@ export class AppModule implements NestModule {
         createProxyMiddleware({ target: process.env.RIDE_SERVICE_URL, changeOrigin: true, pathRewrite: { '^/api/admin/trips': '/admin/trips' } }),
       )
       .forRoutes(...adminTripsRoutes);
+
+    consumer
+      .apply(
+        createProxyMiddleware({ target: process.env.RIDE_SERVICE_URL, changeOrigin: true, pathRewrite: { '^/api/admin/geozones': '/admin/geozones' } }),
+      )
+      .forRoutes(...adminGeoZonesRoutes);
+
+    consumer
+      .apply(
+        createProxyMiddleware({ target: process.env.RIDE_SERVICE_URL, changeOrigin: true, pathRewrite: { '^/api/admin/safety-alerts': '/admin/safety-alerts' } }),
+      )
+      .forRoutes(...adminSafetyAlertsRoutes);
 
     consumer
       .apply(

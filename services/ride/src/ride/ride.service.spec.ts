@@ -52,6 +52,26 @@ describe('RideService', () => {
     expect(ws.emitTrip).not.toHaveBeenCalled();
   });
 
+  it('point-in-polygon works for inside and outside points', () => {
+    const service = new RideService({} as any, {} as any);
+    const polygon = [
+      { lat: 0, lng: 0 },
+      { lat: 0, lng: 1 },
+      { lat: 1, lng: 1 },
+      { lat: 1, lng: 0 },
+      { lat: 0, lng: 0 },
+    ];
+    expect((service as any).pointInPolygon({ lat: 0.5, lng: 0.5 }, polygon)).toBe(true);
+    expect((service as any).pointInPolygon({ lat: 2, lng: 2 }, polygon)).toBe(false);
+  });
+
+  it('distance-to-polyline is near zero for point on the route', () => {
+    const service = new RideService({} as any, {} as any);
+    const line = [{ lat: 0, lng: 0 }, { lat: 0, lng: 1 }];
+    const d = (service as any).distanceToPolylineMeters({ lat: 0, lng: 0.5 }, line);
+    expect(d).toBeLessThan(30);
+  });
+
   it('otp verify increments attempts on failure', async () => {
     const prisma: any = {
       trip: { findUnique: jest.fn().mockResolvedValue({ id: 't1', driver_user_id: 'd1', status: 'OTP_PENDING' }) },
@@ -63,6 +83,55 @@ describe('RideService', () => {
     const service = new RideService(prisma, { emitTrip: jest.fn() } as any);
     await expect(service.verifyOtp('t1', 'd1', { otp: '000000' })).rejects.toBeInstanceOf(BadRequestException);
     expect(prisma.tripOtp.update).toHaveBeenCalled();
+  });
+
+  it('tracking-lost job creates major alert for stale location', async () => {
+    const prisma: any = {
+      trip: {
+        findMany: jest.fn().mockResolvedValue([
+          { id: 't1', status: 'IN_PROGRESS', safety_state: { last_driver_location_at: new Date(Date.now() - 50_000) } },
+        ]),
+      },
+      safetyAlert: { create: jest.fn().mockResolvedValue({ id: 'a1' }) },
+      tripEvent: { create: jest.fn().mockResolvedValue({}) },
+      tripSafetyState: {
+        upsert: jest.fn().mockResolvedValue({ safety_score: 85 }),
+        findUnique: jest.fn().mockResolvedValue({ safety_score: 85 }),
+      },
+    };
+    const ws: any = { emitTrip: jest.fn(), emitSosAlert: jest.fn() };
+    const service = new RideService(prisma, ws);
+    await service.scanTrackingLostTrips();
+    expect(prisma.safetyAlert.create).toHaveBeenCalled();
+  });
+
+  it('major deviation sustained creates route deviation alert', async () => {
+    const prisma: any = {
+      trip: { findUnique: jest.fn().mockResolvedValue({ id: 't1', driver_user_id: 'd1', status: 'IN_PROGRESS' }) },
+      tripLocation: { create: jest.fn().mockResolvedValue({ created_at: new Date() }) },
+      tripSafetyState: {
+        upsert: jest.fn().mockResolvedValue({}),
+        findUnique: jest.fn().mockResolvedValue({ trip_id: 't1', last_zone_type: null }),
+        update: jest.fn().mockResolvedValue({}),
+      },
+      geoZone: { findMany: jest.fn().mockResolvedValue([]) },
+      tripRouteBaseline: {
+        findUnique: jest.fn().mockResolvedValue({
+          polyline_json: [{ lat: 0, lng: 0 }, { lat: 0, lng: 0.01 }],
+        }),
+      },
+      safetyAlert: { create: jest.fn().mockResolvedValue({ id: 'a1' }) },
+      tripEvent: { create: jest.fn().mockResolvedValue({}) },
+    };
+    const ws: any = { emitTrip: jest.fn(), emitSosAlert: jest.fn() };
+    const service = new RideService(prisma, ws);
+    jest.spyOn(Date, 'now').mockReturnValueOnce(0).mockReturnValueOnce(21_000).mockReturnValue(21_000);
+
+    await service.trackLocation('t1', 'd1', { lat: 0.02, lng: 0.02 });
+    await service.trackLocation('t1', 'd1', { lat: 0.02, lng: 0.02 });
+
+    expect(prisma.safetyAlert.create).toHaveBeenCalled();
+    (Date.now as jest.Mock).mockRestore();
   });
 
   it('invalid FSM transition fails', async () => {

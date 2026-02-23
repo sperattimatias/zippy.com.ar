@@ -11,6 +11,13 @@ Monorepo rideshare con Auth centralizado, KYC de conductores y Ride Core con mat
 - Cancelaciones justas + auditoría (`TripEvent`).
 - Socket.IO con auth Bearer en handshake.
 
+## Sprint 4 (Safety & Control)
+- GeoZones CRUD (admin/sos).
+- Detección de zonas RED/CAUTION por point-in-polygon.
+- Detección de desvío de ruta respecto a baseline heurística.
+- Detección de tracking perdido y alertas SOS/Admin.
+- Safety alerts con flujo OPEN -> ACKNOWLEDGED/RESOLVED/DISMISSED.
+
 ## Comandos
 ```bash
 cp .env.example .env
@@ -39,6 +46,13 @@ docker compose -f infra/docker-compose.yml ps
 - Admin/SOS:
   - `GET /api/admin/trips`
   - `GET /api/admin/trips/:id`
+  - `GET /api/admin/trips/:id/safety`
+  - `POST /api/admin/geozones`
+  - `GET /api/admin/geozones`
+  - `PATCH /api/admin/geozones/:id`
+  - `DELETE /api/admin/geozones/:id`
+  - `GET /api/admin/safety-alerts`
+  - `PATCH /api/admin/safety-alerts/:id`
 
 ## Curl ejemplo
 ```bash
@@ -75,7 +89,9 @@ curl -i -X POST https://api.zippy.local/api/trips/<TRIP_ID>/driver/verify-otp \
 
 ## Admin panel
 - `/admin/trips`: listado de viajes recientes.
-- `/admin/trips/[id]`: detalle, eventos y locations (con placeholder de mapa).
+- `/admin/trips/[id]`: detalle, eventos, locations y sección safety.
+- `/admin/geozones`: CRUD de zonas (MVP con JSON).
+- `/admin/safety-alerts`: cola de alertas con acciones.
 
 ## Docs
 - `docs/RIDE_FLOW.md`
@@ -84,3 +100,6 @@ curl -i -X POST https://api.zippy.local/api/trips/<TRIP_ID>/driver/verify-otp \
 - `docs/SECURITY_NOTES.md`
 - `docs/AUTH.md`
 - `docs/RBAC.md`
+- `docs/SAFETY.md`
+- `docs/GEOZONES.md`
+- `docs/ALERTS.md`
