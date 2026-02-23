@@ -45,6 +45,9 @@ const adminBonusesRoutes: RouteInfo[] = [{ path: 'api/admin/bonuses/(.*)', metho
 const adminPoliciesRoutes: RouteInfo[] = [{ path: 'api/admin/policies/:key', method: RequestMethod.ALL }];
 const driverCommissionRoutes: RouteInfo[] = [{ path: 'api/drivers/commission/current', method: RequestMethod.ALL }];
 const paymentRoutes: RouteInfo[] = [{ path: 'api/payments/(.*)', method: RequestMethod.ALL }];
+const paymentCreatePreferenceRoutes: RouteInfo[] = [{ path: 'api/payments/payments/create-preference', method: RequestMethod.POST }];
+const paymentDriverFinanceRoutes: RouteInfo[] = [{ path: 'api/payments/drivers/finance/(.*)', method: RequestMethod.ALL }];
+const paymentAdminFinanceRoutes: RouteInfo[] = [{ path: 'api/payments/admin/finance/(.*)', method: RequestMethod.ALL }];
 
 const passengerTripRoutes: RouteInfo[] = [
   { path: 'api/trips/request', method: RequestMethod.POST },
@@ -105,6 +108,9 @@ export class AppModule implements NestModule {
     consumer.apply(JwtClaimsMiddleware, RequireDriverMiddleware).forRoutes(...driverPresenceRoutes, ...driverCommissionRoutes);
     consumer.apply(JwtClaimsMiddleware, RequirePassengerMiddleware).forRoutes(...passengerTripRoutes);
     consumer.apply(JwtClaimsMiddleware, RequireDriverMiddleware).forRoutes(...driverTripRoutes);
+    consumer.apply(JwtClaimsMiddleware, RequirePassengerMiddleware).forRoutes(...paymentCreatePreferenceRoutes);
+    consumer.apply(JwtClaimsMiddleware, RequireDriverMiddleware).forRoutes(...paymentDriverFinanceRoutes);
+    consumer.apply(JwtClaimsMiddleware, RequireAdminOrSosMiddleware).forRoutes(...paymentAdminFinanceRoutes);
 
     consumer
       .apply(

@@ -23,6 +23,17 @@ export class DriverService {
     private readonly config: ConfigService,
   ) {}
 
+
+  private async ensureProfile(userId: string) {
+    const profile = await this.prisma.driverProfile.findUnique({ where: { user_id: userId } });
+    if (!profile) throw new NotFoundException('Driver profile not found');
+    return profile;
+  }
+
+  private async addEvent(driverProfileId: string, actorUserId: string, type: DriverEventType, payload: unknown) {
+    await this.prisma.driverEvent.create({ data: { driver_profile_id: driverProfileId, actor_user_id: actorUserId, type, payload_json: payload as any } });
+  }
+
   private validateMime(type: string) {
     const allowed = ['image/jpeg', 'image/png', 'application/pdf'];
     if (!allowed.includes(type)) throw new BadRequestException('Unsupported mime type');
@@ -84,6 +95,13 @@ export class DriverService {
     });
 
     return { put_url, object_key, document_id: doc.id };
+  }
+
+  async connectMpAccount(userId: string, mpAccountId: string) {
+    const profile = await this.ensureProfile(userId);
+    const updated = await this.prisma.driverProfile.update({ where: { id: profile.id }, data: { mp_account_id: mpAccountId } });
+    await this.addEvent(profile.id, userId, DriverEventType.NOTE_ADDED, { note: 'mp_account_connected', mp_account_id: mpAccountId });
+    return { user_id: updated.user_id, mp_account_id: updated.mp_account_id };
   }
 
   async upsertVehicle(userId: string, dto: UpsertVehicleDto) {

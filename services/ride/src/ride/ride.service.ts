@@ -239,6 +239,9 @@ export class RideService implements OnModuleInit {
     const presence = await this.prisma.driverPresence.findUnique({ where: { driver_user_id: driverUserId } });
     if (!presence || !presence.is_online || !this.onlineRecent(presence.last_seen_at)) throw new ForbiddenException('Driver is offline');
 
+    const mp = await this.prisma.externalDriverProfile.findUnique({ where: { user_id: driverUserId } });
+    if (!mp?.mp_account_id) throw new ForbiddenException('Driver must connect MercadoPago account before accepting trips');
+
     const min = Math.round(trip.price_base * 0.7), max = Math.round(trip.price_base * 2.0);
     if (dto.price_offer < min || dto.price_offer > max) throw new BadRequestException('Price offer out of allowed range');
 

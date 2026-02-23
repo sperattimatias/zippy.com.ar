@@ -473,3 +473,12 @@ model CommissionPolicy {
   value_json Json
   updated_at DateTime @updatedAt
 }
+
+
+model ExternalDriverProfile {
+  id            String  @id
+  user_id       String  @unique
+  mp_account_id String?
+
+  @@map("DriverProfile")
+}

@@ -51,6 +51,7 @@ model DriverProfile {
   rejected_by_user_id String?
   rejection_reason    String?
   notes               String?
+  mp_account_id       String?
 
   documents DriverDocument[]
   events    DriverEvent[]

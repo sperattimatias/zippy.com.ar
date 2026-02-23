@@ -11,6 +11,7 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { DriverService } from './driver.service';
 import { PresignDocumentDto } from '../dto/presign-document.dto';
 import { UpsertVehicleDto } from '../dto/upsert-vehicle.dto';
+import { ConnectMpDto } from '../dto/connect-mp.dto';
 import { ReviewActionDto } from '../dto/review-action.dto';
 import { JwtAccessGuard } from '../common/jwt-access.guard';
 import { RolesGuard } from '../common/roles.guard';
@@ -41,6 +42,11 @@ export class DriverController {
   @Post('drivers/me/documents/presign')
   presign(@Req() req: AuthReq, @Body() dto: PresignDocumentDto) {
     return this.driverService.presignDocument(req.user.sub, dto);
+  }
+
+  @Post('drivers/mp-account')
+  connectMp(@Req() req: AuthReq, @Body() dto: ConnectMpDto) {
+    return this.driverService.connectMpAccount(req.user.sub, dto.mp_account_id);
   }
 
   @Post('drivers/me/vehicle')

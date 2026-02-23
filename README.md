@@ -145,3 +145,11 @@ curl -i -X POST https://api.zippy.local/api/trips/<TRIP_ID>/driver/verify-otp \
 - Admin APIs: `GET /api/admin/levels`, `GET /api/admin/monthly-performance`, `GET /api/admin/bonuses`, `PUT /api/admin/policies/:key`, `POST /api/admin/bonuses/:id/revoke`.
 - Admin Panel pages: `/admin/levels`, `/admin/performance`, `/admin/bonuses`, `/admin/policies`.
 - Docs: `docs/LEVELS.md`, `docs/BONUSES.md`, `docs/COMMISSION.md`, `docs/POLICIES.md`.
+
+
+## Sprint 8 — Payments + Ledger
+- Payment service now handles MercadoPago preference creation/webhook lifecycle with persistent `TripPayment` and settlement states.
+- Internal immutable ledger (`LedgerEntry`) tracks platform commission, driver earnings, trip revenue, bonus discount and refunds.
+- Driver finance endpoints: `/api/payments/drivers/finance/summary`, `/api/payments/drivers/finance/trips`.
+- Admin finance endpoints: `/api/payments/admin/finance/trips`, `/api/payments/admin/finance/ledger`, `/api/payments/admin/finance/reconciliation`.
+- Docs: `docs/PAYMENTS.md`, `docs/LEDGER.md`.
