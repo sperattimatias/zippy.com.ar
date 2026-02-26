@@ -10,4 +10,13 @@ export class AppController {
       timestamp: new Date().toISOString(),
     };
   }
+  @Get('ready')
+  ready() {
+    return {
+      status: 'ok',
+      service: 'auth',
+      timestamp: new Date().toISOString(),
+    };
+  }
+
 }

@@ -16,6 +16,14 @@ export class AppController {
       timestamp: new Date().toISOString(),
     };
   }
+  @Get('ready')
+  ready() {
+    return {
+      status: 'ok',
+      service: 'api-gateway',
+      timestamp: new Date().toISOString(),
+    };
+  }
 
   @Get('admin/ping')
   @UseGuards(AuthGuard, RolesGuard)
