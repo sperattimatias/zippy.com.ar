@@ -6,4 +6,13 @@ export class AppController {
   health() {
     return { status: 'ok', service: 'payment', timestamp: new Date().toISOString() };
   }
+  @Get('ready')
+  ready() {
+    return {
+      status: 'ok',
+      service: 'payment',
+      timestamp: new Date().toISOString(),
+    };
+  }
+
 }
