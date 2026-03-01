@@ -1,0 +1,12 @@
+.git
+.github
+**/node_modules
+**/dist
+**/.next
+**/.turbo
+**/.cache
+**/.DS_Store
+apps/mobile
+*.log
+*.zip
+infra/letsencrypt

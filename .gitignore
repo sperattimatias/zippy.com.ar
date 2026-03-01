@@ -1,0 +1,40 @@
+# dependencies
+node_modules
+.pnpm-store
+
+# logs
+logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# env
+.env
+.env.*
+!.env.example
+
+# build
+dist
+build
+.next
+out
+coverage
+
+# docker
+docker-data
+*.pid
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode
+.idea
+
+# prisma
+prisma/dev.db
+
+# temp
+tmp
+temp
