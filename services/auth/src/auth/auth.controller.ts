@@ -31,7 +31,12 @@ export class AuthController {
   @Get('health')
   @ApiOperation({ summary: 'Auth health under /auth for gateway proxy checks' })
   authHealth(@Req() req: any) {
-    return { status: 'ok', service: 'auth', timestamp: new Date().toISOString(), requestId: getRequestId(req) };
+    return {
+      status: 'ok',
+      service: 'auth',
+      timestamp: new Date().toISOString(),
+      requestId: getRequestId(req),
+    };
   }
 
   @Post('register')
@@ -52,22 +57,14 @@ export class AuthController {
   @HttpCode(200)
   @Throttle({ default: { ttl: 60000, limit: 10 } })
   @ApiOperation({ summary: 'Login and issue access+refresh tokens' })
-  login(
-    @Body() dto: LoginDto,
-    @Headers('user-agent') userAgent: string,
-    @Ip() ip: string,
-  ) {
+  login(@Body() dto: LoginDto, @Headers('user-agent') userAgent: string, @Ip() ip: string) {
     return this.authService.login(dto, { userAgent, ip });
   }
 
   @Post('refresh')
   @HttpCode(200)
   @ApiOperation({ summary: 'Rotate refresh token and issue new access+refresh pair' })
-  refresh(
-    @Body() dto: RefreshDto,
-    @Headers('user-agent') userAgent: string,
-    @Ip() ip: string,
-  ) {
+  refresh(@Body() dto: RefreshDto, @Headers('user-agent') userAgent: string, @Ip() ip: string) {
     return this.authService.refresh(dto, { userAgent, ip });
   }
 
@@ -77,7 +74,6 @@ export class AuthController {
   logout(@Body() dto: LogoutDto) {
     return this.authService.logout(dto);
   }
-
 
   @Post('admin/grant-role')
   @UseGuards(JwtAccessGuard)

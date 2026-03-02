@@ -3,6 +3,7 @@
 Monorepo rideshare con Auth centralizado, KYC de conductores y Ride Core con matching híbrido + realtime + OTP.
 
 ## Sprint 3 (Ride Core)
+
 - FSM estricta de viaje.
 - Bidding + accept bid + auto-match al expirar.
 - Presencia de conductores online/offline/ping.
@@ -12,6 +13,7 @@ Monorepo rideshare con Auth centralizado, KYC de conductores y Ride Core con mat
 - Socket.IO con auth Bearer en handshake.
 
 ## Sprint 4 (Safety & Control)
+
 - GeoZones CRUD (admin/sos).
 - Detección de zonas RED/CAUTION por point-in-polygon.
 - Detección de desvío de ruta respecto a baseline heurística.
@@ -19,12 +21,14 @@ Monorepo rideshare con Auth centralizado, KYC de conductores y Ride Core con mat
 - Safety alerts con flujo OPEN -> ACKNOWLEDGED/RESOLVED/DISMISSED.
 
 ## Sprint 5 (Zippy Score)
+
 - Score persistente por actor (driver/passenger).
 - Bloqueos automáticos revisables por Admin/SOS.
 - Priorización de matching por score.
 - Restricciones manuales y ajustes auditables.
 
 ## Sprint 6 (Meritocracy Layer)
+
 - Badges públicos (sin score numérico).
 - Gate de horarios pico para drivers/passengers.
 - Zonas premium con elegibilidad por score.
@@ -32,6 +36,7 @@ Monorepo rideshare con Auth centralizado, KYC de conductores y Ride Core con mat
 - Recovery de score con reglas diarias.
 
 ## Comandos
+
 ```bash
 cp .env.example .env
 docker compose -f infra/docker-compose.yml config
@@ -46,6 +51,7 @@ cp .env.example .env
 ```
 
 ### Modo A) Auto bootstrap (sin pasos manuales)
+
 > Recomendado cuando querés que auth migre + seed al iniciar.
 
 ```bash
@@ -55,6 +61,7 @@ pnpm smoke
 ```
 
 ### Modo B) Seed manual (default profesional)
+
 > Default en `.env.example`: `RUN_DB_SEED=0` para evitar reseed automático en cada arranque.
 
 ```bash
@@ -65,18 +72,21 @@ pnpm smoke
 ```
 
 ### Variables de seed (auth)
+
 - `ZIPPY_ADMIN_EMAIL`
 - `ZIPPY_ADMIN_PASSWORD`
 - `ZIPPY_ADMIN_STATUS` (opcional, default `ACTIVE`)
 - `ZIPPY_ADMIN_RESET_PASSWORD=1` para reset explícito de password del admin
 
 ### DATABASE_URL por servicio (Prisma)
+
 - `DATABASE_URL_AUTH`
 - `DATABASE_URL_RIDE`
 - `DATABASE_URL_DRIVER`
 - `DATABASE_URL_PAYMENT`
 
 ### Cómo verificar
+
 ```bash
 docker compose -f infra/docker-compose.local.yml ps
 curl -i http://localhost:3000/health
@@ -89,6 +99,7 @@ pnpm smoke
 ## Seguridad base (fase 2)
 
 Variables relevantes:
+
 - `CORS_ORIGINS` (CSV)
 - `CORS_CREDENTIALS`
 - `THROTTLE_TTL_MS`
@@ -99,6 +110,7 @@ Variables relevantes:
 - `REFRESH_TOKEN_TTL_DAYS`
 
 Prueba rápida refresh/logout:
+
 ```bash
 # login
 curl -s -X POST http://localhost:3000/api/auth/login \
@@ -132,6 +144,7 @@ pnpm smoke
   - TODO(Fase futura): exponer `/metrics` Prometheus en gateway/auth sin agregar stack pesado.
 
 Verificación rápida:
+
 ```bash
 pnpm dev:local
 pnpm smoke
@@ -149,12 +162,14 @@ pnpm test:e2e
 ```
 
 Checklist:
+
 - `lint` sin errores
 - `typecheck` en gateway + servicios core
 - unit tests de auth y gateway en verde
 - e2e local (`BASE_URL`) validando health/login/ruta protegida
 
 ## Endpoints principales (gateway)
+
 - Passenger:
   - `POST /api/trips/request`
   - `POST /api/trips/:id/accept-bid`
@@ -196,6 +211,7 @@ Checklist:
   - `DELETE /api/admin/premium-zones/:id`
 
 ## Curl ejemplo
+
 ```bash
 # driver online
 curl -i -X POST https://api.zippy.local/api/drivers/presence/online \
@@ -229,6 +245,7 @@ curl -i -X POST https://api.zippy.local/api/trips/<TRIP_ID>/driver/verify-otp \
 ```
 
 ## Admin panel
+
 - `/admin/trips`: listado de viajes recientes.
 - `/admin/trips/[id]`: detalle, eventos, locations y sección safety.
 - `/admin/geozones`: CRUD de zonas (MVP con JSON).
@@ -237,6 +254,7 @@ curl -i -X POST https://api.zippy.local/api/trips/<TRIP_ID>/driver/verify-otp \
 - `/admin/premium-zones`: CRUD de zonas premium.
 
 ## Docs
+
 - `docs/RIDE_FLOW.md`
 - `docs/FSM.md`
 - `docs/DRIVER_KYC.md`
@@ -253,24 +271,24 @@ curl -i -X POST https://api.zippy.local/api/trips/<TRIP_ID>/driver/verify-otp \
 - `docs/PEAK_HOURS.md`
 - `docs/MERITOCRACY.md`
 
-
 ## Sprint 7 — Levels & Bonuses
+
 - Ride service adds dynamic levels (`UserLevel`, `UserLevelHistory`) and monthly ranking (`MonthlyPerformance`) with bonus ledger (`MonthlyBonusLedger`).
 - Commission API: `GET /api/drivers/commission/current`.
 - Admin APIs: `GET /api/admin/levels`, `GET /api/admin/monthly-performance`, `GET /api/admin/bonuses`, `PUT /api/admin/policies/:key`, `POST /api/admin/bonuses/:id/revoke`.
 - Admin Panel pages: `/admin/levels`, `/admin/performance`, `/admin/bonuses`, `/admin/policies`.
 - Docs: `docs/LEVELS.md`, `docs/BONUSES.md`, `docs/COMMISSION.md`, `docs/POLICIES.md`.
 
-
 ## Sprint 8 — Payments + Ledger
+
 - Payment service now handles MercadoPago preference creation/webhook lifecycle with persistent `TripPayment` and settlement states.
 - Internal immutable ledger (`LedgerEntry`) tracks platform commission, driver earnings, trip revenue, bonus discount and refunds.
 - Driver finance endpoints: `/api/payments/drivers/finance/summary`, `/api/payments/drivers/finance/trips`.
 - Admin finance endpoints: `/api/payments/admin/finance/trips`, `/api/payments/admin/finance/ledger`, `/api/payments/admin/finance/reconciliation`.
 - Docs: `docs/PAYMENTS.md`, `docs/LEDGER.md`.
 
-
 ## Sprint 9 — Financial Anti-Fraud + Holds
+
 - Ride service adds fraud entities/signals/cases/risk score/holds and admin review endpoints under `/api/admin/fraud/*`.
 - Fingerprints are hashed (IP/UA/device) and persisted for trip request, bid and payment preference actions.
 - Payment settlement integrates payout holds (`PAYOUT_HOLD`) and keeps held approvals as `NOT_SETTLED`.
@@ -279,6 +297,7 @@ curl -i -X POST https://api.zippy.local/api/trips/<TRIP_ID>/driver/verify-otp \
 ## FASE 5 — Confiabilidad
 
 Variables nuevas (gateway):
+
 - `REDIS_URL`
 - `THROTTLE_TTL_SECONDS`
 - `THROTTLE_LIMIT_GENERAL`
@@ -287,10 +306,12 @@ Variables nuevas (gateway):
 - `PROXY_CONNECT_TIMEOUT_MS`
 
 Notas:
+
 - Rate limiting distribuido en gateway usando Redis storage de throttler.
 - Timeouts de proxy devuelven `504` con payload `{ statusCode, message, requestId }`.
 
 Verificación:
+
 ```bash
 pnpm dev:local
 pnpm smoke
@@ -298,10 +319,10 @@ pnpm test:e2e
 ```
 
 Prueba manual timeout (estable):
-1) configurar temporalmente `RIDE_SERVICE_URL=http://127.0.0.1:9` en gateway.
-2) `curl -i http://localhost:3000/api/rides/health`.
-3) verificar `HTTP/1.1 504` + `x-request-id` + body estándar.
 
+1. configurar temporalmente `RIDE_SERVICE_URL=http://127.0.0.1:9` en gateway.
+2. `curl -i http://localhost:3000/api/rides/health`.
+3. verificar `HTTP/1.1 504` + `x-request-id` + body estándar.
 
 ## CI
 
@@ -312,6 +333,7 @@ Prueba manual timeout (estable):
   - `pnpm test`
 
 Correr lo mismo localmente:
+
 ```bash
 pnpm format:check
 pnpm lint
@@ -320,6 +342,7 @@ pnpm test
 ```
 
 E2E local con compose:
+
 ```bash
 cp .env.example .env
 docker compose -f infra/docker-compose.local.yml up -d --build
@@ -327,5 +350,5 @@ pnpm test:e2e
 ```
 
 E2E en GitHub:
-- Workflow manual `E2E Local Compose` (`workflow_dispatch`) desde la pestaña Actions.
 
+- Workflow manual `E2E Local Compose` (`workflow_dispatch`) desde la pestaña Actions.
