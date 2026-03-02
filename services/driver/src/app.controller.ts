@@ -1,18 +1,25 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, Req } from '@nestjs/common';
+import { getRequestId } from '../shared/utils/request-id';
 
 @Controller()
 export class AppController {
   @Get('health')
-  health() {
-    return { status: 'ok', service: 'driver', timestamp: new Date().toISOString() };
-  }
-  @Get('ready')
-  ready() {
+  health(@Req() req: any) {
     return {
       status: 'ok',
       service: 'driver',
       timestamp: new Date().toISOString(),
+      requestId: getRequestId(req),
     };
   }
 
+  @Get('ready')
+  ready(@Req() req: any) {
+    return {
+      status: 'ok',
+      service: 'driver',
+      timestamp: new Date().toISOString(),
+      requestId: getRequestId(req),
+    };
+  }
 }
