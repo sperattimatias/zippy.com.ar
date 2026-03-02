@@ -26,7 +26,7 @@
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
     "helmet": "^7.1.0",
-    "@nestjs/throttler-storage-redis": "^0.4.0",
+    "@nest-lab/throttler-storage-redis": "^1.0.0",
     "ioredis": "^5.4.1"
   },
   "devDependencies": {
