@@ -23,7 +23,8 @@ describe('PaymentsService', () => {
         findUnique: jest.fn().mockResolvedValue({ user_id: 'd1', mp_account_id: 'mpa_1' }),
       },
       commissionPolicy: {
-        findUnique: jest.fn()
+        findUnique: jest
+          .fn()
           .mockResolvedValueOnce({ value_json: 1000 })
           .mockResolvedValueOnce({ value_json: { commission_floor_bps: 200 } }),
       },
@@ -60,7 +61,10 @@ describe('PaymentsService', () => {
     };
 
     const svc = new PaymentsService(prisma as any);
-    const out = await svc.processWebhook('{}', undefined, { status: 'approved', data: { id: 'mpp_1' } });
+    const out = await svc.processWebhook('{}', undefined, {
+      status: 'approved',
+      data: { id: 'mpp_1' },
+    });
 
     expect(out.status).toBe(PaymentStatus.APPROVED);
     expect(prisma.ledgerEntry.createMany).not.toHaveBeenCalled();
@@ -80,7 +84,10 @@ describe('PaymentsService', () => {
     };
 
     const svc = new PaymentsService(prisma as any);
-    const out = await svc.processWebhook('{}', undefined, { status: 'rejected', data: { id: 'mpp_2' } });
+    const out = await svc.processWebhook('{}', undefined, {
+      status: 'rejected',
+      data: { id: 'mpp_2' },
+    });
 
     expect(out.status).toBe(PaymentStatus.REJECTED);
     expect(prisma.tripPayment.update).toHaveBeenCalledWith(
@@ -140,11 +147,22 @@ describe('PaymentsService', () => {
         upsert: jest.fn(),
       },
       trip: {
-        findUnique: jest.fn().mockResolvedValue({ completed_at: new Date('2025-12-10T00:00:00.000Z') }),
+        findUnique: jest
+          .fn()
+          .mockResolvedValue({ completed_at: new Date('2025-12-10T00:00:00.000Z') }),
       },
-      bonusAdjustment: { create: jest.fn(), findUnique: jest.fn(), update: jest.fn(), findMany: jest.fn() },
+      bonusAdjustment: {
+        create: jest.fn(),
+        findUnique: jest.fn(),
+        update: jest.fn(),
+        findMany: jest.fn(),
+      },
       fraudSignal: { create: jest.fn() },
-      userHold: { findFirst: jest.fn().mockResolvedValue({ id: 'h1', hold_type: HoldType.PAYOUT_HOLD, status: 'ACTIVE' }) },
+      userHold: {
+        findFirst: jest
+          .fn()
+          .mockResolvedValue({ id: 'h1', hold_type: HoldType.PAYOUT_HOLD, status: 'ACTIVE' }),
+      },
       monthlyBonusLedger: { findFirst: jest.fn(), update: jest.fn() },
     };
     prisma.$transaction = jest.fn(async (fn: any) => fn(prisma));
@@ -204,7 +222,12 @@ describe('PaymentsService', () => {
         upsert: jest.fn(),
       },
       trip: { findUnique: jest.fn().mockResolvedValue({ completed_at: new Date() }) },
-      bonusAdjustment: { create: jest.fn(), findUnique: jest.fn(), update: jest.fn(), findMany: jest.fn() },
+      bonusAdjustment: {
+        create: jest.fn(),
+        findUnique: jest.fn(),
+        update: jest.fn(),
+        findMany: jest.fn(),
+      },
       fraudSignal: { create: jest.fn() },
       userHold: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn() },
       monthlyBonusLedger: { findFirst: jest.fn(), update: jest.fn() },

@@ -48,7 +48,10 @@ describe('AuthService', () => {
     expect(result.refresh_token).toBeDefined();
     expect(prisma.refreshToken.update).toHaveBeenCalledWith({
       where: { id: 'old-token-id' },
-      data: expect.objectContaining({ revoked_at: expect.any(Date), replaced_by_token_id: 'new-token-id' }),
+      data: expect.objectContaining({
+        revoked_at: expect.any(Date),
+        replaced_by_token_id: 'new-token-id',
+      }),
     });
   });
 

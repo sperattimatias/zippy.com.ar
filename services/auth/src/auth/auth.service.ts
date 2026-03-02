@@ -39,7 +39,12 @@ export class AuthService {
     return randomBytes(64).toString('base64url');
   }
 
-  private async issueTokens(userId: string, email: string, roles: string[], meta?: { userAgent?: string; ip?: string }) {
+  private async issueTokens(
+    userId: string,
+    email: string,
+    roles: string[],
+    meta?: { userAgent?: string; ip?: string },
+  ) {
     const accessSecret = this.configService.getOrThrow<string>('JWT_ACCESS_SECRET');
     const accessTtlMinutes = this.configService.get<number>('ACCESS_TOKEN_TTL_MINUTES');
     const accessExpiresIn = accessTtlMinutes ? `${accessTtlMinutes}m` : this.configService.get<string>('JWT_ACCESS_EXPIRES_IN', '15m');
@@ -71,15 +76,17 @@ export class AuthService {
   async register(dto: RegisterDto) {
     const password_hash = await argon2.hash(dto.password, { type: argon2.argon2id });
 
-    const user = await this.prisma.user.create({
-      data: {
-        email: dto.email.toLowerCase(),
-        password_hash,
-        status: UserStatus.ACTIVE,
-      },
-    }).catch(() => {
-      throw new BadRequestException('Email already registered');
-    });
+    const user = await this.prisma.user
+      .create({
+        data: {
+          email: dto.email.toLowerCase(),
+          password_hash,
+          status: UserStatus.ACTIVE,
+        },
+      })
+      .catch(() => {
+        throw new BadRequestException('Email already registered');
+      });
 
     const passengerRole = await this.prisma.role.upsert({
       where: { name: ROLES.PASSENGER },
@@ -189,7 +196,9 @@ export class AuthService {
     if (dto.all) {
       if (!dto.refresh_token) return { message: 'nothing to revoke' };
       const tokenHash = this.sha256(dto.refresh_token);
-      const existing = await this.prisma.refreshToken.findFirst({ where: { token_hash: tokenHash } });
+      const existing = await this.prisma.refreshToken.findFirst({
+        where: { token_hash: tokenHash },
+      });
       if (!existing) return { message: 'nothing to revoke' };
       await this.prisma.refreshToken.updateMany({
         where: { user_id: existing.user_id, revoked_at: null },
@@ -209,12 +218,15 @@ export class AuthService {
     return { message: 'logged out' };
   }
 
-  
   async grantRole(userId: string, roleName: 'driver') {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new NotFoundException('User not found');
 
-    const role = await this.prisma.role.upsert({ where: { name: roleName }, create: { name: roleName }, update: {} });
+    const role = await this.prisma.role.upsert({
+      where: { name: roleName },
+      create: { name: roleName },
+      update: {},
+    });
     await this.prisma.userRole.upsert({
       where: { user_id_role_id: { user_id: userId, role_id: role.id } },
       create: { user_id: userId, role_id: role.id },
@@ -223,7 +235,7 @@ export class AuthService {
 
     return { message: 'role granted', user_id: userId, role: roleName };
   }
-async me(userId: string) {
+  async me(userId: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       include: { roles: { include: { role: true } } },

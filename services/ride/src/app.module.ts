@@ -38,6 +38,16 @@ import { FraudService } from './fraud/fraud.service';
     LoggerModule.forRoot(defaultPinoConfig),
   ],
   controllers: [AppController, RideController],
-  providers: [PrismaService, JwtAccessGuard, RolesGuard, RideService, RideGateway, MeritocracyService, ScoreService, LevelAndBonusService, FraudService],
+  providers: [
+    PrismaService,
+    JwtAccessGuard,
+    RolesGuard,
+    RideService,
+    RideGateway,
+    MeritocracyService,
+    ScoreService,
+    LevelAndBonusService,
+    FraudService,
+  ],
 })
 export class AppModule {}
