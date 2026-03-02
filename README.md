@@ -302,3 +302,30 @@ Prueba manual timeout (estable):
 2) `curl -i http://localhost:3000/api/rides/health`.
 3) verificar `HTTP/1.1 504` + `x-request-id` + body estándar.
 
+
+## CI
+
+- En cada `push` y `pull_request` corre el workflow `CI` con:
+  - `pnpm format:check`
+  - `pnpm lint`
+  - `pnpm typecheck`
+  - `pnpm test`
+
+Correr lo mismo localmente:
+```bash
+pnpm format:check
+pnpm lint
+pnpm typecheck
+pnpm test
+```
+
+E2E local con compose:
+```bash
+cp .env.example .env
+docker compose -f infra/docker-compose.local.yml up -d --build
+pnpm test:e2e
+```
+
+E2E en GitHub:
+- Workflow manual `E2E Local Compose` (`workflow_dispatch`) desde la pestaña Actions.
+
