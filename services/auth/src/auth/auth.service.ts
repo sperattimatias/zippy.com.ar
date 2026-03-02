@@ -16,6 +16,7 @@ import { RegisterDto } from '../dto/register.dto';
 import { VerifyEmailDto } from '../dto/verify-email.dto';
 import { RefreshDto } from '../dto/refresh.dto';
 import { LogoutDto } from '../dto/logout.dto';
+import { ROLES } from '../../shared/enums/role.enum';
 
 @Injectable()
 export class AuthService {
@@ -33,14 +34,17 @@ export class AuthService {
     return `${Math.floor(100000 + Math.random() * 900000)}`;
   }
 
+  // Random opaque refresh token; only SHA-256 hash is persisted server-side.
   private generateRefreshTokenRaw() {
     return randomBytes(64).toString('base64url');
   }
 
   private async issueTokens(userId: string, email: string, roles: string[], meta?: { userAgent?: string; ip?: string }) {
     const accessSecret = this.configService.getOrThrow<string>('JWT_ACCESS_SECRET');
-    const accessExpiresIn = this.configService.get<string>('JWT_ACCESS_EXPIRES_IN', '15m');
-    const refreshDays = this.configService.get<number>('REFRESH_TOKEN_EXPIRES_DAYS', 30);
+    const accessTtlMinutes = this.configService.get<number>('ACCESS_TOKEN_TTL_MINUTES');
+    const accessExpiresIn = accessTtlMinutes ? `${accessTtlMinutes}m` : this.configService.get<string>('JWT_ACCESS_EXPIRES_IN', '15m');
+    const refreshDays = this.configService.get<number>('REFRESH_TOKEN_TTL_DAYS')
+      ?? this.configService.get<number>('REFRESH_TOKEN_EXPIRES_DAYS', 30);
 
     const access_token = await this.jwtService.signAsync(
       { sub: userId, email, roles },
@@ -78,8 +82,8 @@ export class AuthService {
     });
 
     const passengerRole = await this.prisma.role.upsert({
-      where: { name: 'passenger' },
-      create: { name: 'passenger' },
+      where: { name: ROLES.PASSENGER },
+      create: { name: ROLES.PASSENGER },
       update: {},
     });
 
@@ -161,7 +165,13 @@ export class AuthService {
     });
 
     if (!existing) throw new UnauthorizedException('Refresh token invalid');
-    if (existing.revoked_at) throw new UnauthorizedException('Refresh token revoked');
+    if (existing.revoked_at) {
+      await this.prisma.refreshToken.updateMany({
+        where: { user_id: existing.user_id, revoked_at: null },
+        data: { revoked_at: new Date() },
+      });
+      throw new UnauthorizedException('Refresh token reuse detected');
+    }
     if (existing.expires_at < new Date()) throw new UnauthorizedException('Refresh token expired');
 
     const roles = existing.user.roles.map((ur) => ur.role.name);
