@@ -14,13 +14,6 @@ function parseCsv(value: string | undefined, fallback: string[]): string[] {
   return value.split(',').map((item) => item.trim()).filter(Boolean);
 }
 
-
-
-function parseCsv(value: string | undefined, fallback: string[]): string[] {
-  if (!value) return fallback;
-  return value.split(',').map((item) => item.trim()).filter(Boolean);
-}
-
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { bufferLogs: true });
   const logger = app.get(PinoLogger);

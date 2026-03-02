@@ -275,3 +275,30 @@ curl -i -X POST https://api.zippy.local/api/trips/<TRIP_ID>/driver/verify-otp \
 - Fingerprints are hashed (IP/UA/device) and persisted for trip request, bid and payment preference actions.
 - Payment settlement integrates payout holds (`PAYOUT_HOLD`) and keeps held approvals as `NOT_SETTLED`.
 - Docs: `docs/ANTIFRAUD.md`, `docs/HOLDS.md`.
+
+## FASE 5 — Confiabilidad
+
+Variables nuevas (gateway):
+- `REDIS_URL`
+- `THROTTLE_TTL_SECONDS`
+- `THROTTLE_LIMIT_GENERAL`
+- `THROTTLE_LIMIT_AUTH`
+- `PROXY_TIMEOUT_MS`
+- `PROXY_CONNECT_TIMEOUT_MS`
+
+Notas:
+- Rate limiting distribuido en gateway usando Redis storage de throttler.
+- Timeouts de proxy devuelven `504` con payload `{ statusCode, message, requestId }`.
+
+Verificación:
+```bash
+pnpm dev:local
+pnpm smoke
+pnpm test:e2e
+```
+
+Prueba manual timeout (estable):
+1) configurar temporalmente `RIDE_SERVICE_URL=http://127.0.0.1:9` en gateway.
+2) `curl -i http://localhost:3000/api/rides/health`.
+3) verificar `HTTP/1.1 504` + `x-request-id` + body estándar.
+

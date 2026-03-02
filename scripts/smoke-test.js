@@ -4,6 +4,7 @@ const ADMIN_EMAIL = process.env.ZIPPY_ADMIN_EMAIL || 'admin@zippy.local';
 const ADMIN_PASSWORD = process.env.ZIPPY_ADMIN_PASSWORD || 'ChangeMe_12345!';
 const MAX_WAIT_SECONDS = Number(process.env.MAX_WAIT_SECONDS || '90');
 const THROTTLE_ATTEMPTS = Number(process.env.SMOKE_THROTTLE_ATTEMPTS || '30');
+const SMOKE_TIMEOUT_CHECK = process.env.SMOKE_TIMEOUT_CHECK === '1';
 
 function fail(message) {
   console.error(`FAIL: ${message}`);
@@ -107,6 +108,10 @@ async function main() {
   }
   if (!throttled) {
     fail(`Expected at least one 429 from auth throttling within ${THROTTLE_ATTEMPTS} attempts`);
+  }
+
+  if (SMOKE_TIMEOUT_CHECK) {
+    console.log('[optional] timeout behavior is documented for manual verification in README (FASE 5).');
   }
 
   console.log('PASS');

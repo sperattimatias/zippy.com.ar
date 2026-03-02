@@ -25,7 +25,9 @@
     "pino-pretty": "^11.2.2",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
-    "helmet": "^7.1.0"
+    "helmet": "^7.1.0",
+    "@nestjs/throttler-storage-redis": "^0.4.0",
+    "ioredis": "^5.4.1"
   },
   "devDependencies": {
     "@nestjs/cli": "^10.4.5",

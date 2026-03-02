@@ -16,8 +16,14 @@ export class AuthRateLimitMiddleware implements NestMiddleware {
   ) {}
 
   async use(req: Request, _res: Response, next: NextFunction) {
-    const ttlMs = this.configService.get<number>('THROTTLE_AUTH_TTL_MS', 60000);
-    const limit = this.configService.get<number>('THROTTLE_AUTH_LIMIT', 10);
+    const ttlSeconds =
+      this.configService.get<number>('THROTTLE_TTL_SECONDS')
+      ?? Math.floor(this.configService.get<number>('THROTTLE_TTL_MS', 60000) / 1000);
+    const ttlMs = ttlSeconds * 1000;
+    const limit =
+      this.configService.get<number>('THROTTLE_LIMIT_AUTH')
+      ?? this.configService.get<number>('THROTTLE_AUTH_LIMIT', 10);
+
     const key = await this.getTracker(req);
     const now = Date.now();
 
