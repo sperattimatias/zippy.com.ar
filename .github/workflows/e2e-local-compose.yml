@@ -3,13 +3,6 @@ name: E2E Local Compose
 on:
   workflow_dispatch:
 
-permissions:
-  contents: read
-
-concurrency:
-  group: e2e-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
   e2e:
     runs-on: ubuntu-latest
@@ -30,6 +23,7 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
+          version: 9
           run_install: false
 
       - name: Get pnpm store path

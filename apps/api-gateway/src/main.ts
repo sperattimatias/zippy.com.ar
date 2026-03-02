@@ -5,14 +5,13 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { Logger as PinoLogger } from 'nestjs-pino';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
-import { requestIdMiddleware } from '../../shared/utils/request-id';
+import { requestIdMiddleware } from '@shared/utils/request-id';
+
+
 
 function parseCsv(value: string | undefined, fallback: string[]): string[] {
   if (!value) return fallback;
-  return value
-    .split(',')
-    .map((item) => item.trim())
-    .filter(Boolean);
+  return value.split(',').map((item) => item.trim()).filter(Boolean);
 }
 
 async function bootstrap() {
@@ -35,16 +34,15 @@ async function bootstrap() {
 
   const trustProxy = config.get<string>('TRUST_PROXY', '1');
   if (trustProxy !== '0' && trustProxy.toLowerCase() !== 'false') {
-    app.set('trust proxy', 1);
+    const instance = app.getHttpAdapter().getInstance();
+    instance.set?.('trust proxy', 1);
   }
 
   const isProd = config.get<string>('NODE_ENV', 'development') === 'production';
-  app.use(
-    helmet({
-      contentSecurityPolicy: isProd ? undefined : false,
-      crossOriginResourcePolicy: { policy: 'cross-origin' },
-    }),
-  );
+  app.use(helmet({
+    contentSecurityPolicy: isProd ? undefined : false,
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+  }));
 
   const corsOrigins = parseCsv(config.get<string>('CORS_ORIGINS'), [
     'http://localhost:3000',

@@ -3,8 +3,8 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AuthGuard } from './auth/auth.guard';
 import { Roles } from './auth/roles.decorator';
 import { RolesGuard } from './auth/roles.guard';
-import { ROLES } from '../../shared/enums/role.enum';
-import { getRequestId } from '../../shared/utils/request-id';
+import { ROLES } from '@shared/enums/role.enum';
+import { getRequestId } from '@shared/utils/request-id';
 
 @ApiTags('gateway')
 @Controller()

@@ -42,9 +42,7 @@ async function main() {
   if (!loginRequestId) fail('Login response is missing x-request-id header');
   if (loginRes.status !== 200) {
     if (loginRes.status === 403) {
-      fail(
-        'Login returned HTTP 403 (likely email not verified or user suspended). Check auth seed/admin state.',
-      );
+      fail('Login returned HTTP 403 (likely email not verified or user suspended). Check auth seed/admin state.');
     }
     fail(`Login returned HTTP ${loginRes.status}`);
   }
@@ -61,8 +59,7 @@ async function main() {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ refresh_token: refreshToken }),
   });
-  if (!refreshRes.headers.get('x-request-id'))
-    fail('Refresh response is missing x-request-id header');
+  if (!refreshRes.headers.get('x-request-id')) fail('Refresh response is missing x-request-id header');
   if (refreshRes.status !== 200) {
     fail(`Refresh returned HTTP ${refreshRes.status}`);
   }
@@ -79,8 +76,7 @@ async function main() {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ refresh_token: rotatedRefreshToken }),
   });
-  if (!logoutRes.headers.get('x-request-id'))
-    fail('Logout response is missing x-request-id header');
+  if (!logoutRes.headers.get('x-request-id')) fail('Logout response is missing x-request-id header');
   if (logoutRes.status !== 200) {
     fail(`Logout returned HTTP ${logoutRes.status}`);
   }
@@ -115,9 +111,7 @@ async function main() {
   }
 
   if (SMOKE_TIMEOUT_CHECK) {
-    console.log(
-      '[optional] timeout behavior is documented for manual verification in README (FASE 5).',
-    );
+    console.log('[optional] timeout behavior is documented for manual verification in README (FASE 5).');
   }
 
   console.log('PASS');

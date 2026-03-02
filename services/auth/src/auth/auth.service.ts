@@ -47,12 +47,9 @@ export class AuthService {
   ) {
     const accessSecret = this.configService.getOrThrow<string>('JWT_ACCESS_SECRET');
     const accessTtlMinutes = this.configService.get<number>('ACCESS_TOKEN_TTL_MINUTES');
-    const accessExpiresIn = accessTtlMinutes
-      ? `${accessTtlMinutes}m`
-      : this.configService.get<string>('JWT_ACCESS_EXPIRES_IN', '15m');
-    const refreshDays =
-      this.configService.get<number>('REFRESH_TOKEN_TTL_DAYS') ??
-      this.configService.get<number>('REFRESH_TOKEN_EXPIRES_DAYS', 30);
+    const accessExpiresIn = accessTtlMinutes ? `${accessTtlMinutes}m` : this.configService.get<string>('JWT_ACCESS_EXPIRES_IN', '15m');
+    const refreshDays = this.configService.get<number>('REFRESH_TOKEN_TTL_DAYS')
+      ?? this.configService.get<number>('REFRESH_TOKEN_EXPIRES_DAYS', 30);
 
     const access_token = await this.jwtService.signAsync(
       { sub: userId, email, roles },

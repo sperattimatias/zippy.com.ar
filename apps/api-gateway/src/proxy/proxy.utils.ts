@@ -1,17 +1,9 @@
 import type { NextFunction, Request, Response } from 'express';
 import type { ClientRequest, IncomingMessage } from 'http';
 
-export const attachClientFingerprintHeaders = (
-  req: Request,
-  _res: Response,
-  next: NextFunction,
-) => {
+export const attachClientFingerprintHeaders = (req: Request, _res: Response, next: NextFunction) => {
   const xff = req.headers['x-forwarded-for'];
-  const ip = Array.isArray(xff)
-    ? xff[0]
-    : typeof xff === 'string'
-      ? xff.split(',')[0].trim()
-      : req.ip;
+  const ip = Array.isArray(xff) ? xff[0] : typeof xff === 'string' ? xff.split(',')[0].trim() : req.ip;
 
   req.headers['x-client-ip'] = req.headers['x-client-ip'] ?? ip ?? '';
   req.headers['x-client-ua'] = req.headers['x-client-ua'] ?? req.headers['user-agent'] ?? '';

@@ -11,11 +11,7 @@ export class UserAwareThrottlerGuard extends ThrottlerGuard {
 
     const headers = (req.headers ?? {}) as Record<string, string | string[] | undefined>;
     const xff = headers['x-forwarded-for'];
-    const ipFromHeader = Array.isArray(xff)
-      ? xff[0]
-      : typeof xff === 'string'
-        ? xff.split(',')[0].trim()
-        : undefined;
+    const ipFromHeader = Array.isArray(xff) ? xff[0] : typeof xff === 'string' ? xff.split(',')[0].trim() : undefined;
     const reqIp = typeof req.ip === 'string' ? req.ip : undefined;
     return `ip:${ipFromHeader ?? reqIp ?? 'unknown'}`;
   }

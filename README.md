@@ -51,7 +51,6 @@ cp .env.example .env
 ```
 
 ### Modo A) Auto bootstrap (sin pasos manuales)
-
 > Recomendado cuando querés que auth migre + seed al iniciar.
 
 ```bash
@@ -61,7 +60,6 @@ pnpm smoke
 ```
 
 ### Modo B) Seed manual (default profesional)
-
 > Default en `.env.example`: `RUN_DB_SEED=0` para evitar reseed automático en cada arranque.
 
 ```bash
@@ -72,21 +70,18 @@ pnpm smoke
 ```
 
 ### Variables de seed (auth)
-
 - `ZIPPY_ADMIN_EMAIL`
 - `ZIPPY_ADMIN_PASSWORD`
 - `ZIPPY_ADMIN_STATUS` (opcional, default `ACTIVE`)
 - `ZIPPY_ADMIN_RESET_PASSWORD=1` para reset explícito de password del admin
 
 ### DATABASE_URL por servicio (Prisma)
-
 - `DATABASE_URL_AUTH`
 - `DATABASE_URL_RIDE`
 - `DATABASE_URL_DRIVER`
 - `DATABASE_URL_PAYMENT`
 
 ### Cómo verificar
-
 ```bash
 docker compose -f infra/docker-compose.local.yml ps
 curl -i http://localhost:3000/health
@@ -99,7 +94,6 @@ pnpm smoke
 ## Seguridad base (fase 2)
 
 Variables relevantes:
-
 - `CORS_ORIGINS` (CSV)
 - `CORS_CREDENTIALS`
 - `THROTTLE_TTL_MS`
@@ -110,7 +104,6 @@ Variables relevantes:
 - `REFRESH_TOKEN_TTL_DAYS`
 
 Prueba rápida refresh/logout:
-
 ```bash
 # login
 curl -s -X POST http://localhost:3000/api/auth/login \
@@ -144,7 +137,6 @@ pnpm smoke
   - TODO(Fase futura): exponer `/metrics` Prometheus en gateway/auth sin agregar stack pesado.
 
 Verificación rápida:
-
 ```bash
 pnpm dev:local
 pnpm smoke
@@ -162,7 +154,6 @@ pnpm test:e2e
 ```
 
 Checklist:
-
 - `lint` sin errores
 - `typecheck` en gateway + servicios core
 - unit tests de auth y gateway en verde
@@ -297,7 +288,6 @@ curl -i -X POST https://api.zippy.local/api/trips/<TRIP_ID>/driver/verify-otp \
 ## FASE 5 — Confiabilidad
 
 Variables nuevas (gateway):
-
 - `REDIS_URL`
 - `THROTTLE_TTL_SECONDS`
 - `THROTTLE_LIMIT_GENERAL`
@@ -306,12 +296,10 @@ Variables nuevas (gateway):
 - `PROXY_CONNECT_TIMEOUT_MS`
 
 Notas:
-
 - Rate limiting distribuido en gateway usando Redis storage de throttler.
 - Timeouts de proxy devuelven `504` con payload `{ statusCode, message, requestId }`.
 
 Verificación:
-
 ```bash
 pnpm dev:local
 pnpm smoke
@@ -319,10 +307,10 @@ pnpm test:e2e
 ```
 
 Prueba manual timeout (estable):
+1) configurar temporalmente `RIDE_SERVICE_URL=http://127.0.0.1:9` en gateway.
+2) `curl -i http://localhost:3000/api/rides/health`.
+3) verificar `HTTP/1.1 504` + `x-request-id` + body estándar.
 
-1. configurar temporalmente `RIDE_SERVICE_URL=http://127.0.0.1:9` en gateway.
-2. `curl -i http://localhost:3000/api/rides/health`.
-3. verificar `HTTP/1.1 504` + `x-request-id` + body estándar.
 
 ## CI
 
@@ -333,7 +321,6 @@ Prueba manual timeout (estable):
   - `pnpm test`
 
 Correr lo mismo localmente:
-
 ```bash
 pnpm format:check
 pnpm lint
@@ -342,7 +329,6 @@ pnpm test
 ```
 
 E2E local con compose:
-
 ```bash
 cp .env.example .env
 docker compose -f infra/docker-compose.local.yml up -d --build
@@ -350,5 +336,5 @@ pnpm test:e2e
 ```
 
 E2E en GitHub:
-
 - Workflow manual `E2E Local Compose` (`workflow_dispatch`) desde la pestaña Actions.
+
