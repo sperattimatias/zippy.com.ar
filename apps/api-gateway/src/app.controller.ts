@@ -3,6 +3,7 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AuthGuard } from './auth/auth.guard';
 import { Roles } from './auth/roles.decorator';
 import { RolesGuard } from './auth/roles.guard';
+import { ROLES } from '../../shared/enums/role.enum';
 
 @ApiTags('gateway')
 @Controller()
@@ -27,7 +28,7 @@ export class AppController {
 
   @Get('admin/ping')
   @UseGuards(AuthGuard, RolesGuard)
-  @Roles('admin', 'sos')
+  @Roles(ROLES.ADMIN, ROLES.SOS)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Protected ping route only for admin/sos roles' })
   adminPing(@Req() req: { user: { email: string; roles: string[] } }) {
