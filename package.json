@@ -12,6 +12,23 @@
     "db:migrate": "node ./scripts/db-migrate.js",
     "db:seed": "node ./scripts/db-seed.js",
     "db:reset": "node ./scripts/db-reset.js",
-    "smoke": "node ./scripts/smoke-test.js"
+    "smoke": "node ./scripts/smoke-test.js",
+    "lint": "eslint \"{apps,services,shared}/**/*.{ts,js}\" \"scripts/**/*.{js,ts}\"",
+    "lint:fix": "eslint \"{apps,services,shared}/**/*.{ts,js}\" \"scripts/**/*.{js,ts}\" --fix",
+    "format": "prettier \"**/*.{ts,js,json,md,yml,yaml}\" --write",
+    "format:check": "prettier \"**/*.{ts,js,json,md,yml,yaml}\" --check",
+    "typecheck": "node ./scripts/typecheck.js",
+    "test": "pnpm --filter @zippy/auth test && pnpm --filter @zippy/api-gateway test",
+    "test:e2e": "jest -c jest.e2e.config.cjs --runInBand"
+  },
+  "devDependencies": {
+    "eslint": "^8.57.0",
+    "prettier": "^3.3.3",
+    "@typescript-eslint/eslint-plugin": "^7.18.0",
+    "@typescript-eslint/parser": "^7.18.0",
+    "eslint-config-prettier": "^9.1.0",
+    "jest": "^29.7.0",
+    "@types/jest": "^29.5.12",
+    "typescript": "^5.5.4"
   }
 }

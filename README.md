@@ -120,6 +120,22 @@ curl -s -X POST http://localhost:3000/api/auth/logout \
 pnpm smoke
 ```
 
+## Calidad (Fase 3)
+
+```bash
+pnpm lint
+pnpm format:check
+pnpm typecheck
+pnpm test
+pnpm test:e2e
+```
+
+Checklist:
+- `lint` sin errores
+- `typecheck` en gateway + servicios core
+- unit tests de auth y gateway en verde
+- e2e local (`BASE_URL`) validando health/login/ruta protegida
+
 ## Endpoints principales (gateway)
 - Passenger:
   - `POST /api/trips/request`

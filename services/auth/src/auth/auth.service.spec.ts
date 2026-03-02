@@ -1,5 +1,11 @@
 import { AuthService } from './auth.service';
 
+jest.mock('argon2', () => ({
+  verify: jest.fn().mockResolvedValue(true),
+  hash: jest.fn().mockResolvedValue('hashed'),
+  argon2id: 2,
+}));
+
 describe('AuthService', () => {
   const jwtService = {
     signAsync: jest.fn().mockResolvedValue('access.jwt.token'),
@@ -44,5 +50,29 @@ describe('AuthService', () => {
       where: { id: 'old-token-id' },
       data: expect.objectContaining({ revoked_at: expect.any(Date), replaced_by_token_id: 'new-token-id' }),
     });
+  });
+
+  it('login returns access and refresh tokens for active verified user', async () => {
+    const prisma = {
+      user: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'user-1',
+          email: 'admin@zippy.com.ar',
+          password_hash: 'hashed',
+          status: 'ACTIVE',
+          email_verified_at: new Date(),
+          roles: [{ role: { name: 'admin' } }],
+        }),
+      },
+      refreshToken: {
+        create: jest.fn().mockResolvedValue({ id: 'rt-id' }),
+      },
+    } as any;
+
+    const service = new AuthService(prisma, jwtService, configService);
+    const result = await service.login({ email: 'admin@zippy.com.ar', password: 'ChangeMe_12345!' });
+
+    expect(result.access_token).toBe('access.jwt.token');
+    expect(result.refresh_token).toBeDefined();
   });
 });
