@@ -39,6 +39,37 @@ docker compose -f infra/docker-compose.yml --env-file .env up -d --build
 docker compose -f infra/docker-compose.yml ps
 ```
 
+## Local (reproducible)
+
+```bash
+cp .env.example .env
+docker compose -f infra/docker-compose.local.yml up --build
+pnpm db:migrate
+pnpm db:seed
+pnpm smoke
+```
+
+### Variables de seed (auth)
+- `ZIPPY_ADMIN_EMAIL`
+- `ZIPPY_ADMIN_PASSWORD`
+- `ZIPPY_ADMIN_STATUS` (opcional, default `ACTIVE`)
+
+### DATABASE_URL por servicio (Prisma)
+- `DATABASE_URL_AUTH`
+- `DATABASE_URL_RIDE`
+- `DATABASE_URL_DRIVER`
+- `DATABASE_URL_PAYMENT`
+
+### Cómo verificar
+```bash
+docker compose -f infra/docker-compose.local.yml ps
+curl -i http://localhost:3000/health
+curl -i -X POST http://localhost:3000/api/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"admin@zippy.local","password":"ChangeMe_12345!"}'
+pnpm smoke
+```
+
 ## Endpoints principales (gateway)
 - Passenger:
   - `POST /api/trips/request`

@@ -6,6 +6,12 @@
   "scripts": {
     "dev": "docker compose -f infra/docker-compose.yml up --build",
     "down": "docker compose -f infra/docker-compose.yml down -v",
-    "logs": "docker compose -f infra/docker-compose.yml logs -f"
+    "logs": "docker compose -f infra/docker-compose.yml logs -f",
+    "dev:local": "docker compose -f infra/docker-compose.local.yml up --build",
+    "down:local": "docker compose -f infra/docker-compose.local.yml down -v",
+    "db:migrate": "node ./scripts/db-migrate.js",
+    "db:seed": "node ./scripts/db-seed.js",
+    "db:reset": "bash ./scripts/db-reset.sh",
+    "smoke": "bash ./scripts/smoke-test.sh"
   }
 }
