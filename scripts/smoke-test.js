@@ -37,7 +37,12 @@ async function main() {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD }),
   });
-  if (loginRes.status !== 200) fail(`Login returned HTTP ${loginRes.status}`);
+  if (loginRes.status !== 200) {
+    if (loginRes.status === 403) {
+      fail('Login returned HTTP 403 (likely email not verified or user suspended). Check auth seed/admin state.');
+    }
+    fail(`Login returned HTTP ${loginRes.status}`);
+  }
   const loginBody = await loginRes.json();
   const accessToken = loginBody?.access_token;
   const refreshToken = loginBody?.refresh_token;

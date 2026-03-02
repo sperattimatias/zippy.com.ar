@@ -80,7 +80,43 @@ pnpm smoke
 ```bash
 docker compose -f infra/docker-compose.local.yml ps
 curl -i http://localhost:3000/health
-curl -i -X POST http://localhost:3000/api/auth/login   -H 'Content-Type: application/json'   -d '{"email":"admin@zippy.local","password":"ChangeMe_12345!"}'
+curl -i -X POST http://localhost:3000/api/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"admin@zippy.local","password":"ChangeMe_12345!"}'
+pnpm smoke
+```
+
+## Seguridad base (fase 2)
+
+Variables relevantes:
+- `CORS_ORIGINS` (CSV)
+- `CORS_CREDENTIALS`
+- `THROTTLE_TTL_MS`
+- `THROTTLE_LIMIT`
+- `THROTTLE_AUTH_TTL_MS`
+- `THROTTLE_AUTH_LIMIT`
+- `ACCESS_TOKEN_TTL_MINUTES`
+- `REFRESH_TOKEN_TTL_DAYS`
+
+Prueba rápida refresh/logout:
+```bash
+# login
+curl -s -X POST http://localhost:3000/api/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"admin@zippy.local","password":"ChangeMe_12345!"}'
+
+# refresh
+curl -s -X POST http://localhost:3000/api/auth/refresh \
+  -H 'Content-Type: application/json' \
+  -d '{"refresh_token":"<REFRESH_TOKEN>"}'
+
+# logout
+curl -s -X POST http://localhost:3000/api/auth/logout \
+  -H 'Content-Type: application/json' \
+  -d '{"refresh_token":"<REFRESH_TOKEN>"}'
+```
+
+```
 pnpm smoke
 ```
 

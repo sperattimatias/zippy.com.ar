@@ -38,11 +38,13 @@ async function main() {
     where: { email: adminEmail },
     update: {
       ...(passwordHash ? { password_hash: passwordHash } : {}),
+      ...(existingUser?.email_verified_at ? {} : { email_verified_at: new Date() }),
       status: adminStatus,
     },
     create: {
       email: adminEmail,
       password_hash: passwordHash,
+      email_verified_at: new Date(),
       status: adminStatus,
     },
   });

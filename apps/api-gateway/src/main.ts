@@ -35,7 +35,9 @@ async function bootstrap() {
     app.set('trust proxy', 1);
   }
 
+  const isProd = config.get<string>('NODE_ENV', 'development') === 'production';
   app.use(helmet({
+    contentSecurityPolicy: isProd ? undefined : false,
     crossOriginResourcePolicy: { policy: 'cross-origin' },
   }));
 
