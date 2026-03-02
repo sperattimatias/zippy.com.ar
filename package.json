@@ -11,7 +11,7 @@
     "down:local": "docker compose -f infra/docker-compose.local.yml down -v",
     "db:migrate": "node ./scripts/db-migrate.js",
     "db:seed": "node ./scripts/db-seed.js",
-    "db:reset": "bash ./scripts/db-reset.sh",
-    "smoke": "bash ./scripts/smoke-test.sh"
+    "db:reset": "node ./scripts/db-reset.js",
+    "smoke": "node ./scripts/smoke-test.js"
   }
 }

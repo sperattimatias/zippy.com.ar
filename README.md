@@ -43,6 +43,21 @@ docker compose -f infra/docker-compose.yml ps
 
 ```bash
 cp .env.example .env
+```
+
+### Modo A) Auto bootstrap (sin pasos manuales)
+> Recomendado cuando querés que auth migre + seed al iniciar.
+
+```bash
+# en .env: RUN_DB_SEED=1
+docker compose -f infra/docker-compose.local.yml up --build
+pnpm smoke
+```
+
+### Modo B) Seed manual (default profesional)
+> Default en `.env.example`: `RUN_DB_SEED=0` para evitar reseed automático en cada arranque.
+
+```bash
 docker compose -f infra/docker-compose.local.yml up --build
 pnpm db:migrate
 pnpm db:seed
@@ -53,6 +68,7 @@ pnpm smoke
 - `ZIPPY_ADMIN_EMAIL`
 - `ZIPPY_ADMIN_PASSWORD`
 - `ZIPPY_ADMIN_STATUS` (opcional, default `ACTIVE`)
+- `ZIPPY_ADMIN_RESET_PASSWORD=1` para reset explícito de password del admin
 
 ### DATABASE_URL por servicio (Prisma)
 - `DATABASE_URL_AUTH`
@@ -64,9 +80,7 @@ pnpm smoke
 ```bash
 docker compose -f infra/docker-compose.local.yml ps
 curl -i http://localhost:3000/health
-curl -i -X POST http://localhost:3000/api/auth/login \
-  -H 'Content-Type: application/json' \
-  -d '{"email":"admin@zippy.local","password":"ChangeMe_12345!"}'
+curl -i -X POST http://localhost:3000/api/auth/login   -H 'Content-Type: application/json'   -d '{"email":"admin@zippy.local","password":"ChangeMe_12345!"}'
 pnpm smoke
 ```
 

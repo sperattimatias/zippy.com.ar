@@ -20,6 +20,7 @@ async function main() {
   const adminPassword = process.env.ZIPPY_ADMIN_PASSWORD || DEFAULT_ADMIN_PASSWORD;
   const rawStatus = process.env.ZIPPY_ADMIN_STATUS || DEFAULT_ADMIN_STATUS;
   const adminStatus = Object.values(UserStatus).includes(rawStatus) ? rawStatus : DEFAULT_ADMIN_STATUS;
+  const shouldResetPassword = process.env.ZIPPY_ADMIN_RESET_PASSWORD === '1';
 
   const roles = await Promise.all(['admin', 'driver', 'passenger', 'sos'].map((name) => ensureRole(name)));
   const adminRole = roles.find((role) => role.name === 'admin');
@@ -28,12 +29,15 @@ async function main() {
     throw new Error('Could not ensure admin role');
   }
 
-  const passwordHash = await argon2.hash(adminPassword, { type: argon2.argon2id });
+  const existingUser = await prisma.user.findUnique({ where: { email: adminEmail } });
+  const passwordHash = shouldResetPassword || !existingUser
+    ? await argon2.hash(adminPassword, { type: argon2.argon2id })
+    : undefined;
 
   const adminUser = await prisma.user.upsert({
     where: { email: adminEmail },
     update: {
-      password_hash: passwordHash,
+      ...(passwordHash ? { password_hash: passwordHash } : {}),
       status: adminStatus,
     },
     create: {
