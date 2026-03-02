@@ -1,13 +1,14 @@
 import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { JwtService } from '@nestjs/jwt';
-import {
+import type { ConfigService } from '@nestjs/config';
+import type { JwtService } from '@nestjs/jwt';
+import type {
   OnGatewayConnection,
-  OnGatewayDisconnect,
+  OnGatewayDisconnect} from '@nestjs/websockets';
+import {
   WebSocketGateway,
   WebSocketServer,
 } from '@nestjs/websockets';
-import { Server, Socket } from 'socket.io';
+import type { Server, Socket } from 'socket.io';
 
 @Injectable()
 @WebSocketGateway({ namespace: '/rides', cors: { origin: '*' } })

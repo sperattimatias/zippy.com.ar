@@ -1,8 +1,8 @@
 import { ForbiddenException, Injectable } from '@nestjs/common';
 import { ActorType, RestrictionReason, RestrictionStatus, ScoreEventType } from '@prisma/client';
-import { PrismaService } from '../prisma/prisma.service';
-import { RideGateway } from '../ride/ride.gateway';
-import { MeritocracyService } from '../meritocracy/meritocracy.service';
+import type { PrismaService } from '../prisma/prisma.service';
+import type { RideGateway } from '../ride/ride.gateway';
+import type { MeritocracyService } from '../meritocracy/meritocracy.service';
 
 @Injectable()
 export class ScoreService {

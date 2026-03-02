@@ -13,7 +13,7 @@ function fail(message) {
 
 async function waitForHealth() {
   const start = Date.now();
-  while (true) {
+  for (;;) {
     try {
       const res = await fetch(`${BASE_URL}/health`);
       if (res.status === 200) return;

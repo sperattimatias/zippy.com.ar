@@ -1,6 +1,7 @@
-import { Injectable, NestMiddleware, TooManyRequestsException } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { JwtService } from '@nestjs/jwt';
+import type { NestMiddleware} from '@nestjs/common';
+import { Injectable, TooManyRequestsException } from '@nestjs/common';
+import type { ConfigService } from '@nestjs/config';
+import type { JwtService } from '@nestjs/jwt';
 import type { NextFunction, Request, Response } from 'express';
 
 type Bucket = { count: number; resetAt: number };

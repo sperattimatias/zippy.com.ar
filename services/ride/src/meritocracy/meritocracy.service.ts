@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ActorType, BadgeTier, RestrictionStatus } from '@prisma/client';
-import { PrismaService } from '../prisma/prisma.service';
-import { RideGateway } from '../ride/ride.gateway';
+import type { PrismaService } from '../prisma/prisma.service';
+import type { RideGateway } from '../ride/ride.gateway';
 
 @Injectable()
 export class MeritocracyService {

@@ -15,8 +15,8 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { JwtAccessGuard } from '../common/jwt-access.guard';
 import { Roles } from '../common/roles.decorator';
 import { RolesGuard } from '../common/roles.guard';
-import { RideService } from './ride.service';
-import {
+import type { RideService } from './ride.service';
+import type {
   AcceptBidDto,
   CancelDto,
   CreateBidDto,

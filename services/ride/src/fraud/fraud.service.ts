@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
+import type {
+  ActorType} from '@prisma/client';
 import {
-  ActorType,
   FraudCaseStatus,
   FraudSeverity,
   FraudSignalType,
@@ -8,8 +9,8 @@ import {
   HoldType,
 } from '@prisma/client';
 import { createHash } from 'crypto';
-import { PrismaService } from '../prisma/prisma.service';
-import { RideGateway } from '../ride/ride.gateway';
+import type { PrismaService } from '../prisma/prisma.service';
+import type { RideGateway } from '../ride/ride.gateway';
 
 type FraudCfg = {
   signal_dedupe_window_minutes?: number;

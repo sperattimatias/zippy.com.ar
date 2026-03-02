@@ -1,10 +1,13 @@
+import type {
+  OnModuleInit} from '@nestjs/common';
 import {
   BadRequestException,
   ForbiddenException,
   Injectable,
-  NotFoundException,
-  OnModuleInit,
+  NotFoundException
 } from '@nestjs/common';
+import type {
+  LevelTier} from '@prisma/client';
 import {
   ActorType,
   CancelReason,
@@ -18,19 +21,18 @@ import {
   SafetyAlertStatus,
   SafetyAlertType,
   ScoreEventType,
-  LevelTier,
   TripActor,
   TripBidStatus,
   TripStatus,
 } from '@prisma/client';
 import { createHash } from 'crypto';
-import { PrismaService } from '../prisma/prisma.service';
-import { RideGateway } from './ride.gateway';
-import { ScoreService } from '../score/score.service';
-import { MeritocracyService } from '../meritocracy/meritocracy.service';
-import { LevelAndBonusService } from '../levels/level-bonus.service';
-import { FraudService } from '../fraud/fraud.service';
-import {
+import type { PrismaService } from '../prisma/prisma.service';
+import type { RideGateway } from './ride.gateway';
+import type { ScoreService } from '../score/score.service';
+import type { MeritocracyService } from '../meritocracy/meritocracy.service';
+import type { LevelAndBonusService } from '../levels/level-bonus.service';
+import type { FraudService } from '../fraud/fraud.service';
+import type {
   AcceptBidDto,
   CancelDto,
   CreateBidDto,

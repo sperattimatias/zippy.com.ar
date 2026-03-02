@@ -1,18 +1,13 @@
-import { HttpService } from '@nestjs/axios';
+import type { HttpService } from '@nestjs/axios';
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import {
-  DriverDocumentType,
-  DriverEventType,
-  DriverProfileStatus,
-  VehicleCategory,
-} from '@prisma/client';
+import { DriverEventType, DriverProfileStatus } from '@prisma/client';
 import { firstValueFrom } from 'rxjs';
 import { v4 as uuid } from 'uuid';
-import { ConfigService } from '@nestjs/config';
-import { PrismaService } from '../prisma/prisma.service';
-import { MinioService } from '../minio/minio.service';
-import { PresignDocumentDto } from '../dto/presign-document.dto';
-import { UpsertVehicleDto } from '../dto/upsert-vehicle.dto';
+import type { ConfigService } from '@nestjs/config';
+import type { PrismaService } from '../prisma/prisma.service';
+import type { MinioService } from '../minio/minio.service';
+import type { PresignDocumentDto } from '../dto/presign-document.dto';
+import type { UpsertVehicleDto } from '../dto/upsert-vehicle.dto';
 
 @Injectable()
 export class DriverService {

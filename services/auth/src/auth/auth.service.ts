@@ -5,17 +5,17 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { JwtService } from '@nestjs/jwt';
-import { ConfigService } from '@nestjs/config';
+import type { JwtService } from '@nestjs/jwt';
+import type { ConfigService } from '@nestjs/config';
 import { UserStatus } from '@prisma/client';
 import * as argon2 from 'argon2';
 import { createHash, randomBytes } from 'crypto';
-import { PrismaService } from '../prisma/prisma.service';
-import { LoginDto } from '../dto/login.dto';
-import { RegisterDto } from '../dto/register.dto';
-import { VerifyEmailDto } from '../dto/verify-email.dto';
-import { RefreshDto } from '../dto/refresh.dto';
-import { LogoutDto } from '../dto/logout.dto';
+import type { PrismaService } from '../prisma/prisma.service';
+import type { LoginDto } from '../dto/login.dto';
+import type { RegisterDto } from '../dto/register.dto';
+import type { VerifyEmailDto } from '../dto/verify-email.dto';
+import type { RefreshDto } from '../dto/refresh.dto';
+import type { LogoutDto } from '../dto/logout.dto';
 import { ROLES } from '../../shared/enums/role.enum';
 
 @Injectable()

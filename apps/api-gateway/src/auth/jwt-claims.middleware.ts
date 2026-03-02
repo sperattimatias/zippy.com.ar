@@ -1,6 +1,7 @@
-import { Injectable, NestMiddleware, UnauthorizedException } from '@nestjs/common';
-import { JwtService } from '@nestjs/jwt';
-import { ConfigService } from '@nestjs/config';
+import type { NestMiddleware} from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
+import type { JwtService } from '@nestjs/jwt';
+import type { ConfigService } from '@nestjs/config';
 
 type UserClaims = { sub: string; email: string; roles: string[] };
 

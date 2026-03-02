@@ -11,7 +11,7 @@ import {
   RefundStatus,
   SettlementStatus,
 } from '@prisma/client';
-import { PrismaService } from '../prisma/prisma.service';
+import type { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class PaymentsService {

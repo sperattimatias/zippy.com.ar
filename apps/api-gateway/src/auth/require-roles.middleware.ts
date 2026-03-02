@@ -1,4 +1,5 @@
-import { ForbiddenException, Injectable, NestMiddleware } from '@nestjs/common';
+import type { NestMiddleware } from '@nestjs/common';
+import { ForbiddenException, Injectable } from '@nestjs/common';
 import { ROLES } from '../../../shared/enums/role.enum';
 
 @Injectable()

@@ -3,7 +3,7 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { JwtAccessGuard } from '../common/jwt-access.guard';
 import { Roles } from '../common/roles.decorator';
 import { RolesGuard } from '../common/roles.guard';
-import {
+import type {
   AdminFinanceTripsFilterDto,
   AdminLedgerFilterDto,
   AdminRefundDto,
@@ -12,7 +12,7 @@ import {
   ReconciliationDto,
   RevokeBonusLedgerDto,
 } from '../dto/payment.dto';
-import { PaymentsService } from './payments.service';
+import type { PaymentsService } from './payments.service';
 
 type AuthReq = { user: { sub: string; roles: string[] }; body?: any; rawBody?: string };
 

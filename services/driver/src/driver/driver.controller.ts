@@ -1,10 +1,10 @@
 import { Body, Controller, Get, Param, Post, Req, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { DriverService } from './driver.service';
-import { PresignDocumentDto } from '../dto/presign-document.dto';
-import { UpsertVehicleDto } from '../dto/upsert-vehicle.dto';
-import { ConnectMpDto } from '../dto/connect-mp.dto';
-import { ReviewActionDto } from '../dto/review-action.dto';
+import type { DriverService } from './driver.service';
+import type { PresignDocumentDto } from '../dto/presign-document.dto';
+import type { UpsertVehicleDto } from '../dto/upsert-vehicle.dto';
+import type { ConnectMpDto } from '../dto/connect-mp.dto';
+import type { ReviewActionDto } from '../dto/review-action.dto';
 import { JwtAccessGuard } from '../common/jwt-access.guard';
 import { RolesGuard } from '../common/roles.guard';
 import { Roles } from '../common/roles.decorator';

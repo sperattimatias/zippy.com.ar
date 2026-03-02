@@ -9,8 +9,8 @@ import {
   ScoreEventType,
   TripStatus,
 } from '@prisma/client';
-import { PrismaService } from '../prisma/prisma.service';
-import { RideGateway } from '../ride/ride.gateway';
+import type { PrismaService } from '../prisma/prisma.service';
+import type { RideGateway } from '../ride/ride.gateway';
 
 type Perf = {
   tripsCompleted: number;
