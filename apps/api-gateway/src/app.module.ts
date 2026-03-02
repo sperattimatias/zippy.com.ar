@@ -3,7 +3,7 @@ import type { RouteInfo } from '@nestjs/common/interfaces';
 import { ConfigModule } from '@nestjs/config';
 import * as Joi from 'joi';
 import { LoggerModule } from 'nestjs-pino';
-import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { ThrottlerModule } from '@nestjs/throttler';
 import { APP_GUARD, Reflector } from '@nestjs/core';
 import { createProxyMiddleware } from 'http-proxy-middleware';
 import type { NextFunction, Request, Response } from 'express';
@@ -13,6 +13,8 @@ import { JwtModule } from '@nestjs/jwt';
 import { AppController } from './app.controller';
 import { defaultPinoConfig } from '../shared/utils/logger';
 import { AuthGuard } from './auth/auth.guard';
+import { UserAwareThrottlerGuard } from './security.user-aware-throttler.guard';
+import { AuthRateLimitMiddleware } from './auth/auth-rate-limit.middleware';
 import { RolesGuard } from './auth/roles.guard';
 import { JwtClaimsMiddleware } from './auth/jwt-claims.middleware';
 import {
@@ -244,11 +246,18 @@ const fixRequestBody = (proxyReq: ClientRequest, req: ParsedRequest) => {
         PAYMENT_SERVICE_URL: Joi.string().uri().required(),
 
         JWT_ACCESS_SECRET: Joi.string().min(32).required(),
+        THROTTLE_TTL_MS: Joi.number().default(60000),
+        THROTTLE_LIMIT: Joi.number().default(100),
+        THROTTLE_AUTH_TTL_MS: Joi.number().default(60000),
+        THROTTLE_AUTH_LIMIT: Joi.number().default(10),
+        CORS_ORIGINS: Joi.string().optional(),
+        CORS_CREDENTIALS: Joi.string().valid('true', 'false').default('true'),
+        TRUST_PROXY: Joi.string().default('1'),
       }),
     }),
     JwtModule.register({}),
     LoggerModule.forRoot(defaultPinoConfig),
-    ThrottlerModule.forRoot([{ ttl: 60000, limit: 100 }]),
+    ThrottlerModule.forRoot([{ ttl: Number(process.env.THROTTLE_TTL_MS ?? 60000), limit: Number(process.env.THROTTLE_LIMIT ?? 100) }]),
   ],
   controllers: [AppController],
   providers: [
@@ -260,9 +269,10 @@ const fixRequestBody = (proxyReq: ClientRequest, req: ParsedRequest) => {
     RequireDriverMiddleware,
     RequireAdminOrSosMiddleware,
     RequirePassengerOrDriverMiddleware,
+    AuthRateLimitMiddleware,
     {
       provide: APP_GUARD,
-      useClass: ThrottlerGuard,
+      useClass: UserAwareThrottlerGuard,
     },
   ],
 })
@@ -305,6 +315,7 @@ export class AppModule implements NestModule {
       .forRoutes(...paymentAdminFinanceRoutes, ...paymentAdminPaymentRoutes);
 
     consumer.apply(attachClientFingerprintHeaders).forRoutes(...tripsRoutes, ...paymentRoutes);
+    consumer.apply(AuthRateLimitMiddleware).forRoutes(...authRoutes);
 
     /** ---------- PROXIES ---------- */
 
