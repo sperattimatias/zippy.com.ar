@@ -6,6 +6,9 @@ import { LoggerModule } from 'nestjs-pino';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { APP_GUARD, Reflector } from '@nestjs/core';
 import { createProxyMiddleware } from 'http-proxy-middleware';
+import type { NextFunction, Request, Response } from 'express';
+import type { ClientRequest } from 'http';
+import type { IncomingMessage } from 'http';
 import { JwtModule } from '@nestjs/jwt';
 import { AppController } from './app.controller';
 import { defaultPinoConfig } from '../shared/utils/logger';
@@ -172,7 +175,7 @@ const driverTripRoutes: RouteInfo[] = [
 
 /** ---------- MIDDLEWARE HELPERS ---------- */
 
-const attachClientFingerprintHeaders = (req: any, _res: any, next: any) => {
+const attachClientFingerprintHeaders = (req: Request, _res: Response, next: NextFunction) => {
   const xff = req.headers['x-forwarded-for'];
   const ip = Array.isArray(xff) ? xff[0] : typeof xff === 'string' ? xff.split(',')[0].trim() : req.ip;
 
@@ -188,8 +191,12 @@ const attachClientFingerprintHeaders = (req: any, _res: any, next: any) => {
  * This replaces the old "onProxyReq" option which no longer exists in newer
  * http-proxy-middleware typings. Now we use: on: { proxyReq: fixRequestBody }
  */
-const fixRequestBody = (proxyReq: any, req: any) => {
-  if (!req.body) return;
+type ParsedRequest = IncomingMessage & { body?: unknown };
+
+const fixRequestBody = (proxyReq: ClientRequest, req: ParsedRequest) => {
+  if (!req.body || typeof req.body !== 'object') return;
+
+  const body = req.body as Record<string, unknown>;
 
   const contentType = proxyReq.getHeader('Content-Type');
   const isJson =
@@ -207,10 +214,10 @@ const fixRequestBody = (proxyReq: any, req: any) => {
   let bodyData: string | null = null;
 
   if (isJson) {
-    bodyData = JSON.stringify(req.body);
+    bodyData = JSON.stringify(body);
   } else if (isUrlEncoded) {
     // Minimal urlencoded serializer (no deps)
-    bodyData = Object.entries(req.body)
+    bodyData = Object.entries(body)
       .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`)
       .join('&');
   } else {

@@ -4,7 +4,7 @@ services:
   postgres:
     image: postgres:16-alpine
     env_file:
-      - ./.env
+      - ../.env
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -37,7 +37,7 @@ services:
     image: minio/minio:latest
     command: server /data --console-address ":9001"
     env_file:
-      - ./.env
+      - ../.env
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
@@ -53,7 +53,7 @@ services:
       context: ..
       dockerfile: services/auth/Dockerfile
     env_file:
-      - ./.env
+      - ../.env
     environment:
       NODE_ENV: ${NODE_ENV}
       LOG_LEVEL: ${LOG_LEVEL}
@@ -65,6 +65,11 @@ services:
       JWT_ACCESS_EXPIRES_IN: ${JWT_ACCESS_EXPIRES_IN}
       REFRESH_TOKEN_EXPIRES_DAYS: ${REFRESH_TOKEN_EXPIRES_DAYS}
       EMAIL_VERIFICATION_TTL_MIN: ${EMAIL_VERIFICATION_TTL_MIN}
+      RUN_DB_MIGRATIONS: ${RUN_DB_MIGRATIONS:-1}
+      RUN_DB_SEED: ${RUN_DB_SEED:-1}
+      ZIPPY_ADMIN_EMAIL: ${ZIPPY_ADMIN_EMAIL:-admin@zippy.local}
+      ZIPPY_ADMIN_PASSWORD: ${ZIPPY_ADMIN_PASSWORD:-ChangeMe_12345!}
+      ZIPPY_ADMIN_STATUS: ${ZIPPY_ADMIN_STATUS:-ACTIVE}
     ports:
       - 3001:3001
     depends_on:
@@ -88,7 +93,7 @@ services:
       context: ..
       dockerfile: services/ride/Dockerfile
     env_file:
-      - ./.env
+      - ../.env
     environment:
       NODE_ENV: ${NODE_ENV}
       LOG_LEVEL: ${LOG_LEVEL}
@@ -120,7 +125,7 @@ services:
       context: ..
       dockerfile: services/driver/Dockerfile
     env_file:
-      - ./.env
+      - ../.env
     environment:
       NODE_ENV: ${NODE_ENV}
       LOG_LEVEL: ${LOG_LEVEL}
@@ -159,7 +164,7 @@ services:
       context: ..
       dockerfile: services/payment/Dockerfile
     env_file:
-      - ./.env
+      - ../.env
     environment:
       NODE_ENV: ${NODE_ENV}
       LOG_LEVEL: ${LOG_LEVEL}
@@ -190,7 +195,7 @@ services:
       context: ..
       dockerfile: apps/api-gateway/Dockerfile
     env_file:
-      - ./.env
+      - ../.env
     environment:
       NODE_ENV: ${NODE_ENV}
       LOG_LEVEL: ${LOG_LEVEL}
@@ -231,7 +236,7 @@ services:
         NEXT_PUBLIC_API_GATEWAY_URL: ${NEXT_PUBLIC_API_GATEWAY_URL}
         API_GATEWAY_INTERNAL_URL: ${API_GATEWAY_INTERNAL_URL}
     env_file:
-      - ./.env
+      - ../.env
     environment:
       NODE_ENV: ${NODE_ENV}
       ADMIN_PANEL_PORT: 3005
