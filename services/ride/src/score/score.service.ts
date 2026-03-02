@@ -6,7 +6,11 @@ import { MeritocracyService } from '../meritocracy/meritocracy.service';
 
 @Injectable()
 export class ScoreService {
-  constructor(private readonly prisma: PrismaService, private readonly ws: RideGateway, private readonly merit: MeritocracyService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly ws: RideGateway,
+    private readonly merit: MeritocracyService,
+  ) {}
 
   async getOrCreateUserScore(userId: string, actorType: ActorType) {
     return this.prisma.userScore.upsert({
@@ -39,7 +43,9 @@ export class ScoreService {
   async ensureDriverCanGoOnline(userId: string) {
     const active = await this.getActiveRestriction(userId, ActorType.DRIVER);
     if (active?.status === RestrictionStatus.BLOCKED) {
-      throw new ForbiddenException(`Driver blocked by restriction until ${active.ends_at?.toISOString() ?? 'manual lift required'}`);
+      throw new ForbiddenException(
+        `Driver blocked by restriction until ${active.ends_at?.toISOString() ?? 'manual lift required'}`,
+      );
     }
     return { isLimited: active?.status === RestrictionStatus.LIMITED };
   }
@@ -76,7 +82,10 @@ export class ScoreService {
       });
 
       let autoRestriction = null;
-      if (nextStatus === RestrictionStatus.BLOCKED && current.status !== RestrictionStatus.BLOCKED) {
+      if (
+        nextStatus === RestrictionStatus.BLOCKED &&
+        current.status !== RestrictionStatus.BLOCKED
+      ) {
         autoRestriction = await trx.userRestriction.create({
           data: {
             user_id: input.user_id,
@@ -93,7 +102,10 @@ export class ScoreService {
       return { updatedScore, event, autoRestriction };
     });
 
-    const channel = input.actor_type === ActorType.DRIVER ? 'driver.restriction.updated' : 'passenger.restriction.updated';
+    const channel =
+      input.actor_type === ActorType.DRIVER
+        ? 'driver.restriction.updated'
+        : 'passenger.restriction.updated';
     this.ws.emitToUser(input.user_id, channel, {
       user_id: input.user_id,
       actor_type: input.actor_type,
@@ -121,25 +133,48 @@ export class ScoreService {
     if (status) where.status = status;
     if (q) where.user_id = { contains: q };
 
-    const rows = await this.prisma.userScore.findMany({ where, orderBy: [{ score: 'asc' }, { updated_at: 'desc' }], take: 200 });
+    const rows = await this.prisma.userScore.findMany({
+      where,
+      orderBy: [{ score: 'asc' }, { updated_at: 'desc' }],
+      take: 200,
+    });
     const now = new Date();
     const restrictions = await this.prisma.userRestriction.findMany({
-      where: { OR: [{ ends_at: null }, { ends_at: { gt: now } }], status: { in: [RestrictionStatus.BLOCKED, RestrictionStatus.LIMITED] } },
+      where: {
+        OR: [{ ends_at: null }, { ends_at: { gt: now } }],
+        status: { in: [RestrictionStatus.BLOCKED, RestrictionStatus.LIMITED] },
+      },
       orderBy: { created_at: 'desc' },
     });
     const byKey = new Map(restrictions.map((r) => [`${r.user_id}:${r.actor_type}`, r]));
-    const badges = await this.prisma.userBadge.findMany({ where: { OR: rows.map((r) => ({ user_id: r.user_id, actor_type: r.actor_type })) } });
+    const badges = await this.prisma.userBadge.findMany({
+      where: { OR: rows.map((r) => ({ user_id: r.user_id, actor_type: r.actor_type })) },
+    });
     const badgeByKey = new Map(badges.map((b) => [`${b.user_id}:${b.actor_type}`, b]));
 
-    return rows.map((r) => ({ ...r, badge: badgeByKey.get(`${r.user_id}:${r.actor_type}`) ?? null, restriction_active: byKey.get(`${r.user_id}:${r.actor_type}`) ?? null }));
+    return rows.map((r) => ({
+      ...r,
+      badge: badgeByKey.get(`${r.user_id}:${r.actor_type}`) ?? null,
+      restriction_active: byKey.get(`${r.user_id}:${r.actor_type}`) ?? null,
+    }));
   }
 
   async getUserScoreDetail(userId: string, actorType: ActorType) {
     const score = await this.getOrCreateUserScore(userId, actorType);
     const [events, restrictions, badge] = await Promise.all([
-      this.prisma.scoreEvent.findMany({ where: { user_id: userId, actor_type: actorType }, orderBy: { created_at: 'desc' }, take: 50 }),
-      this.prisma.userRestriction.findMany({ where: { user_id: userId, actor_type: actorType }, orderBy: { created_at: 'desc' }, take: 50 }),
-      this.prisma.userBadge.findUnique({ where: { user_id_actor_type: { user_id: userId, actor_type: actorType } } }),
+      this.prisma.scoreEvent.findMany({
+        where: { user_id: userId, actor_type: actorType },
+        orderBy: { created_at: 'desc' },
+        take: 50,
+      }),
+      this.prisma.userRestriction.findMany({
+        where: { user_id: userId, actor_type: actorType },
+        orderBy: { created_at: 'desc' },
+        take: 50,
+      }),
+      this.prisma.userBadge.findUnique({
+        where: { user_id_actor_type: { user_id: userId, actor_type: actorType } },
+      }),
     ]);
     return { score, badge, events, restrictions };
   }
@@ -172,14 +207,22 @@ export class ScoreService {
       actor_type: input.actor_type,
       type: ScoreEventType.MANUAL_ADJUST,
       delta: 0,
-      payload: { action: 'manual_restriction', restriction_id: restriction.id, reason: input.reason, notes: input.notes ?? null },
+      payload: {
+        action: 'manual_restriction',
+        restriction_id: restriction.id,
+        reason: input.reason,
+        notes: input.notes ?? null,
+      },
     });
 
     return restriction;
   }
 
   async liftRestriction(id: string, actorUserId: string) {
-    const restriction = await this.prisma.userRestriction.update({ where: { id }, data: { ends_at: new Date() } });
+    const restriction = await this.prisma.userRestriction.update({
+      where: { id },
+      data: { ends_at: new Date() },
+    });
     await this.applyScoreEvent({
       user_id: restriction.user_id,
       actor_type: restriction.actor_type,
@@ -190,7 +233,13 @@ export class ScoreService {
     return restriction;
   }
 
-  async adjustScore(userId: string, actorType: ActorType, delta: number, notes: string | undefined, actorUserId: string) {
+  async adjustScore(
+    userId: string,
+    actorType: ActorType,
+    delta: number,
+    notes: string | undefined,
+    actorUserId: string,
+  ) {
     const result = await this.applyScoreEvent({
       user_id: userId,
       actor_type: actorType,
@@ -202,30 +251,77 @@ export class ScoreService {
   }
 
   async applyRecoveryOnTripCompletion(userId: string, actorType: ActorType) {
-    const rules = (await this.prisma.appConfig.findUnique({ where: { key: 'recovery_rules' } }))?.value_json as any ?? { limited_clean_trips: 5, limited_bonus: 5, blocked_clean_trips: 3, daily_cap: 6 };
+    const rules = ((await this.prisma.appConfig.findUnique({ where: { key: 'recovery_rules' } }))
+      ?.value_json as any) ?? {
+      limited_clean_trips: 5,
+      limited_bonus: 5,
+      blocked_clean_trips: 3,
+      daily_cap: 6,
+    };
     const score = await this.getOrCreateUserScore(userId, actorType);
-    const blockedStatuses: RestrictionStatus[] = [RestrictionStatus.LIMITED, RestrictionStatus.BLOCKED];
+    const blockedStatuses: RestrictionStatus[] = [
+      RestrictionStatus.LIMITED,
+      RestrictionStatus.BLOCKED,
+    ];
     if (!blockedStatuses.includes(score.status)) return;
 
     const since = new Date(Date.now() - 30 * 24 * 3600 * 1000);
-    const clean = await this.prisma.scoreEvent.count({ where: { user_id: userId, actor_type: actorType, type: ScoreEventType.TRIP_COMPLETED_CLEAN, created_at: { gte: since } } });
+    const clean = await this.prisma.scoreEvent.count({
+      where: {
+        user_id: userId,
+        actor_type: actorType,
+        type: ScoreEventType.TRIP_COMPLETED_CLEAN,
+        created_at: { gte: since },
+      },
+    });
 
-    const dayStart = new Date(); dayStart.setHours(0, 0, 0, 0);
-    const gainedToday = await this.prisma.scoreEvent.aggregate({ _sum: { delta: true }, where: { user_id: userId, actor_type: actorType, type: ScoreEventType.TRIP_RECOVERY_BONUS, created_at: { gte: dayStart } } });
+    const dayStart = new Date();
+    dayStart.setHours(0, 0, 0, 0);
+    const gainedToday = await this.prisma.scoreEvent.aggregate({
+      _sum: { delta: true },
+      where: {
+        user_id: userId,
+        actor_type: actorType,
+        type: ScoreEventType.TRIP_RECOVERY_BONUS,
+        created_at: { gte: dayStart },
+      },
+    });
     const used = gainedToday._sum.delta ?? 0;
     const cap = rules.daily_cap ?? 6;
     if (used >= cap) return;
 
     if (score.status === RestrictionStatus.LIMITED && clean >= (rules.limited_clean_trips ?? 5)) {
       const delta = Math.min(rules.limited_bonus ?? 5, cap - used);
-      if (delta > 0) await this.applyScoreEvent({ user_id: userId, actor_type: actorType, type: ScoreEventType.TRIP_RECOVERY_BONUS, delta, payload: { reason: 'limited_recovery' } });
+      if (delta > 0)
+        await this.applyScoreEvent({
+          user_id: userId,
+          actor_type: actorType,
+          type: ScoreEventType.TRIP_RECOVERY_BONUS,
+          delta,
+          payload: { reason: 'limited_recovery' },
+        });
     }
 
     if (score.status === RestrictionStatus.BLOCKED) {
-      const auto = await this.prisma.userRestriction.findFirst({ where: { user_id: userId, actor_type: actorType, reason: RestrictionReason.LOW_SCORE_AUTO }, orderBy: { created_at: 'desc' } });
-      if (auto && auto.ends_at && auto.ends_at <= new Date() && clean >= (rules.blocked_clean_trips ?? 3)) {
+      const auto = await this.prisma.userRestriction.findFirst({
+        where: { user_id: userId, actor_type: actorType, reason: RestrictionReason.LOW_SCORE_AUTO },
+        orderBy: { created_at: 'desc' },
+      });
+      if (
+        auto &&
+        auto.ends_at &&
+        auto.ends_at <= new Date() &&
+        clean >= (rules.blocked_clean_trips ?? 3)
+      ) {
         const delta = Math.min(5, cap - used);
-        if (delta > 0) await this.applyScoreEvent({ user_id: userId, actor_type: actorType, type: ScoreEventType.TRIP_RECOVERY_BONUS, delta, payload: { reason: 'blocked_recovery' } });
+        if (delta > 0)
+          await this.applyScoreEvent({
+            user_id: userId,
+            actor_type: actorType,
+            type: ScoreEventType.TRIP_RECOVERY_BONUS,
+            delta,
+            payload: { reason: 'blocked_recovery' },
+          });
       }
     }
   }

@@ -20,14 +20,42 @@ describe('MeritocracyService', () => {
   });
 
   it('premium zone point-in-polygon gate', async () => {
-    const prisma: any = { premiumZone: { findMany: jest.fn().mockResolvedValue([{ polygon_json: [{ lat: 0, lng: 0 }, { lat: 0, lng: 1 }, { lat: 1, lng: 1 }, { lat: 1, lng: 0 }, { lat: 0, lng: 0 }], min_driver_score: 75, min_passenger_score: 60 }]) } };
+    const prisma: any = {
+      premiumZone: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            polygon_json: [
+              { lat: 0, lng: 0 },
+              { lat: 0, lng: 1 },
+              { lat: 1, lng: 1 },
+              { lat: 1, lng: 0 },
+              { lat: 0, lng: 0 },
+            ],
+            min_driver_score: 75,
+            min_passenger_score: 60,
+          },
+        ]),
+      },
+    };
     const svc = new MeritocracyService(prisma, {} as any);
     const ctx = await svc.getPremiumContext({ lat: 0.5, lng: 0.5 }, ActorType.DRIVER, 70);
     expect(ctx.eligible).toBe(false);
   });
 
   it('evaluate peak gate denies blocked', async () => {
-    const prisma: any = { appConfig: { findUnique: jest.fn().mockResolvedValue({ value_json: { windows: [{ days: [new Date().getDay()], start: '00:00', end: '23:59' }], driver_min_score: 50 } }) }, peakGateEvent: { create: jest.fn() } };
+    const prisma: any = {
+      appConfig: {
+        findUnique: jest
+          .fn()
+          .mockResolvedValue({
+            value_json: {
+              windows: [{ days: [new Date().getDay()], start: '00:00', end: '23:59' }],
+              driver_min_score: 50,
+            },
+          }),
+      },
+      peakGateEvent: { create: jest.fn() },
+    };
     const ws: any = { emitToUser: jest.fn() };
     const svc = new MeritocracyService(prisma, ws);
     const out = await svc.evaluatePeakGate('u1', ActorType.DRIVER, 30, RestrictionStatus.BLOCKED);

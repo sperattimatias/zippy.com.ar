@@ -1,6 +1,7 @@
 import { cookies } from 'next/headers';
 
-const gatewayBase = process.env.API_GATEWAY_INTERNAL_URL ?? process.env.NEXT_PUBLIC_API_GATEWAY_URL!;
+const gatewayBase =
+  process.env.API_GATEWAY_INTERNAL_URL ?? process.env.NEXT_PUBLIC_API_GATEWAY_URL!;
 
 async function callMe(accessToken: string) {
   return fetch(`${gatewayBase}/api/auth/me`, {

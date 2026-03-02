@@ -3,7 +3,9 @@ import { DriverService } from './driver.service';
 describe('DriverService', () => {
   it('requests driver profile', async () => {
     const prisma: any = {
-      driverProfile: { upsert: jest.fn().mockResolvedValue({ id: 'dp1', user_id: 'u1', status: 'PENDING_DOCS' }) },
+      driverProfile: {
+        upsert: jest.fn().mockResolvedValue({ id: 'dp1', user_id: 'u1', status: 'PENDING_DOCS' }),
+      },
       driverEvent: { create: jest.fn().mockResolvedValue({}) },
     };
     const service = new DriverService(prisma, {} as any, {} as any, {} as any);
@@ -19,7 +21,11 @@ describe('DriverService', () => {
     };
     const minio: any = { presignedPutObject: jest.fn().mockResolvedValue('https://signed-put') };
     const service = new DriverService(prisma, minio, {} as any, {} as any);
-    const res = await service.presignDocument('u1', { type: 'SELFIE' as any, mime_type: 'image/jpeg', size_bytes: 100 });
+    const res = await service.presignDocument('u1', {
+      type: 'SELFIE' as any,
+      mime_type: 'image/jpeg',
+      size_bytes: 100,
+    });
     expect(res.put_url).toContain('signed-put');
   });
 

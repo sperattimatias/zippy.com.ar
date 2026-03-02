@@ -33,28 +33,21 @@ export async function POST(request: Request) {
 
     if (!response.ok) {
       // Devolvemos error tal cual, con status correcto
-      return Response.json(
-        typeof payload === 'string' ? { error: payload } : payload,
-        { status: response.status },
-      );
+      return Response.json(typeof payload === 'string' ? { error: payload } : payload, {
+        status: response.status,
+      });
     }
 
     // ✅ Esperamos estos campos desde auth: access_token y refresh_token
     // Si viniera distinto, lo dejamos explícito para debug
     if (typeof payload !== 'object' || payload === null) {
-      return Response.json(
-        { error: 'Invalid auth payload', payload },
-        { status: 502 },
-      );
+      return Response.json({ error: 'Invalid auth payload', payload }, { status: 502 });
     }
 
     const { refresh_token, access_token } = payload as any;
 
     if (!refresh_token || !access_token) {
-      return Response.json(
-        { error: 'Missing tokens in auth payload', payload },
-        { status: 502 },
-      );
+      return Response.json({ error: 'Missing tokens in auth payload', payload }, { status: 502 });
     }
 
     const store = cookies();
@@ -80,9 +73,7 @@ export async function POST(request: Request) {
   } catch (err: any) {
     // ✅ Error controlado con info útil (no cuelga)
     const message =
-      err?.name === 'AbortError'
-        ? 'Gateway request timed out'
-        : (err?.message ?? String(err));
+      err?.name === 'AbortError' ? 'Gateway request timed out' : (err?.message ?? String(err));
 
     return Response.json(
       {

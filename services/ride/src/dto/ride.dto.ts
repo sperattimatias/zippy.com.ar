@@ -1,8 +1,39 @@
-import { ActorType, CancelReason, FraudCaseStatus, FraudSeverity, GeoZoneType, HoldType, LevelTier, PremiumZoneType, RestrictionReason, RestrictionStatus, SafetyAlertStatus, VehicleCategory } from '@prisma/client';
-import { IsArray, IsBoolean, IsDateString, IsEnum, IsInt, IsNumber, IsOptional, IsString, Max, Min } from 'class-validator';
+import {
+  ActorType,
+  CancelReason,
+  FraudCaseStatus,
+  FraudSeverity,
+  GeoZoneType,
+  HoldType,
+  LevelTier,
+  PremiumZoneType,
+  RestrictionReason,
+  RestrictionStatus,
+  SafetyAlertStatus,
+  VehicleCategory,
+} from '@prisma/client';
+import {
+  IsArray,
+  IsBoolean,
+  IsDateString,
+  IsEnum,
+  IsInt,
+  IsNumber,
+  IsOptional,
+  IsString,
+  Max,
+  Min,
+} from 'class-validator';
 
-export class PresenceOnlineDto { @IsNumber() lat!: number; @IsNumber() lng!: number; @IsEnum(VehicleCategory) category!: VehicleCategory; }
-export class PresencePingDto { @IsNumber() lat!: number; @IsNumber() lng!: number; }
+export class PresenceOnlineDto {
+  @IsNumber() lat!: number;
+  @IsNumber() lng!: number;
+  @IsEnum(VehicleCategory) category!: VehicleCategory;
+}
+export class PresencePingDto {
+  @IsNumber() lat!: number;
+  @IsNumber() lng!: number;
+}
 
 export class TripRequestDto {
   @IsNumber() origin_lat!: number;
@@ -16,12 +47,29 @@ export class TripRequestDto {
   @IsOptional() @IsInt() eta_minutes?: number;
 }
 
-export class CreateBidDto { @IsInt() @Min(1) price_offer!: number; @IsOptional() @IsInt() @Min(1) @Max(180) eta_to_pickup_minutes?: number; }
-export class AcceptBidDto { @IsString() bid_id!: string; }
-export class VerifyOtpDto { @IsString() otp!: string; }
-export class LocationDto { @IsNumber() lat!: number; @IsNumber() lng!: number; @IsOptional() @IsNumber() speed?: number; @IsOptional() @IsNumber() heading?: number; }
-export class RateTripDto { @IsInt() @Min(1) @Max(5) rating!: number; @IsOptional() @IsString() comment?: string; }
-export class CancelDto { @IsEnum(CancelReason) reason!: CancelReason; }
+export class CreateBidDto {
+  @IsInt() @Min(1) price_offer!: number;
+  @IsOptional() @IsInt() @Min(1) @Max(180) eta_to_pickup_minutes?: number;
+}
+export class AcceptBidDto {
+  @IsString() bid_id!: string;
+}
+export class VerifyOtpDto {
+  @IsString() otp!: string;
+}
+export class LocationDto {
+  @IsNumber() lat!: number;
+  @IsNumber() lng!: number;
+  @IsOptional() @IsNumber() speed?: number;
+  @IsOptional() @IsNumber() heading?: number;
+}
+export class RateTripDto {
+  @IsInt() @Min(1) @Max(5) rating!: number;
+  @IsOptional() @IsString() comment?: string;
+}
+export class CancelDto {
+  @IsEnum(CancelReason) reason!: CancelReason;
+}
 
 export class GeoZoneCreateDto {
   @IsString() name!: string;
@@ -92,7 +140,6 @@ export class AdjustScoreDto {
   @IsOptional() @IsString() notes?: string;
 }
 
-
 export class AdminLevelFilterDto {
   @IsOptional() @IsEnum(ActorType) actor_type?: ActorType;
   @IsOptional() @IsEnum(LevelTier) tier?: LevelTier;
@@ -112,7 +159,6 @@ export class AdminBonusesFilterDto {
 export class BonusRevokeDto {
   @IsString() reason!: string;
 }
-
 
 export class FraudCaseFilterDto {
   @IsOptional() @IsEnum(FraudCaseStatus) status?: FraudCaseStatus;

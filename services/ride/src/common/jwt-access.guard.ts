@@ -4,7 +4,10 @@ import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class JwtAccessGuard implements CanActivate {
-  constructor(private readonly jwt: JwtService, private readonly config: ConfigService) {}
+  constructor(
+    private readonly jwt: JwtService,
+    private readonly config: ConfigService,
+  ) {}
 
   async canActivate(ctx: ExecutionContext): Promise<boolean> {
     const req = ctx.switchToHttp().getRequest();
@@ -12,7 +15,9 @@ export class JwtAccessGuard implements CanActivate {
     if (!auth?.startsWith('Bearer ')) throw new UnauthorizedException('Missing bearer token');
     const token = auth.slice(7);
     try {
-      req.user = await this.jwt.verifyAsync(token, { secret: this.config.getOrThrow<string>('JWT_ACCESS_SECRET') });
+      req.user = await this.jwt.verifyAsync(token, {
+        secret: this.config.getOrThrow<string>('JWT_ACCESS_SECRET'),
+      });
       return true;
     } catch {
       throw new UnauthorizedException('Invalid access token');

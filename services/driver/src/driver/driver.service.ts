@@ -23,15 +23,26 @@ export class DriverService {
     private readonly config: ConfigService,
   ) {}
 
-
   private async ensureProfile(userId: string) {
     const profile = await this.prisma.driverProfile.findUnique({ where: { user_id: userId } });
     if (!profile) throw new NotFoundException('Driver profile not found');
     return profile;
   }
 
-  private async addEvent(driverProfileId: string, actorUserId: string, type: DriverEventType, payload: unknown) {
-    await this.prisma.driverEvent.create({ data: { driver_profile_id: driverProfileId, actor_user_id: actorUserId, type, payload_json: payload as any } });
+  private async addEvent(
+    driverProfileId: string,
+    actorUserId: string,
+    type: DriverEventType,
+    payload: unknown,
+  ) {
+    await this.prisma.driverEvent.create({
+      data: {
+        driver_profile_id: driverProfileId,
+        actor_user_id: actorUserId,
+        type,
+        payload_json: payload as any,
+      },
+    });
   }
 
   private validateMime(type: string) {
@@ -99,8 +110,14 @@ export class DriverService {
 
   async connectMpAccount(userId: string, mpAccountId: string) {
     const profile = await this.ensureProfile(userId);
-    const updated = await this.prisma.driverProfile.update({ where: { id: profile.id }, data: { mp_account_id: mpAccountId } });
-    await this.addEvent(profile.id, userId, DriverEventType.NOTE_ADDED, { note: 'mp_account_connected', mp_account_id: mpAccountId });
+    const updated = await this.prisma.driverProfile.update({
+      where: { id: profile.id },
+      data: { mp_account_id: mpAccountId },
+    });
+    await this.addEvent(profile.id, userId, DriverEventType.NOTE_ADDED, {
+      note: 'mp_account_connected',
+      mp_account_id: mpAccountId,
+    });
     return { user_id: updated.user_id, mp_account_id: updated.mp_account_id };
   }
 
@@ -150,7 +167,10 @@ export class DriverService {
     if (!profile) throw new NotFoundException('Driver profile not found');
 
     const docs = await Promise.all(
-      profile.documents.map(async (d) => ({ ...d, get_url: await this.minio.presignedGetObject(d.object_key) })),
+      profile.documents.map(async (d) => ({
+        ...d,
+        get_url: await this.minio.presignedGetObject(d.object_key),
+      })),
     );
 
     return { ...profile, documents: docs };
@@ -159,10 +179,21 @@ export class DriverService {
   async reviewStart(id: string, actorUserId: string) {
     const profile = await this.prisma.driverProfile.findUnique({ where: { id } });
     if (!profile) throw new NotFoundException('Driver profile not found');
-    if (profile.status !== DriverProfileStatus.PENDING_DOCS) throw new BadRequestException('Invalid status transition');
+    if (profile.status !== DriverProfileStatus.PENDING_DOCS)
+      throw new BadRequestException('Invalid status transition');
 
-    const updated = await this.prisma.driverProfile.update({ where: { id }, data: { status: DriverProfileStatus.IN_REVIEW } });
-    await this.prisma.driverEvent.create({ data: { driver_profile_id: id, actor_user_id: actorUserId, type: DriverEventType.STATUS_CHANGED, payload_json: { from: profile.status, to: updated.status } } });
+    const updated = await this.prisma.driverProfile.update({
+      where: { id },
+      data: { status: DriverProfileStatus.IN_REVIEW },
+    });
+    await this.prisma.driverEvent.create({
+      data: {
+        driver_profile_id: id,
+        actor_user_id: actorUserId,
+        type: DriverEventType.STATUS_CHANGED,
+        payload_json: { from: profile.status, to: updated.status },
+      },
+    });
     return updated;
   }
 
@@ -172,27 +203,72 @@ export class DriverService {
 
     const updated = await this.prisma.driverProfile.update({
       where: { id },
-      data: { status: DriverProfileStatus.APPROVED, approved_at: new Date(), approved_by_user_id: actorUserId, rejection_reason: null, rejected_at: null, rejected_by_user_id: null },
+      data: {
+        status: DriverProfileStatus.APPROVED,
+        approved_at: new Date(),
+        approved_by_user_id: actorUserId,
+        rejection_reason: null,
+        rejected_at: null,
+        rejected_by_user_id: null,
+      },
     });
 
-    await this.prisma.driverEvent.create({ data: { driver_profile_id: id, actor_user_id: actorUserId, type: DriverEventType.APPROVED, payload_json: { user_id: updated.user_id } } });
+    await this.prisma.driverEvent.create({
+      data: {
+        driver_profile_id: id,
+        actor_user_id: actorUserId,
+        type: DriverEventType.APPROVED,
+        payload_json: { user_id: updated.user_id },
+      },
+    });
 
     const authBase = this.config.getOrThrow<string>('AUTH_SERVICE_URL');
-    await firstValueFrom(this.http.post(`${authBase}/api/auth/admin/grant-role`, { user_id: updated.user_id, role: 'driver' }, { headers: authorization ? { Authorization: authorization } : {} }));
+    await firstValueFrom(
+      this.http.post(
+        `${authBase}/api/auth/admin/grant-role`,
+        { user_id: updated.user_id, role: 'driver' },
+        { headers: authorization ? { Authorization: authorization } : {} },
+      ),
+    );
 
     return updated;
   }
 
   async reject(id: string, actorUserId: string, reason: string) {
     if (!reason) throw new BadRequestException('reason is required');
-    const updated = await this.prisma.driverProfile.update({ where: { id }, data: { status: DriverProfileStatus.REJECTED, rejected_at: new Date(), rejected_by_user_id: actorUserId, rejection_reason: reason } });
-    await this.prisma.driverEvent.create({ data: { driver_profile_id: id, actor_user_id: actorUserId, type: DriverEventType.REJECTED, payload_json: { reason } } });
+    const updated = await this.prisma.driverProfile.update({
+      where: { id },
+      data: {
+        status: DriverProfileStatus.REJECTED,
+        rejected_at: new Date(),
+        rejected_by_user_id: actorUserId,
+        rejection_reason: reason,
+      },
+    });
+    await this.prisma.driverEvent.create({
+      data: {
+        driver_profile_id: id,
+        actor_user_id: actorUserId,
+        type: DriverEventType.REJECTED,
+        payload_json: { reason },
+      },
+    });
     return updated;
   }
 
   async suspend(id: string, actorUserId: string, reason: string) {
-    const updated = await this.prisma.driverProfile.update({ where: { id }, data: { status: DriverProfileStatus.SUSPENDED, notes: reason ?? null } });
-    await this.prisma.driverEvent.create({ data: { driver_profile_id: id, actor_user_id: actorUserId, type: DriverEventType.SUSPENDED, payload_json: { reason } } });
+    const updated = await this.prisma.driverProfile.update({
+      where: { id },
+      data: { status: DriverProfileStatus.SUSPENDED, notes: reason ?? null },
+    });
+    await this.prisma.driverEvent.create({
+      data: {
+        driver_profile_id: id,
+        actor_user_id: actorUserId,
+        type: DriverEventType.SUSPENDED,
+        payload_json: { reason },
+      },
+    });
     return updated;
   }
 }

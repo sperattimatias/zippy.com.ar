@@ -3,7 +3,15 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { JwtAccessGuard } from '../common/jwt-access.guard';
 import { Roles } from '../common/roles.decorator';
 import { RolesGuard } from '../common/roles.guard';
-import { AdminFinanceTripsFilterDto, AdminLedgerFilterDto, AdminRefundDto, AdminRefundsFilterDto, CreatePreferenceDto, ReconciliationDto, RevokeBonusLedgerDto } from '../dto/payment.dto';
+import {
+  AdminFinanceTripsFilterDto,
+  AdminLedgerFilterDto,
+  AdminRefundDto,
+  AdminRefundsFilterDto,
+  CreatePreferenceDto,
+  ReconciliationDto,
+  RevokeBonusLedgerDto,
+} from '../dto/payment.dto';
 import { PaymentsService } from './payments.service';
 
 type AuthReq = { user: { sub: string; roles: string[] }; body?: any; rawBody?: string };
@@ -18,7 +26,11 @@ export class PaymentsController {
   @UseGuards(JwtAccessGuard, RolesGuard)
   @Roles('passenger')
   createPreference(@Req() req: any, @Body() dto: CreatePreferenceDto) {
-    return this.payments.createPreference(req.user.sub, dto.trip_id, { ip: req.headers['x-client-ip'], ua: req.headers['x-client-ua'], device: req.headers['x-device-fp'] });
+    return this.payments.createPreference(req.user.sub, dto.trip_id, {
+      ip: req.headers['x-client-ip'],
+      ua: req.headers['x-client-ua'],
+      device: req.headers['x-device-fp'],
+    });
   }
 
   @Post('payments/webhook')
@@ -64,8 +76,17 @@ export class PaymentsController {
   @Post('admin/payments/:trip_payment_id/refund')
   @UseGuards(JwtAccessGuard, RolesGuard)
   @Roles('admin', 'sos')
-  adminRefund(@Param('trip_payment_id') tripPaymentId: string, @Body() dto: AdminRefundDto, @Req() req: AuthReq) {
-    return this.payments.adminRefundTripPayment(tripPaymentId, dto.amount, dto.reason, req.user.sub);
+  adminRefund(
+    @Param('trip_payment_id') tripPaymentId: string,
+    @Body() dto: AdminRefundDto,
+    @Req() req: AuthReq,
+  ) {
+    return this.payments.adminRefundTripPayment(
+      tripPaymentId,
+      dto.amount,
+      dto.reason,
+      req.user.sub,
+    );
   }
 
   @Get('admin/finance/refunds')
@@ -95,5 +116,4 @@ export class PaymentsController {
   adminRevokeBonusLedger(@Param('id') id: string, @Body() dto: RevokeBonusLedgerDto) {
     return this.payments.revokeBonusLedger(id, dto.reason);
   }
-
 }

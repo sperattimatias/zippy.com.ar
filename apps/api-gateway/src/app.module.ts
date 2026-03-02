@@ -8,7 +8,7 @@ import { APP_GUARD, Reflector } from '@nestjs/core';
 import { createProxyMiddleware } from 'http-proxy-middleware';
 import type { Request, Response } from 'express';
 import { JwtModule } from '@nestjs/jwt';
-import { ThrottlerStorageRedisService } from '@nestjs/throttler-storage-redis';
+import { ThrottlerStorageRedisService } from '@nest-lab/throttler-storage-redis';
 import { attachClientFingerprintHeaders, fixRequestBody } from './proxy/proxy.utils';
 import { AppController } from './app.controller';
 import { defaultPinoConfig } from '../shared/utils/logger';
@@ -76,8 +76,12 @@ const adminUserScoreRoutes: RouteInfo[] = [
   { path: 'api/admin/users/:user_id/score/adjust', method: RequestMethod.ALL },
   { path: 'api/admin/users/:user_id/restrictions', method: RequestMethod.ALL },
 ];
-const adminRestrictionsRoutes: RouteInfo[] = [{ path: 'api/admin/restrictions/:id/lift', method: RequestMethod.ALL }];
-const adminConfigRoutes: RouteInfo[] = [{ path: 'api/admin/config/:key', method: RequestMethod.ALL }];
+const adminRestrictionsRoutes: RouteInfo[] = [
+  { path: 'api/admin/restrictions/:id/lift', method: RequestMethod.ALL },
+];
+const adminConfigRoutes: RouteInfo[] = [
+  { path: 'api/admin/config/:key', method: RequestMethod.ALL },
+];
 const adminPremiumZoneRoutes: RouteInfo[] = [
   { path: 'api/admin/premium-zones', method: RequestMethod.ALL },
   { path: 'api/admin/premium-zones/*', method: RequestMethod.ALL },
@@ -86,15 +90,23 @@ const adminFraudRoutes: RouteInfo[] = [
   { path: 'api/admin/fraud', method: RequestMethod.ALL },
   { path: 'api/admin/fraud/*', method: RequestMethod.ALL },
 ];
-const publicBadgeRoutes: RouteInfo[] = [{ path: 'api/public/badges/me', method: RequestMethod.GET }];
+const publicBadgeRoutes: RouteInfo[] = [
+  { path: 'api/public/badges/me', method: RequestMethod.GET },
+];
 const adminLevelsRoutes: RouteInfo[] = [{ path: 'api/admin/levels', method: RequestMethod.ALL }];
-const adminMonthlyPerformanceRoutes: RouteInfo[] = [{ path: 'api/admin/monthly-performance', method: RequestMethod.ALL }];
+const adminMonthlyPerformanceRoutes: RouteInfo[] = [
+  { path: 'api/admin/monthly-performance', method: RequestMethod.ALL },
+];
 const adminBonusesRoutes: RouteInfo[] = [
   { path: 'api/admin/bonuses', method: RequestMethod.ALL },
   { path: 'api/admin/bonuses/*', method: RequestMethod.ALL },
 ];
-const adminPoliciesRoutes: RouteInfo[] = [{ path: 'api/admin/policies/:key', method: RequestMethod.ALL }];
-const driverCommissionRoutes: RouteInfo[] = [{ path: 'api/drivers/commission/current', method: RequestMethod.ALL }];
+const adminPoliciesRoutes: RouteInfo[] = [
+  { path: 'api/admin/policies/:key', method: RequestMethod.ALL },
+];
+const driverCommissionRoutes: RouteInfo[] = [
+  { path: 'api/drivers/commission/current', method: RequestMethod.ALL },
+];
 const paymentRoutes: RouteInfo[] = [
   { path: 'api/payments', method: RequestMethod.ALL },
   { path: 'api/payments/*', method: RequestMethod.ALL },
@@ -200,7 +212,6 @@ const createServiceProxy = (
         storage: new ThrottlerStorageRedisService(process.env.REDIS_URL ?? 'redis://redis:6379'),
       },
     ]),
-
   ],
   controllers: [AppController],
   providers: [
@@ -224,7 +235,9 @@ export class AppModule implements NestModule {
     const timeoutMs = Number(process.env.PROXY_TIMEOUT_MS ?? 15000);
     const connectTimeoutMs = Number(process.env.PROXY_CONNECT_TIMEOUT_MS ?? 5000);
 
-    consumer.apply(JwtClaimsMiddleware, RequirePassengerOrDriverMiddleware).forRoutes(...publicBadgeRoutes);
+    consumer
+      .apply(JwtClaimsMiddleware, RequirePassengerOrDriverMiddleware)
+      .forRoutes(...publicBadgeRoutes);
     consumer.apply(JwtClaimsMiddleware, RequireDriverMiddleware).forRoutes(...driverRoutes);
 
     consumer
@@ -246,11 +259,19 @@ export class AppModule implements NestModule {
         ...adminPoliciesRoutes,
       );
 
-    consumer.apply(JwtClaimsMiddleware, RequireDriverMiddleware).forRoutes(...driverPresenceRoutes, ...driverCommissionRoutes);
-    consumer.apply(JwtClaimsMiddleware, RequirePassengerMiddleware).forRoutes(...passengerTripRoutes);
+    consumer
+      .apply(JwtClaimsMiddleware, RequireDriverMiddleware)
+      .forRoutes(...driverPresenceRoutes, ...driverCommissionRoutes);
+    consumer
+      .apply(JwtClaimsMiddleware, RequirePassengerMiddleware)
+      .forRoutes(...passengerTripRoutes);
     consumer.apply(JwtClaimsMiddleware, RequireDriverMiddleware).forRoutes(...driverTripRoutes);
-    consumer.apply(JwtClaimsMiddleware, RequirePassengerMiddleware).forRoutes(...paymentCreatePreferenceRoutes);
-    consumer.apply(JwtClaimsMiddleware, RequireDriverMiddleware).forRoutes(...paymentDriverFinanceRoutes);
+    consumer
+      .apply(JwtClaimsMiddleware, RequirePassengerMiddleware)
+      .forRoutes(...paymentCreatePreferenceRoutes);
+    consumer
+      .apply(JwtClaimsMiddleware, RequireDriverMiddleware)
+      .forRoutes(...paymentDriverFinanceRoutes);
     consumer
       .apply(JwtClaimsMiddleware, RequireAdminOrSosMiddleware)
       .forRoutes(...paymentAdminFinanceRoutes, ...paymentAdminPaymentRoutes);
@@ -337,7 +358,11 @@ export class AppModule implements NestModule {
       [adminFraudRoutes, '^/api/admin/fraud', '/admin/fraud'],
       [publicBadgeRoutes, '^/api/public/badges', '/public/badges'],
       [adminLevelsRoutes, '^/api/admin/levels', '/admin/levels'],
-      [adminMonthlyPerformanceRoutes, '^/api/admin/monthly-performance', '/admin/monthly-performance'],
+      [
+        adminMonthlyPerformanceRoutes,
+        '^/api/admin/monthly-performance',
+        '/admin/monthly-performance',
+      ],
       [adminBonusesRoutes, '^/api/admin/bonuses', '/admin/bonuses'],
       [adminPoliciesRoutes, '^/api/admin/policies', '/admin/policies'],
       [driverCommissionRoutes, '^/api/drivers/commission/current', '/drivers/commission/current'],
