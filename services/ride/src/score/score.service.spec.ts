@@ -6,22 +6,18 @@ describe('ScoreService', () => {
   it('clamps score to 0..100', async () => {
     const prisma: any = {
       userScore: {
-        upsert: jest
-          .fn()
-          .mockResolvedValue({
-            user_id: 'u1',
-            actor_type: ActorType.DRIVER,
-            score: 95,
-            status: RestrictionStatus.NONE,
-          }),
-        update: jest
-          .fn()
-          .mockResolvedValue({
-            user_id: 'u1',
-            actor_type: ActorType.DRIVER,
-            score: 100,
-            status: RestrictionStatus.NONE,
-          }),
+        upsert: jest.fn().mockResolvedValue({
+          user_id: 'u1',
+          actor_type: ActorType.DRIVER,
+          score: 95,
+          status: RestrictionStatus.NONE,
+        }),
+        update: jest.fn().mockResolvedValue({
+          user_id: 'u1',
+          actor_type: ActorType.DRIVER,
+          score: 100,
+          status: RestrictionStatus.NONE,
+        }),
       },
       scoreEvent: { create: jest.fn().mockResolvedValue({}) },
       userRestriction: { create: jest.fn() },
@@ -47,22 +43,18 @@ describe('ScoreService', () => {
   it('auto-block creates restriction for score below 40', async () => {
     const prisma: any = {
       userScore: {
-        upsert: jest
-          .fn()
-          .mockResolvedValue({
-            user_id: 'u1',
-            actor_type: ActorType.DRIVER,
-            score: 45,
-            status: RestrictionStatus.LIMITED,
-          }),
-        update: jest
-          .fn()
-          .mockResolvedValue({
-            user_id: 'u1',
-            actor_type: ActorType.DRIVER,
-            score: 30,
-            status: RestrictionStatus.BLOCKED,
-          }),
+        upsert: jest.fn().mockResolvedValue({
+          user_id: 'u1',
+          actor_type: ActorType.DRIVER,
+          score: 45,
+          status: RestrictionStatus.LIMITED,
+        }),
+        update: jest.fn().mockResolvedValue({
+          user_id: 'u1',
+          actor_type: ActorType.DRIVER,
+          score: 30,
+          status: RestrictionStatus.BLOCKED,
+        }),
       },
       scoreEvent: { create: jest.fn().mockResolvedValue({}) },
       userRestriction: { create: jest.fn().mockResolvedValue({ id: 'r1' }) },
@@ -89,12 +81,10 @@ describe('ScoreService', () => {
   it('driver presence online is blocked when active blocked restriction exists', async () => {
     const prisma: any = {
       userRestriction: {
-        findFirst: jest
-          .fn()
-          .mockResolvedValue({
-            status: RestrictionStatus.BLOCKED,
-            ends_at: new Date(Date.now() + 1000),
-          }),
+        findFirst: jest.fn().mockResolvedValue({
+          status: RestrictionStatus.BLOCKED,
+          ends_at: new Date(Date.now() + 1000),
+        }),
       },
     };
     const svc = new ScoreService(
