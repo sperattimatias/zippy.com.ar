@@ -1,13 +1,11 @@
-import type {
-  OnModuleInit} from '@nestjs/common';
+import type { OnModuleInit } from '@nestjs/common';
 import {
   BadRequestException,
   ForbiddenException,
   Injectable,
-  NotFoundException
+  NotFoundException,
 } from '@nestjs/common';
-import type {
-  LevelTier} from '@prisma/client';
+import type { LevelTier } from '@prisma/client';
 import {
   ActorType,
   CancelReason,

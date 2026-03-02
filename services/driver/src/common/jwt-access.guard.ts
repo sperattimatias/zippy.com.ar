@@ -1,4 +1,4 @@
-import type { CanActivate, ExecutionContext} from '@nestjs/common';
+import type { CanActivate, ExecutionContext } from '@nestjs/common';
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import type { JwtService } from '@nestjs/jwt';
 import type { ConfigService } from '@nestjs/config';

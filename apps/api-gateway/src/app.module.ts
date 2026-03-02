@@ -1,4 +1,4 @@
-import type { MiddlewareConsumer, NestModule} from '@nestjs/common';
+import type { MiddlewareConsumer, NestModule } from '@nestjs/common';
 import { Module, RequestMethod } from '@nestjs/common';
 import type { RouteInfo } from '@nestjs/common/interfaces';
 import { ConfigModule } from '@nestjs/config';

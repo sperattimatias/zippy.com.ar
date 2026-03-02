@@ -1,5 +1,5 @@
 import { Logger } from '@nestjs/common';
-import type { OnGatewayConnection, OnGatewayDisconnect} from '@nestjs/websockets';
+import type { OnGatewayConnection, OnGatewayDisconnect } from '@nestjs/websockets';
 import { WebSocketGateway } from '@nestjs/websockets';
 
 @WebSocketGateway({ namespace: '/rides' })

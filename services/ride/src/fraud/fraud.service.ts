@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import type {
-  ActorType} from '@prisma/client';
+import type { ActorType } from '@prisma/client';
 import {
   FraudCaseStatus,
   FraudSeverity,
