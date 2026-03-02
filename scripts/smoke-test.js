@@ -37,6 +37,8 @@ async function main() {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD }),
   });
+  const loginRequestId = loginRes.headers.get('x-request-id');
+  if (!loginRequestId) fail('Login response is missing x-request-id header');
   if (loginRes.status !== 200) {
     if (loginRes.status === 403) {
       fail('Login returned HTTP 403 (likely email not verified or user suspended). Check auth seed/admin state.');
@@ -46,7 +48,9 @@ async function main() {
   const loginBody = await loginRes.json();
   const accessToken = loginBody?.access_token;
   const refreshToken = loginBody?.refresh_token;
-  if (!accessToken || !refreshToken) fail('Login did not return access_token + refresh_token');
+  if (!accessToken || !refreshToken) {
+    fail('Login did not return access_token + refresh_token');
+  }
 
   console.log('[3/6] Refresh token rotation');
   const refreshRes = await fetch(`${BASE_URL}/api/auth/refresh`, {
@@ -54,11 +58,16 @@ async function main() {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ refresh_token: refreshToken }),
   });
-  if (refreshRes.status !== 200) fail(`Refresh returned HTTP ${refreshRes.status}`);
+  if (!refreshRes.headers.get('x-request-id')) fail('Refresh response is missing x-request-id header');
+  if (refreshRes.status !== 200) {
+    fail(`Refresh returned HTTP ${refreshRes.status}`);
+  }
   const refreshBody = await refreshRes.json();
   const rotatedAccessToken = refreshBody?.access_token;
   const rotatedRefreshToken = refreshBody?.refresh_token;
-  if (!rotatedAccessToken || !rotatedRefreshToken) fail('Refresh did not return rotated tokens');
+  if (!rotatedAccessToken || !rotatedRefreshToken) {
+    fail('Refresh did not return rotated tokens');
+  }
 
   console.log('[4/6] Logout with rotated refresh token');
   const logoutRes = await fetch(`${BASE_URL}/api/auth/logout`, {
@@ -66,13 +75,22 @@ async function main() {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ refresh_token: rotatedRefreshToken }),
   });
-  if (logoutRes.status !== 200) fail(`Logout returned HTTP ${logoutRes.status}`);
+  if (!logoutRes.headers.get('x-request-id')) fail('Logout response is missing x-request-id header');
+  if (logoutRes.status !== 200) {
+    fail(`Logout returned HTTP ${logoutRes.status}`);
+  }
 
   console.log('[5/6] Calling basic ride endpoint');
   const rideRes = await fetch(`${BASE_URL}/api/rides/health`, {
     headers: { Authorization: `Bearer ${rotatedAccessToken}` },
   });
-  if (rideRes.status !== 200) fail(`Ride health returned HTTP ${rideRes.status}`);
+  const rideRequestId = rideRes.headers.get('x-request-id');
+  if (!rideRequestId) fail('Ride health response is missing x-request-id header');
+  if (rideRes.status !== 200) {
+    fail(`Ride health returned HTTP ${rideRes.status}`);
+  }
+  const rideBody = await rideRes.json();
+  if (!rideBody.requestId) fail('Ride health body is missing requestId');
 
   console.log('[6/6] Verifying auth throttling returns 429');
   let throttled = false;

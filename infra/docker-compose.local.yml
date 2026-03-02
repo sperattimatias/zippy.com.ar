@@ -59,6 +59,7 @@ services:
       LOG_LEVEL: ${LOG_LEVEL}
       AUTH_SERVICE_PORT: 3001
       PORT: 3001
+      SERVICE_NAME: auth
       DATABASE_URL: ${DATABASE_URL_AUTH}
       REDIS_URL: ${REDIS_URL}
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
@@ -102,6 +103,7 @@ services:
       LOG_LEVEL: ${LOG_LEVEL}
       RIDE_SERVICE_PORT: 3002
       PORT: 3002
+      SERVICE_NAME: ride
       DATABASE_URL: ${DATABASE_URL_RIDE}
       REDIS_URL: ${REDIS_URL}
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
@@ -134,6 +136,7 @@ services:
       LOG_LEVEL: ${LOG_LEVEL}
       DRIVER_SERVICE_PORT: 3003
       PORT: 3003
+      SERVICE_NAME: driver
       DATABASE_URL: ${DATABASE_URL_DRIVER}
       REDIS_URL: ${REDIS_URL}
       MINIO_ENDPOINT: ${MINIO_ENDPOINT}
@@ -173,6 +176,7 @@ services:
       LOG_LEVEL: ${LOG_LEVEL}
       PAYMENT_SERVICE_PORT: 3004
       PORT: 3004
+      SERVICE_NAME: payment
       DATABASE_URL: ${DATABASE_URL_PAYMENT}
       REDIS_URL: ${REDIS_URL}
     ports:
@@ -204,6 +208,8 @@ services:
       LOG_LEVEL: ${LOG_LEVEL}
       API_GATEWAY_PORT: 3000
       PORT: 3000
+      SERVICE_NAME: api-gateway
+      METRICS_ENABLED: ${METRICS_ENABLED:-0}
       AUTH_SERVICE_URL: http://auth:3001
       RIDE_SERVICE_URL: http://ride:3002
       DRIVER_SERVICE_URL: http://driver:3003

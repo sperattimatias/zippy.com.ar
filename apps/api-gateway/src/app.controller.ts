@@ -4,25 +4,29 @@ import { AuthGuard } from './auth/auth.guard';
 import { Roles } from './auth/roles.decorator';
 import { RolesGuard } from './auth/roles.guard';
 import { ROLES } from '../../shared/enums/role.enum';
+import { getRequestId } from '../../shared/utils/request-id';
 
 @ApiTags('gateway')
 @Controller()
 export class AppController {
   @Get('health')
   @ApiOperation({ summary: 'Gateway health check' })
-  health() {
+  health(@Req() req: any) {
     return {
       status: 'ok',
       service: 'api-gateway',
       timestamp: new Date().toISOString(),
+      requestId: getRequestId(req),
     };
   }
+
   @Get('ready')
-  ready() {
+  ready(@Req() req: any) {
     return {
       status: 'ok',
       service: 'api-gateway',
       timestamp: new Date().toISOString(),
+      requestId: getRequestId(req),
     };
   }
 

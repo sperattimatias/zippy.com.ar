@@ -10,9 +10,14 @@ export const attachClientFingerprintHeaders = (req: Request, _res: Response, nex
   next();
 };
 
-type ParsedRequest = IncomingMessage & { body?: unknown };
+type ParsedRequest = IncomingMessage & { body?: unknown; headers: Record<string, string | string[] | undefined> };
 
 export const fixRequestBody = (proxyReq: ClientRequest, req: ParsedRequest) => {
+  const requestId = req.headers['x-request-id'];
+  if (typeof requestId === 'string' && requestId) {
+    proxyReq.setHeader('x-request-id', requestId);
+  }
+
   if (!req.body || typeof req.body !== 'object') return;
 
   const body = req.body as Record<string, unknown>;

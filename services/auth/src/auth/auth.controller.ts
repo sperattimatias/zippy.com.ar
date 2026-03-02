@@ -20,6 +20,7 @@ import { RefreshDto } from '../dto/refresh.dto';
 import { LogoutDto } from '../dto/logout.dto';
 import { GrantRoleDto } from '../dto/grant-role.dto';
 import { JwtAccessGuard } from '../common/jwt-access.guard';
+import { getRequestId } from '../../shared/utils/request-id';
 import { ROLES } from '../../shared/enums/role.enum';
 
 @ApiTags('auth')
@@ -29,8 +30,8 @@ export class AuthController {
 
   @Get('health')
   @ApiOperation({ summary: 'Auth health under /auth for gateway proxy checks' })
-  authHealth() {
-    return { status: 'ok', service: 'auth', timestamp: new Date().toISOString() };
+  authHealth(@Req() req: any) {
+    return { status: 'ok', service: 'auth', timestamp: new Date().toISOString(), requestId: getRequestId(req) };
   }
 
   @Post('register')

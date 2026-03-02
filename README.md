@@ -120,6 +120,24 @@ curl -s -X POST http://localhost:3000/api/auth/logout \
 pnpm smoke
 ```
 
+## Observabilidad (Fase 4)
+
+- Correlation ID:
+  - Gateway genera/propaga `x-request-id`.
+  - Servicios preservan `x-request-id` y lo incluyen en `/health`.
+- Logging estructurado uniforme (nestjs-pino):
+  - `serviceName`, `requestId`, `method`, `path` + status/duración del logger HTTP.
+- Métricas:
+  - `METRICS_ENABLED=0` por defecto.
+  - TODO(Fase futura): exponer `/metrics` Prometheus en gateway/auth sin agregar stack pesado.
+
+Verificación rápida:
+```bash
+pnpm dev:local
+pnpm smoke
+pnpm test:e2e
+```
+
 ## Calidad (Fase 3)
 
 ```bash

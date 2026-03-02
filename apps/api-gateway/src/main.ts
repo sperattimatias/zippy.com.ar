@@ -5,6 +5,14 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { Logger as PinoLogger } from 'nestjs-pino';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
+import { requestIdMiddleware } from '../../shared/utils/request-id';
+
+
+
+function parseCsv(value: string | undefined, fallback: string[]): string[] {
+  if (!value) return fallback;
+  return value.split(',').map((item) => item.trim()).filter(Boolean);
+}
 
 
 
@@ -17,6 +25,7 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule, { bufferLogs: true });
   const logger = app.get(PinoLogger);
   app.useLogger(logger);
+  app.use(requestIdMiddleware);
 
   const swaggerConfig = new DocumentBuilder()
     .setTitle('Zippy API Gateway')
