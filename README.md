@@ -39,6 +39,103 @@ docker compose -f infra/docker-compose.yml --env-file .env up -d --build
 docker compose -f infra/docker-compose.yml ps
 ```
 
+## Local (reproducible)
+
+```bash
+cp .env.example .env
+```
+
+### Modo A) Auto bootstrap (sin pasos manuales)
+> Recomendado cuando querés que auth migre + seed al iniciar.
+
+```bash
+# en .env: RUN_DB_SEED=1
+docker compose -f infra/docker-compose.local.yml up --build
+pnpm smoke
+```
+
+### Modo B) Seed manual (default profesional)
+> Default en `.env.example`: `RUN_DB_SEED=0` para evitar reseed automático en cada arranque.
+
+```bash
+docker compose -f infra/docker-compose.local.yml up --build
+pnpm db:migrate
+pnpm db:seed
+pnpm smoke
+```
+
+### Variables de seed (auth)
+- `ZIPPY_ADMIN_EMAIL`
+- `ZIPPY_ADMIN_PASSWORD`
+- `ZIPPY_ADMIN_STATUS` (opcional, default `ACTIVE`)
+- `ZIPPY_ADMIN_RESET_PASSWORD=1` para reset explícito de password del admin
+
+### DATABASE_URL por servicio (Prisma)
+- `DATABASE_URL_AUTH`
+- `DATABASE_URL_RIDE`
+- `DATABASE_URL_DRIVER`
+- `DATABASE_URL_PAYMENT`
+
+### Cómo verificar
+```bash
+docker compose -f infra/docker-compose.local.yml ps
+curl -i http://localhost:3000/health
+curl -i -X POST http://localhost:3000/api/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"admin@zippy.local","password":"ChangeMe_12345!"}'
+pnpm smoke
+```
+
+## Seguridad base (fase 2)
+
+Variables relevantes:
+- `CORS_ORIGINS` (CSV)
+- `CORS_CREDENTIALS`
+- `THROTTLE_TTL_MS`
+- `THROTTLE_LIMIT`
+- `THROTTLE_AUTH_TTL_MS`
+- `THROTTLE_AUTH_LIMIT`
+- `ACCESS_TOKEN_TTL_MINUTES`
+- `REFRESH_TOKEN_TTL_DAYS`
+
+Prueba rápida refresh/logout:
+```bash
+# login
+curl -s -X POST http://localhost:3000/api/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"admin@zippy.local","password":"ChangeMe_12345!"}'
+
+# refresh
+curl -s -X POST http://localhost:3000/api/auth/refresh \
+  -H 'Content-Type: application/json' \
+  -d '{"refresh_token":"<REFRESH_TOKEN>"}'
+
+# logout
+curl -s -X POST http://localhost:3000/api/auth/logout \
+  -H 'Content-Type: application/json' \
+  -d '{"refresh_token":"<REFRESH_TOKEN>"}'
+```
+
+```
+pnpm smoke
+```
+
+## Calidad (Fase 3)
+
+```bash
+pnpm lint
+pnpm format:check
+pnpm typecheck
+pnpm test
+pnpm test:e2e
+```
+
+Checklist:
+- `lint` sin errores
+- `typecheck` en gateway + servicios core
+- unit tests de auth y gateway en verde
+- e2e local (`BASE_URL`) validando health/login/ruta protegida
+
 ## Endpoints principales (gateway)
 - Passenger:
   - `POST /api/trips/request`

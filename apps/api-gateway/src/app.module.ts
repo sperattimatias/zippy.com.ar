@@ -3,13 +3,16 @@ import type { RouteInfo } from '@nestjs/common/interfaces';
 import { ConfigModule } from '@nestjs/config';
 import * as Joi from 'joi';
 import { LoggerModule } from 'nestjs-pino';
-import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { ThrottlerModule } from '@nestjs/throttler';
 import { APP_GUARD, Reflector } from '@nestjs/core';
 import { createProxyMiddleware } from 'http-proxy-middleware';
 import { JwtModule } from '@nestjs/jwt';
+import { attachClientFingerprintHeaders, fixRequestBody } from './proxy/proxy.utils';
 import { AppController } from './app.controller';
 import { defaultPinoConfig } from '../shared/utils/logger';
 import { AuthGuard } from './auth/auth.guard';
+import { UserAwareThrottlerGuard } from './security.user-aware-throttler.guard';
+import { AuthRateLimitMiddleware } from './auth/auth-rate-limit.middleware';
 import { RolesGuard } from './auth/roles.guard';
 import { JwtClaimsMiddleware } from './auth/jwt-claims.middleware';
 import {
@@ -170,58 +173,6 @@ const driverTripRoutes: RouteInfo[] = [
   { path: 'api/trips/:id/driver/cancel', method: RequestMethod.POST },
 ];
 
-/** ---------- MIDDLEWARE HELPERS ---------- */
-
-const attachClientFingerprintHeaders = (req: any, _res: any, next: any) => {
-  const xff = req.headers['x-forwarded-for'];
-  const ip = Array.isArray(xff) ? xff[0] : typeof xff === 'string' ? xff.split(',')[0].trim() : req.ip;
-
-  req.headers['x-client-ip'] = req.headers['x-client-ip'] ?? ip ?? '';
-  req.headers['x-client-ua'] = req.headers['x-client-ua'] ?? req.headers['user-agent'] ?? '';
-  next();
-};
-
-/**
- * Fix request body for proxies when Nest/Express already parsed it.
- * (Needed for POST/PUT/PATCH with JSON or urlencoded, otherwise body can be lost.)
- *
- * This replaces the old "onProxyReq" option which no longer exists in newer
- * http-proxy-middleware typings. Now we use: on: { proxyReq: fixRequestBody }
- */
-const fixRequestBody = (proxyReq: any, req: any) => {
-  if (!req.body) return;
-
-  const contentType = proxyReq.getHeader('Content-Type');
-  const isJson =
-    typeof contentType === 'string' ? contentType.includes('application/json') : Array.isArray(contentType)
-      ? contentType.some((v) => String(v).includes('application/json'))
-      : false;
-
-  const isUrlEncoded =
-    typeof contentType === 'string'
-      ? contentType.includes('application/x-www-form-urlencoded')
-      : Array.isArray(contentType)
-        ? contentType.some((v) => String(v).includes('application/x-www-form-urlencoded'))
-        : false;
-
-  let bodyData: string | null = null;
-
-  if (isJson) {
-    bodyData = JSON.stringify(req.body);
-  } else if (isUrlEncoded) {
-    // Minimal urlencoded serializer (no deps)
-    bodyData = Object.entries(req.body)
-      .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`)
-      .join('&');
-  } else {
-    // If it's multipart/form-data, don't touch it.
-    return;
-  }
-
-  proxyReq.setHeader('Content-Length', Buffer.byteLength(bodyData));
-  proxyReq.write(bodyData);
-};
-
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -237,11 +188,18 @@ const fixRequestBody = (proxyReq: any, req: any) => {
         PAYMENT_SERVICE_URL: Joi.string().uri().required(),
 
         JWT_ACCESS_SECRET: Joi.string().min(32).required(),
+        THROTTLE_TTL_MS: Joi.number().default(60000),
+        THROTTLE_LIMIT: Joi.number().default(100),
+        THROTTLE_AUTH_TTL_MS: Joi.number().default(60000),
+        THROTTLE_AUTH_LIMIT: Joi.number().default(10),
+        CORS_ORIGINS: Joi.string().optional(),
+        CORS_CREDENTIALS: Joi.string().valid('true', 'false').default('true'),
+        TRUST_PROXY: Joi.string().default('1'),
       }),
     }),
     JwtModule.register({}),
     LoggerModule.forRoot(defaultPinoConfig),
-    ThrottlerModule.forRoot([{ ttl: 60000, limit: 100 }]),
+    ThrottlerModule.forRoot([{ ttl: Number(process.env.THROTTLE_TTL_MS ?? 60000), limit: Number(process.env.THROTTLE_LIMIT ?? 100) }]),
   ],
   controllers: [AppController],
   providers: [
@@ -253,9 +211,10 @@ const fixRequestBody = (proxyReq: any, req: any) => {
     RequireDriverMiddleware,
     RequireAdminOrSosMiddleware,
     RequirePassengerOrDriverMiddleware,
+    AuthRateLimitMiddleware,
     {
       provide: APP_GUARD,
-      useClass: ThrottlerGuard,
+      useClass: UserAwareThrottlerGuard,
     },
   ],
 })
@@ -298,6 +257,7 @@ export class AppModule implements NestModule {
       .forRoutes(...paymentAdminFinanceRoutes, ...paymentAdminPaymentRoutes);
 
     consumer.apply(attachClientFingerprintHeaders).forRoutes(...tripsRoutes, ...paymentRoutes);
+    consumer.apply(AuthRateLimitMiddleware).forRoutes(...authRoutes);
 
     /** ---------- PROXIES ---------- */
 

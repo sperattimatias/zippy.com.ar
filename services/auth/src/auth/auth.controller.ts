@@ -20,6 +20,7 @@ import { RefreshDto } from '../dto/refresh.dto';
 import { LogoutDto } from '../dto/logout.dto';
 import { GrantRoleDto } from '../dto/grant-role.dto';
 import { JwtAccessGuard } from '../common/jwt-access.guard';
+import { ROLES } from '../../shared/enums/role.enum';
 
 @ApiTags('auth')
 @Controller('auth')
@@ -83,7 +84,7 @@ export class AuthController {
   @ApiOperation({ summary: 'Grant role to a user (admin/sos only)' })
   async grantRole(@Req() req: { user: { roles: string[] } }, @Body() dto: GrantRoleDto) {
     const roles = req.user.roles ?? [];
-    if (!roles.includes('admin') && !roles.includes('sos')) {
+    if (!roles.includes(ROLES.ADMIN) && !roles.includes(ROLES.SOS)) {
       throw new ForbiddenException('admin/sos role required');
     }
     return this.authService.grantRole(dto.user_id, dto.role);
