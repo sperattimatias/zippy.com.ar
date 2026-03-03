@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-const { spawnSync } = require('node:child_process');
+import { spawnSync } from 'node:child_process';
 
 const projects = [
   'apps/api-gateway/tsconfig.json',
@@ -10,7 +10,9 @@ const projects = [
 ];
 
 for (const project of projects) {
-  const result = spawnSync('npx', ['tsc', '-p', project, '--noEmit'], { stdio: 'inherit' });
+  const result = spawnSync('pnpm', ['exec', 'tsc', '-p', project, '--noEmit'], {
+    stdio: 'inherit',
+  });
   if (result.status !== 0) {
     process.exit(result.status ?? 1);
   }

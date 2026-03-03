@@ -1,8 +1,8 @@
-import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
+import { CanActivate, Injectable } from '@nestjs/common';
 
 @Injectable()
 export class AuthGuard implements CanActivate {
-  canActivate(_context: ExecutionContext): boolean {
+  canActivate(): boolean {
     // Placeholder for JWT/Session validation.
     return true;
   }

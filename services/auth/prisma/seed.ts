@@ -1,5 +1,5 @@
-const { PrismaClient, UserStatus } = require('@prisma/client');
-const argon2 = require('argon2');
+import { PrismaClient, UserStatus } from '@prisma/client';
+import argon2 from 'argon2';
 
 const prisma = new PrismaClient();
 
@@ -7,7 +7,7 @@ const DEFAULT_ADMIN_EMAIL = 'admin@zippy.local';
 const DEFAULT_ADMIN_PASSWORD = 'ChangeMe_12345!';
 const DEFAULT_ADMIN_STATUS = UserStatus.ACTIVE;
 
-async function ensureRole(name) {
+async function ensureRole(name: string) {
   return prisma.role.upsert({
     where: { name },
     update: {},
@@ -19,8 +19,8 @@ async function main() {
   const adminEmail = process.env.ZIPPY_ADMIN_EMAIL || DEFAULT_ADMIN_EMAIL;
   const adminPassword = process.env.ZIPPY_ADMIN_PASSWORD || DEFAULT_ADMIN_PASSWORD;
   const rawStatus = process.env.ZIPPY_ADMIN_STATUS || DEFAULT_ADMIN_STATUS;
-  const adminStatus = Object.values(UserStatus).includes(rawStatus)
-    ? rawStatus
+  const adminStatus = Object.values(UserStatus).includes(rawStatus as UserStatus)
+    ? (rawStatus as UserStatus)
     : DEFAULT_ADMIN_STATUS;
   const shouldResetPassword = process.env.ZIPPY_ADMIN_RESET_PASSWORD === '1';
 
