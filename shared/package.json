@@ -5,5 +5,8 @@
   "dependencies": {
     "@nestjs/common": "^10.4.2",
     "nestjs-pino": "^4.1.0"
+  },
+  "scripts": {
+    "prisma:generate": "node -e \"process.exit(0)\""
   }
 }
