@@ -20,8 +20,8 @@ import { RefreshDto } from '../dto/refresh.dto';
 import { LogoutDto } from '../dto/logout.dto';
 import { GrantRoleDto } from '../dto/grant-role.dto';
 import { JwtAccessGuard } from '../common/jwt-access.guard';
-import { getRequestId } from '../../shared/utils/request-id';
-import { ROLES } from '../../shared/enums/role.enum';
+import { getRequestId } from '@shared/utils/request-id';
+import { ROLES } from '@shared/enums/role.enum';
 
 @ApiTags('auth')
 @Controller('auth')

@@ -4,7 +4,7 @@ import * as Joi from 'joi';
 import { LoggerModule } from 'nestjs-pino';
 import { HttpModule } from '@nestjs/axios';
 import { JwtModule } from '@nestjs/jwt';
-import { defaultPinoConfig } from '../shared/utils/logger';
+import { defaultPinoConfig } from '@shared/utils/logger';
 import { AppController } from './app.controller';
 import { DriverController } from './driver/driver.controller';
 import { DriverService } from './driver/driver.service';

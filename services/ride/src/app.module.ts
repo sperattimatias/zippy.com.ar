@@ -4,7 +4,7 @@ import * as Joi from 'joi';
 import { LoggerModule } from 'nestjs-pino';
 import { JwtModule } from '@nestjs/jwt';
 import { ScheduleModule } from '@nestjs/schedule';
-import { defaultPinoConfig } from '../shared/utils/logger';
+import { defaultPinoConfig } from '@shared/utils/logger';
 import { AppController } from './app.controller';
 import { PrismaService } from './prisma/prisma.service';
 import { JwtAccessGuard } from './common/jwt-access.guard';
