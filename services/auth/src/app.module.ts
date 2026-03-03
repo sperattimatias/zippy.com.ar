@@ -4,7 +4,7 @@ import * as Joi from 'joi';
 import { LoggerModule } from 'nestjs-pino';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { JwtModule } from '@nestjs/jwt';
-import { defaultPinoConfig } from '../shared/utils/logger';
+import { defaultPinoConfig } from '@shared/utils/logger';
 import { AppController } from './app.controller';
 import { AuthController } from './auth/auth.controller';
 import { AuthService } from './auth/auth.service';

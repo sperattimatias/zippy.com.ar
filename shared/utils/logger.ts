@@ -1,13 +1,20 @@
+import { randomUUID } from 'crypto';
+
+type PinoReqId = string | number | object;
+
 export const defaultPinoConfig = {
   pinoHttp: {
     level: process.env.LOG_LEVEL ?? 'info',
-    genReqId: (req: { headers?: Record<string, string | string[] | undefined>; id?: string }) => {
+    genReqId: (req: {
+      headers?: Record<string, string | string[] | undefined>;
+      id?: PinoReqId;
+    }) => {
       const incoming = req.headers?.['x-request-id'];
       const incomingId = Array.isArray(incoming) ? incoming[0] : incoming;
-      return incomingId || req.id;
+      return incomingId || req.id || randomUUID();
     },
     customProps: (req: {
-      id?: string;
+      id?: PinoReqId;
       requestId?: string;
       method?: string;
       url?: string;

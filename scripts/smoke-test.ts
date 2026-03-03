@@ -6,14 +6,16 @@ const MAX_WAIT_SECONDS = Number(process.env.MAX_WAIT_SECONDS || '90');
 const THROTTLE_ATTEMPTS = Number(process.env.SMOKE_THROTTLE_ATTEMPTS || '30');
 const SMOKE_TIMEOUT_CHECK = process.env.SMOKE_TIMEOUT_CHECK === '1';
 
-function fail(message) {
+function fail(message: string) {
   console.error(`FAIL: ${message}`);
   process.exit(1);
 }
 
 async function waitForHealth() {
   const start = Date.now();
-  while (true) {
+  const maxWaitMs = MAX_WAIT_SECONDS * 1000;
+
+  while (Date.now() - start < maxWaitMs) {
     try {
       const res = await fetch(`${BASE_URL}/health`);
       if (res.status === 200) return;
@@ -21,11 +23,10 @@ async function waitForHealth() {
       // retry
     }
 
-    if ((Date.now() - start) / 1000 >= MAX_WAIT_SECONDS) {
-      fail(`Gateway /health did not return 200 within ${MAX_WAIT_SECONDS}s`);
-    }
     await new Promise((resolve) => setTimeout(resolve, 2000));
   }
+
+  fail(`Gateway /health did not return 200 within ${MAX_WAIT_SECONDS}s`);
 }
 
 async function main() {

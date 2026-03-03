@@ -16,7 +16,7 @@ import { RegisterDto } from '../dto/register.dto';
 import { VerifyEmailDto } from '../dto/verify-email.dto';
 import { RefreshDto } from '../dto/refresh.dto';
 import { LogoutDto } from '../dto/logout.dto';
-import { ROLES } from '../../shared/enums/role.enum';
+import { ROLES } from '@shared/enums/role.enum';
 
 @Injectable()
 export class AuthService {
