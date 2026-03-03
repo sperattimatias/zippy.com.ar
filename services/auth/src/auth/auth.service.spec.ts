@@ -73,7 +73,10 @@ describe('AuthService', () => {
     } as any;
 
     const service = new AuthService(prisma, jwtService, configService);
-    const result = await service.login({ email: 'admin@zippy.com.ar', password: 'ChangeMe_12345!' });
+    const result = await service.login({
+      email: 'admin@zippy.com.ar',
+      password: 'ChangeMe_12345!',
+    });
 
     expect(result.access_token).toBe('access.jwt.token');
     expect(result.refresh_token).toBeDefined();

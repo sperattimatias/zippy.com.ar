@@ -7,11 +7,12 @@ import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { requestIdMiddleware } from '@shared/utils/request-id';
 
-
-
 function parseCsv(value: string | undefined, fallback: string[]): string[] {
   if (!value) return fallback;
-  return value.split(',').map((item) => item.trim()).filter(Boolean);
+  return value
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
 }
 
 async function bootstrap() {
@@ -39,10 +40,12 @@ async function bootstrap() {
   }
 
   const isProd = config.get<string>('NODE_ENV', 'development') === 'production';
-  app.use(helmet({
-    contentSecurityPolicy: isProd ? undefined : false,
-    crossOriginResourcePolicy: { policy: 'cross-origin' },
-  }));
+  app.use(
+    helmet({
+      contentSecurityPolicy: isProd ? undefined : false,
+      crossOriginResourcePolicy: { policy: 'cross-origin' },
+    }),
+  );
 
   const corsOrigins = parseCsv(config.get<string>('CORS_ORIGINS'), [
     'http://localhost:3000',

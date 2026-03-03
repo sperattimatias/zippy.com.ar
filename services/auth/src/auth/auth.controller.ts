@@ -31,7 +31,12 @@ export class AuthController {
   @Get('health')
   @ApiOperation({ summary: 'Auth health under /auth for gateway proxy checks' })
   authHealth(@Req() req: any) {
-    return { status: 'ok', service: 'auth', timestamp: new Date().toISOString(), requestId: getRequestId(req) };
+    return {
+      status: 'ok',
+      service: 'auth',
+      timestamp: new Date().toISOString(),
+      requestId: getRequestId(req),
+    };
   }
 
   @Post('register')

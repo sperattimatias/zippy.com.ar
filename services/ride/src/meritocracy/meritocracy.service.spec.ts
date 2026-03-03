@@ -45,14 +45,12 @@ describe('MeritocracyService', () => {
   it('evaluate peak gate denies blocked', async () => {
     const prisma: any = {
       appConfig: {
-        findUnique: jest
-          .fn()
-          .mockResolvedValue({
-            value_json: {
-              windows: [{ days: [new Date().getDay()], start: '00:00', end: '23:59' }],
-              driver_min_score: 50,
-            },
-          }),
+        findUnique: jest.fn().mockResolvedValue({
+          value_json: {
+            windows: [{ days: [new Date().getDay()], start: '00:00', end: '23:59' }],
+            driver_min_score: 50,
+          },
+        }),
       },
       peakGateEvent: { create: jest.fn() },
     };

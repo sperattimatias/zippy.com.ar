@@ -5,29 +5,27 @@ describe('LevelAndBonusService', () => {
   it('computes driver level on threshold edges', async () => {
     const prisma: any = {
       commissionPolicy: {
-        findUnique: jest
-          .fn()
-          .mockResolvedValue({
-            value_json: {
-              driver: {
-                bronze: { score_gte: 60 },
-                silver: { score_gte: 75, trips_completed_last30_gte: 30, cancel_rate_30d_lt: 0.08 },
-                gold: {
-                  score_gte: 85,
-                  trips_completed_last30_gte: 80,
-                  cancel_rate_30d_lt: 0.05,
-                  safety_major_alerts_30d_eq: 0,
-                },
-                diamond: {
-                  score_gte: 92,
-                  trips_completed_last30_gte: 150,
-                  cancel_rate_30d_lt: 0.03,
-                  safety_major_alerts_30d_eq: 0,
-                  no_show_30d_eq: 0,
-                },
+        findUnique: jest.fn().mockResolvedValue({
+          value_json: {
+            driver: {
+              bronze: { score_gte: 60 },
+              silver: { score_gte: 75, trips_completed_last30_gte: 30, cancel_rate_30d_lt: 0.08 },
+              gold: {
+                score_gte: 85,
+                trips_completed_last30_gte: 80,
+                cancel_rate_30d_lt: 0.05,
+                safety_major_alerts_30d_eq: 0,
+              },
+              diamond: {
+                score_gte: 92,
+                trips_completed_last30_gte: 150,
+                cancel_rate_30d_lt: 0.03,
+                safety_major_alerts_30d_eq: 0,
+                no_show_30d_eq: 0,
               },
             },
-          }),
+          },
+        }),
       },
       trip: { count: jest.fn().mockResolvedValue(150) },
       scoreEvent: { count: jest.fn().mockResolvedValue(0) },
@@ -52,14 +50,12 @@ describe('LevelAndBonusService', () => {
           .mockResolvedValueOnce({ value_json: { commission_floor_bps: 200 } }),
       },
       monthlyBonusLedger: {
-        findFirst: jest
-          .fn()
-          .mockResolvedValue({
-            discount_bps: 900,
-            ends_at: new Date(),
-            status: BonusStatus.ACTIVE,
-            bonus_type: BonusType.COMMISSION_DISCOUNT,
-          }),
+        findFirst: jest.fn().mockResolvedValue({
+          discount_bps: 900,
+          ends_at: new Date(),
+          status: BonusStatus.ACTIVE,
+          bonus_type: BonusType.COMMISSION_DISCOUNT,
+        }),
       },
     };
     const svc = new LevelAndBonusService(prisma, {
@@ -85,29 +81,25 @@ describe('LevelAndBonusService', () => {
   it('denies bonus when hold active', async () => {
     const prisma: any = {
       commissionPolicy: {
-        findUnique: jest
-          .fn()
-          .mockResolvedValue({
-            value_json: {
-              top_10_discount_bps: 300,
-              min_trips_completed: 0,
-              require_no_show_eq: 0,
-              require_safety_major_alerts_eq: 0,
-            },
-          }),
+        findUnique: jest.fn().mockResolvedValue({
+          value_json: {
+            top_10_discount_bps: 300,
+            min_trips_completed: 0,
+            require_no_show_eq: 0,
+            require_safety_major_alerts_eq: 0,
+          },
+        }),
       },
       monthlyPerformance: {
-        findMany: jest
-          .fn()
-          .mockResolvedValue([
-            {
-              user_id: 'd1',
-              trips_completed: 50,
-              no_show_count: 0,
-              safety_major_alerts: 0,
-              performance_index: 0.9,
-            },
-          ]),
+        findMany: jest.fn().mockResolvedValue([
+          {
+            user_id: 'd1',
+            trips_completed: 50,
+            no_show_count: 0,
+            safety_major_alerts: 0,
+            performance_index: 0.9,
+          },
+        ]),
       },
       userHold: { findFirst: jest.fn().mockResolvedValue({ id: 'h1', hold_type: 'PAYOUT_HOLD' }) },
       fraudSignal: { count: jest.fn().mockResolvedValue(0) },
@@ -158,31 +150,27 @@ describe('LevelAndBonusService', () => {
   it('bonus percentile assignment picks top discounts', async () => {
     const prisma: any = {
       commissionPolicy: {
-        findUnique: jest
-          .fn()
-          .mockResolvedValue({
-            value_json: {
-              top_10_discount_bps: 300,
-              top_3_discount_bps: 500,
-              top_1_discount_bps: 800,
-              min_trips_completed: 0,
-              require_no_show_eq: 0,
-              require_safety_major_alerts_eq: 0,
-            },
-          }),
+        findUnique: jest.fn().mockResolvedValue({
+          value_json: {
+            top_10_discount_bps: 300,
+            top_3_discount_bps: 500,
+            top_1_discount_bps: 800,
+            min_trips_completed: 0,
+            require_no_show_eq: 0,
+            require_safety_major_alerts_eq: 0,
+          },
+        }),
       },
       monthlyPerformance: {
-        findMany: jest
-          .fn()
-          .mockResolvedValue(
-            Array.from({ length: 100 }).map((_, i) => ({
-              user_id: `d${i}`,
-              trips_completed: 50,
-              no_show_count: 0,
-              safety_major_alerts: 0,
-              performance_index: 1 - i / 100,
-            })),
-          ),
+        findMany: jest.fn().mockResolvedValue(
+          Array.from({ length: 100 }).map((_, i) => ({
+            user_id: `d${i}`,
+            trips_completed: 50,
+            no_show_count: 0,
+            safety_major_alerts: 0,
+            performance_index: 1 - i / 100,
+          })),
+        ),
       },
       monthlyBonusLedger: {
         upsert: jest

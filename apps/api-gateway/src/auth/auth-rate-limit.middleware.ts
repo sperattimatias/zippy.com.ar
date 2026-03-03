@@ -17,12 +17,12 @@ export class AuthRateLimitMiddleware implements NestMiddleware {
 
   async use(req: Request, _res: Response, next: NextFunction) {
     const ttlSeconds =
-      this.configService.get<number>('THROTTLE_TTL_SECONDS')
-      ?? Math.floor(this.configService.get<number>('THROTTLE_TTL_MS', 60000) / 1000);
+      this.configService.get<number>('THROTTLE_TTL_SECONDS') ??
+      Math.floor(this.configService.get<number>('THROTTLE_TTL_MS', 60000) / 1000);
     const ttlMs = ttlSeconds * 1000;
     const limit =
-      this.configService.get<number>('THROTTLE_LIMIT_AUTH')
-      ?? this.configService.get<number>('THROTTLE_AUTH_LIMIT', 10);
+      this.configService.get<number>('THROTTLE_LIMIT_AUTH') ??
+      this.configService.get<number>('THROTTLE_AUTH_LIMIT', 10);
 
     const key = await this.getTracker(req);
     const now = Date.now();
@@ -57,7 +57,11 @@ export class AuthRateLimitMiddleware implements NestMiddleware {
     }
 
     const xff = req.headers['x-forwarded-for'];
-    const ip = Array.isArray(xff) ? xff[0] : typeof xff === 'string' ? xff.split(',')[0].trim() : req.ip;
+    const ip = Array.isArray(xff)
+      ? xff[0]
+      : typeof xff === 'string'
+        ? xff.split(',')[0].trim()
+        : req.ip;
     return `auth-ip:${ip ?? 'unknown'}`;
   }
 }

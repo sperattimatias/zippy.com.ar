@@ -75,44 +75,38 @@ describe('RideService antifraud hardening', () => {
     const fraud = fraudMock();
     const prisma: any = {
       trip: {
-        findUnique: jest
-          .fn()
-          .mockResolvedValue({
-            id: 't1',
-            status: TripStatus.IN_PROGRESS,
-            driver_user_id: 'd1',
-            passenger_user_id: 'p1',
-            distance_km: 1.2,
-          }),
+        findUnique: jest.fn().mockResolvedValue({
+          id: 't1',
+          status: TripStatus.IN_PROGRESS,
+          driver_user_id: 'd1',
+          passenger_user_id: 'p1',
+          distance_km: 1.2,
+        }),
         update: jest.fn().mockResolvedValue({}),
-        findMany: jest
-          .fn()
-          .mockResolvedValue(
-            Array.from({ length: 7 }).map(() => ({
-              origin_lat: 0,
-              origin_lng: 0,
-              dest_lat: 0.001,
-              dest_lng: 0.001,
-              distance_km: 1.0,
-              price_final: 1000,
-            })),
-          ),
+        findMany: jest.fn().mockResolvedValue(
+          Array.from({ length: 7 }).map(() => ({
+            origin_lat: 0,
+            origin_lng: 0,
+            dest_lat: 0.001,
+            dest_lng: 0.001,
+            distance_km: 1.0,
+            price_final: 1000,
+          })),
+        ),
         count: jest.fn().mockResolvedValue(7),
       },
       appConfig: {
-        findUnique: jest
-          .fn()
-          .mockResolvedValue({
-            value_json: {
-              repeated_pair_24h: 4,
-              repeated_pair_7d: 12,
-              repeated_pair_min_trips_for_pattern: 6,
-              repeated_pair_requires_low_distance: true,
-              repeated_pair_low_distance_km: 2,
-              repeated_pair_same_origin_radius_m: 250,
-              repeated_pair_same_dest_radius_m: 250,
-            },
-          }),
+        findUnique: jest.fn().mockResolvedValue({
+          value_json: {
+            repeated_pair_24h: 4,
+            repeated_pair_7d: 12,
+            repeated_pair_min_trips_for_pattern: 6,
+            repeated_pair_requires_low_distance: true,
+            repeated_pair_low_distance_km: 2,
+            repeated_pair_same_origin_radius_m: 250,
+            repeated_pair_same_dest_radius_m: 250,
+          },
+        }),
       },
     };
     const scoreService: any = {
@@ -160,16 +154,14 @@ describe('RideService antifraud hardening', () => {
     const ws: any = { emitTrip: jest.fn(), emitToDriver: jest.fn(), emitToUser: jest.fn() };
     const prisma: any = {
       trip: {
-        create: jest
-          .fn()
-          .mockResolvedValue({
-            id: 't1',
-            status: 'BIDDING',
-            origin_address: 'A',
-            dest_address: 'B',
-            price_base: 1000,
-            bidding_expires_at: new Date(),
-          }),
+        create: jest.fn().mockResolvedValue({
+          id: 't1',
+          status: 'BIDDING',
+          origin_address: 'A',
+          dest_address: 'B',
+          price_base: 1000,
+          bidding_expires_at: new Date(),
+        }),
       },
       tripRouteBaseline: { create: jest.fn().mockResolvedValue({}) },
       tripSafetyState: { create: jest.fn().mockResolvedValue({}) },
