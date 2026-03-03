@@ -1,9 +1,20 @@
-import type { NextFunction, Request, Response } from 'express';
 import { randomUUID } from 'crypto';
 
-type RequestWithId = Request & { requestId?: string; id?: string };
+type Headers = Record<string, string | string[] | undefined>;
 
-export function requestIdMiddleware(req: RequestWithId, res: Response, next: NextFunction) {
+type RequestWithId = {
+  headers: Headers;
+  requestId?: string;
+  id?: string;
+};
+
+type ResponseLike = {
+  setHeader(name: string, value: string): void;
+};
+
+type NextFunction = () => void;
+
+export function requestIdMiddleware(req: RequestWithId, res: ResponseLike, next: NextFunction) {
   const incoming = req.headers['x-request-id'];
   const requestId =
     (Array.isArray(incoming) ? incoming[0] : incoming) || req.requestId || req.id || randomUUID();

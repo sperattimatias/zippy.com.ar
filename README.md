@@ -153,6 +153,8 @@ pnpm test:e2e
 
 ## Calidad (Fase 3)
 
+> Nota: los scripts operativos de `db:*`, `smoke` y `typecheck` se ejecutan con `node --experimental-strip-types` en el workspace root.
+
 ```bash
 pnpm lint
 pnpm format:check

@@ -1,11 +1,6 @@
 import { HttpService } from '@nestjs/axios';
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import {
-  DriverDocumentType,
-  DriverEventType,
-  DriverProfileStatus,
-  VehicleCategory,
-} from '@prisma/client';
+import { DriverEventType, DriverProfileStatus } from '@prisma/client';
 import { firstValueFrom } from 'rxjs';
 import { v4 as uuid } from 'uuid';
 import { ConfigService } from '@nestjs/config';

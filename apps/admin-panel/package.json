@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "next dev -p 3005",
     "build": "next build",
-    "start": "next start -p 3005"
+    "start": "next start -p 3005",
+    "prisma:generate": "node -e \"process.exit(0)\""
   },
   "dependencies": {
     "next": "14.2.5",
