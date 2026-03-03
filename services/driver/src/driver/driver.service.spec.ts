@@ -1,3 +1,4 @@
+import { of } from 'rxjs';
 import { DriverService } from './driver.service';
 
 describe('DriverService', () => {
@@ -30,7 +31,6 @@ describe('DriverService', () => {
   });
 
   it('approve calls auth grant-role', async () => {
-    const { of } = require('rxjs');
     const post = jest.fn().mockReturnValue(of({ data: { ok: true } }));
     const prisma: any = {
       driverProfile: {
