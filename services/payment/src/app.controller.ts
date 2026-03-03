@@ -1,5 +1,5 @@
 import { Controller, Get, Req } from '@nestjs/common';
-import { getRequestId } from '../shared/utils/request-id';
+import { getRequestId } from '@shared/utils/request-id';
 
 @Controller()
 export class AppController {
