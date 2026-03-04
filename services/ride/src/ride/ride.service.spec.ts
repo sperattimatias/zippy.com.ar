@@ -71,6 +71,132 @@ describe('RideService antifraud hardening', () => {
     );
   });
 
+
+
+  it('createBid upserts when the same driver bids twice on one trip', async () => {
+    const fraud = fraudMock();
+    const ws: any = { emitTrip: jest.fn() };
+    const bids = new Map<string, any>();
+
+    const prisma: any = {
+      trip: {
+        findUnique: jest
+          .fn()
+          .mockResolvedValue({ id: 't1', status: TripStatus.BIDDING, price_base: 1000 }),
+      },
+      driverPresence: {
+        findUnique: jest.fn().mockResolvedValue({ is_online: true, last_seen_at: new Date() }),
+      },
+      externalDriverProfile: { findUnique: jest.fn().mockResolvedValue({ mp_account_id: 'mp_1' }) },
+      tripBid: {
+        upsert: jest.fn().mockImplementation(({ where, update, create }: any) => {
+          const key = `${where.trip_id_driver_user_id.trip_id}:${where.trip_id_driver_user_id.driver_user_id}`;
+          const existing = bids.get(key);
+          if (existing) {
+            const next = { ...existing, ...update, updated_at: new Date() };
+            bids.set(key, next);
+            return Promise.resolve(next);
+          }
+          const created = {
+            id: 'bid-1',
+            status: 'PENDING',
+            created_at: new Date(),
+            updated_at: new Date(),
+            ...create,
+          };
+          bids.set(key, created);
+          return Promise.resolve(created);
+        }),
+      },
+      tripEvent: { create: jest.fn().mockResolvedValue({}) },
+    };
+
+    const service = new RideService(prisma, ws, {} as any, {} as any, {} as any, fraud as any);
+
+    const first = await service.createBid('t1', 'd1', { price_offer: 900, eta_to_pickup_minutes: 6 }, {});
+    const second = await service.createBid('t1', 'd1', { price_offer: 1100, eta_to_pickup_minutes: 4 }, {});
+
+    expect(first.id).toBe(second.id);
+    expect(second.price_offer).toBe(1100);
+    expect(second.eta_to_pickup_minutes).toBe(4);
+    expect(prisma.tripBid.upsert).toHaveBeenCalledTimes(2);
+  });
+
+  it('createBid keeps exactly one bid row per (trip, driver)', async () => {
+    const bids = new Map<string, any>();
+    const prisma: any = {
+      trip: {
+        findUnique: jest
+          .fn()
+          .mockResolvedValue({ id: 't1', status: TripStatus.BIDDING, price_base: 1000 }),
+      },
+      driverPresence: {
+        findUnique: jest.fn().mockResolvedValue({ is_online: true, last_seen_at: new Date() }),
+      },
+      externalDriverProfile: { findUnique: jest.fn().mockResolvedValue({ mp_account_id: 'mp_1' }) },
+      tripBid: {
+        upsert: jest.fn().mockImplementation(({ where, update, create }: any) => {
+          const key = `${where.trip_id_driver_user_id.trip_id}:${where.trip_id_driver_user_id.driver_user_id}`;
+          const existing = bids.get(key);
+          if (existing) {
+            const next = { ...existing, ...update, updated_at: new Date() };
+            bids.set(key, next);
+            return Promise.resolve(next);
+          }
+          const created = { id: `bid-${bids.size + 1}`, ...create, created_at: new Date(), updated_at: new Date() };
+          bids.set(key, created);
+          return Promise.resolve(created);
+        }),
+      },
+      tripEvent: { create: jest.fn().mockResolvedValue({}) },
+    };
+    const service = new RideService(
+      prisma,
+      { emitTrip: jest.fn() } as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      fraudMock() as any,
+    );
+
+    await service.createBid('t1', 'd1', { price_offer: 900, eta_to_pickup_minutes: 5 }, {});
+    await service.createBid('t1', 'd1', { price_offer: 920, eta_to_pickup_minutes: 4 }, {});
+
+    expect(bids.size).toBe(1);
+    expect(Array.from(bids.values())[0].price_offer).toBe(920);
+  });
+
+
+
+  it('createBid maps Prisma uniqueness races to BadRequestException', async () => {
+    const prisma: any = {
+      trip: {
+        findUnique: jest
+          .fn()
+          .mockResolvedValue({ id: 't1', status: TripStatus.BIDDING, price_base: 1000 }),
+      },
+      driverPresence: {
+        findUnique: jest.fn().mockResolvedValue({ is_online: true, last_seen_at: new Date() }),
+      },
+      externalDriverProfile: { findUnique: jest.fn().mockResolvedValue({ mp_account_id: 'mp_1' }) },
+      tripBid: {
+        upsert: jest.fn().mockRejectedValue({ code: 'P2002' }),
+      },
+    };
+    const service = new RideService(
+      prisma,
+      { emitTrip: jest.fn() } as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      fraudMock() as any,
+    );
+
+    await expect(service.createBid('t1', 'd1', { price_offer: 1000 }, {})).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+  });
+
   it('repeated pair with low-distance clustered trips creates HIGH signal', async () => {
     const fraud = fraudMock();
     const prisma: any = {
@@ -95,6 +221,7 @@ describe('RideService antifraud hardening', () => {
         ),
         count: jest.fn().mockResolvedValue(7),
       },
+      tripEvent: { create: jest.fn().mockResolvedValue({}) },
       appConfig: {
         findUnique: jest.fn().mockResolvedValue({
           value_json: {
@@ -182,6 +309,7 @@ describe('RideService antifraud hardening', () => {
       },
       appConfig: { findUnique: jest.fn().mockResolvedValue(null) },
       scoreEvent: { count: jest.fn().mockResolvedValue(0) },
+      userHold: { findFirst: jest.fn().mockResolvedValue(null) },
     };
     const service = new RideService(
       prisma,
