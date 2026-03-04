@@ -1,14 +1,24 @@
+import { Test } from '@nestjs/testing';
 import { FraudSeverity, FraudSignalType, HoldType } from '@prisma/client';
+import { PrismaService } from '../prisma/prisma.service';
+import { RideGateway } from '../ride/ride.gateway';
 import { FraudService } from './fraud.service';
+
+const createService = async (prisma: any, ws?: any) => {
+  const moduleRef = await Test.createTestingModule({
+    providers: [
+      FraudService,
+      { provide: PrismaService, useValue: prisma },
+      { provide: RideGateway, useValue: ws ?? { emitToUser: jest.fn(), emitSosAlert: jest.fn() } },
+    ],
+  }).compile();
+  return moduleRef.get(FraudService);
+};
 
 describe('FraudService hardening', () => {
   it('dedupes repeated signals and increments occurrences', async () => {
     const prisma: any = {
-      appConfig: {
-        findUnique: jest
-          .fn()
-          .mockResolvedValue({ value_json: { signal_dedupe_window_minutes: 30 } }),
-      },
+      appConfig: { findUnique: jest.fn().mockResolvedValue({ value_json: { signal_dedupe_window_minutes: 30 } }) },
       fraudSignal: {
         findMany: jest.fn().mockResolvedValue([
           {
@@ -23,14 +33,13 @@ describe('FraudService hardening', () => {
         update: jest.fn(),
       },
       fraudCase: {
-        findMany: jest
-          .fn()
-          .mockResolvedValue([{ id: 'c1', severity: FraudSeverity.LOW, created_at: new Date() }]),
+        findMany: jest.fn().mockResolvedValue([{ id: 'c1', severity: FraudSeverity.LOW, created_at: new Date() }]),
         update: jest.fn(),
       },
       fraudCaseSignalLink: { upsert: jest.fn() },
     };
-    const svc = new FraudService(prisma, { emitToUser: jest.fn(), emitSosAlert: jest.fn() } as any);
+
+    const svc = await createService(prisma);
     const out = await svc.applySignal({
       user_id: 'u1',
       type: FraudSignalType.SHARED_IP_MULTIPLE_USERS,
@@ -38,6 +47,7 @@ describe('FraudService hardening', () => {
       score_delta: 3,
       payload: {},
     });
+
     expect((out.signal.payload_json as any).occurrences).toBe(3);
     expect(prisma.fraudSignal.update).toHaveBeenCalled();
   });
@@ -65,64 +75,49 @@ describe('FraudService hardening', () => {
       },
       fraudCase: {
         findMany: jest.fn().mockResolvedValue([]),
-        create: jest.fn().mockResolvedValue({
-          id: 'c1',
-          severity: FraudSeverity.HIGH,
-          title: 'x',
-          created_at: new Date(),
-        }),
+        create: jest.fn().mockResolvedValue({ id: 'c1', severity: FraudSeverity.HIGH, title: 'x', created_at: new Date() }),
       },
       fraudCaseSignalLink: { upsert: jest.fn() },
     };
-    const svc = new FraudService(prisma, { emitToUser: jest.fn(), emitSosAlert: jest.fn() } as any);
+
+    const svc = await createService(prisma);
     await svc.applySignal({
       user_id: 'u1',
       type: FraudSignalType.MANUAL_REVIEW_TRIGGER,
       severity: FraudSeverity.HIGH,
       score_delta: 10,
     });
+
     expect(prisma.userHold.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({ hold_type: HoldType.FEATURE_LIMIT }),
-      }),
+      expect.objectContaining({ data: expect.objectContaining({ hold_type: HoldType.FEATURE_LIMIT }) }),
     );
   });
 
   it('auto-closes stale low cases', async () => {
     const prisma: any = {
-      appConfig: {
-        findUnique: jest.fn().mockResolvedValue({ value_json: { low_case_autoclose_days: 14 } }),
-      },
-      fraudCase: {
-        findMany: jest.fn().mockResolvedValue([{ id: 'c1' }]),
-        update: jest.fn(),
-      },
+      appConfig: { findUnique: jest.fn().mockResolvedValue({ value_json: { low_case_autoclose_days: 14 } }) },
+      fraudCase: { findMany: jest.fn().mockResolvedValue([{ id: 'c1' }]), update: jest.fn() },
     };
-    const svc = new FraudService(prisma, { emitToUser: jest.fn(), emitSosAlert: jest.fn() } as any);
+
+    const svc = await createService(prisma);
     await svc.autoCloseLowCases();
-    expect(prisma.fraudCase.update).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { id: 'c1' } }),
-    );
+
+    expect(prisma.fraudCase.update).toHaveBeenCalledWith(expect.objectContaining({ where: { id: 'c1' } }));
   });
 
   it('decays risk when no signals in 30d', async () => {
     const prisma: any = {
-      appConfig: {
-        findUnique: jest.fn().mockResolvedValue({ value_json: { risk_decay_points_per_30d: 5 } }),
-      },
-      financialRiskScore: {
-        findMany: jest.fn().mockResolvedValue([{ user_id: 'u1', score: 20 }]),
-        update: jest.fn(),
-      },
+      appConfig: { findUnique: jest.fn().mockResolvedValue({ value_json: { risk_decay_points_per_30d: 5 } }) },
+      financialRiskScore: { findMany: jest.fn().mockResolvedValue([{ user_id: 'u1', score: 20 }]), update: jest.fn() },
       fraudSignal: { count: jest.fn().mockResolvedValue(0), create: jest.fn() },
     };
-    const svc = new FraudService(prisma, { emitToUser: jest.fn(), emitSosAlert: jest.fn() } as any);
+
+    const svc = await createService(prisma);
     await svc.decayRiskScores();
+
     expect(prisma.financialRiskScore.update).toHaveBeenCalled();
     expect(prisma.fraudSignal.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({ type: FraudSignalType.RISK_DECAY }),
-      }),
+      expect.objectContaining({ data: expect.objectContaining({ type: FraudSignalType.RISK_DECAY }) }),
     );
   });
 });

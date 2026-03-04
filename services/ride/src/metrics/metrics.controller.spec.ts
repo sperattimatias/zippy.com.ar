@@ -1,12 +1,17 @@
 import { HEADERS_METADATA } from '@nestjs/common/constants';
+import { Test } from '@nestjs/testing';
 import { MetricsController } from './metrics.controller';
 import { MetricsService } from './metrics.service';
 
 describe('MetricsController', () => {
-  it('returns Prometheus text with core metric names', () => {
-    const service = new MetricsService();
-    const controller = new MetricsController(service);
+  it('returns Prometheus text with core metric names', async () => {
+    const moduleRef = await Test.createTestingModule({
+      controllers: [MetricsController],
+      providers: [MetricsService],
+    }).compile();
 
+    const controller = moduleRef.get(MetricsController);
+    const service = moduleRef.get(MetricsService);
     const body = controller.getMetrics();
 
     expect(typeof body).toBe('string');
