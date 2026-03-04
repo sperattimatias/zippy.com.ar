@@ -35,6 +35,7 @@ import { MeritocracyService } from '../meritocracy/meritocracy.service';
 import { LevelAndBonusService } from '../levels/level-bonus.service';
 import { FraudService } from '../fraud/fraud.service';
 import { GeoZoneCacheService } from './geozone-cache.service';
+import { RedisStateService } from './redis-state.service';
 import {
   AcceptBidDto,
   CancelDto,
@@ -54,13 +55,8 @@ import {
 @Injectable()
 export class RideService implements OnModuleInit {
   private readonly logger = new Logger(RideService.name);
-  private locationThrottle = new Map<string, number>();
-  private deviationWindow = new Map<
-    string,
-    { over300Since?: number; over700Since?: number; majorCount: number }
-  >();
-  private trackingAlertState = new Map<string, 'none' | 'minor' | 'major'>();
   private readonly geoZoneCache: GeoZoneCacheService;
+  private readonly redisState: RedisStateService;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -70,8 +66,10 @@ export class RideService implements OnModuleInit {
     private readonly levelBonus: LevelAndBonusService,
     private readonly fraud: FraudService,
     geoZoneCache?: GeoZoneCacheService,
+    redisState?: RedisStateService,
   ) {
     this.geoZoneCache = geoZoneCache ?? new GeoZoneCacheService(this.prisma);
+    this.redisState = redisState ?? new RedisStateService();
   }
 
   onModuleInit() {
@@ -852,10 +850,8 @@ export class RideService implements OnModuleInit {
     const allowedStatuses: TripStatus[] = [TripStatus.DRIVER_EN_ROUTE, TripStatus.IN_PROGRESS];
     if (!allowedStatuses.includes(trip.status))
       throw new BadRequestException('Invalid status for location');
-    const key = `${tripId}:${driverUserId}`;
-    const last = this.locationThrottle.get(key) ?? 0;
-    if (this.nowMs() - last < 2000) throw new BadRequestException('Rate limit: 1 update / 2s');
-    this.locationThrottle.set(key, this.nowMs());
+    const throttleAllowed = await this.redisState.tryAcquireLocationThrottle(tripId, driverUserId, 2);
+    if (!throttleAllowed) throw new BadRequestException('Rate limit: 1 update / 2s');
 
     const loc = await this.prisma.tripLocation.create({
       data: {
@@ -912,7 +908,7 @@ export class RideService implements OnModuleInit {
     if (Array.isArray(line) && line.length > 1) {
       const deviationM = this.distanceToPolylineMeters({ lat: dto.lat, lng: dto.lng }, line);
       const now = this.nowMs();
-      const window = this.deviationWindow.get(tripId) ?? { majorCount: 0 };
+      const window = await this.redisState.getDeviationWindow(tripId);
 
       if (deviationM > 700) {
         window.over700Since = window.over700Since ?? now;
@@ -972,7 +968,7 @@ export class RideService implements OnModuleInit {
         window.over300Since = now;
       }
 
-      this.deviationWindow.set(tripId, window);
+      await this.redisState.setDeviationWindow(tripId, window, 1800);
     }
 
     this.ws.emitTrip(tripId, 'trip.location.update', {
@@ -996,7 +992,7 @@ export class RideService implements OnModuleInit {
       const last = t.safety_state?.last_driver_location_at?.getTime();
       if (!last) continue;
       const delta = now - last;
-      const current = this.trackingAlertState.get(t.id) ?? 'none';
+      const current = await this.redisState.getTrackingState(t.id);
       if (delta > 45_000 && current !== 'major') {
         await this.createSafetyAlert(
           t.id,
@@ -1007,7 +1003,7 @@ export class RideService implements OnModuleInit {
           null,
         );
         await this.applySafetyScore(t.id, -15);
-        this.trackingAlertState.set(t.id, 'major');
+        await this.redisState.setTrackingState(t.id, 'major', 7200);
       } else if (delta > 15_000 && current === 'none') {
         await this.createSafetyAlert(
           t.id,
@@ -1018,9 +1014,9 @@ export class RideService implements OnModuleInit {
           null,
         );
         await this.applySafetyScore(t.id, -5);
-        this.trackingAlertState.set(t.id, 'minor');
+        await this.redisState.setTrackingState(t.id, 'minor', 7200);
       } else if (delta <= 15_000) {
-        this.trackingAlertState.set(t.id, 'none');
+        await this.redisState.setTrackingState(t.id, 'none', 7200);
       }
     }
   }
@@ -1162,6 +1158,7 @@ export class RideService implements OnModuleInit {
     }
 
     this.ws.emitTrip(tripId, 'trip.completed', { trip_id: tripId });
+    await this.redisState.clearTripTrackingState(tripId);
     return updated;
   }
 
@@ -1224,6 +1221,7 @@ export class RideService implements OnModuleInit {
       });
     }
     this.ws.emitTrip(tripId, 'trip.cancelled', { trip_id: tripId, status });
+    await this.redisState.clearTripTrackingState(tripId);
     return updated;
   }
 
@@ -1256,6 +1254,7 @@ export class RideService implements OnModuleInit {
       });
     }
     this.ws.emitTrip(tripId, 'trip.cancelled', { trip_id: tripId, status });
+    await this.redisState.clearTripTrackingState(tripId);
     return updated;
   }
 

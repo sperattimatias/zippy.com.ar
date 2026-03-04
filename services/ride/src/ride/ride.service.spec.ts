@@ -356,6 +356,11 @@ describe('RideService antifraud hardening', () => {
       getActiveZones: jest.fn().mockResolvedValue([]),
       invalidateActiveZones: jest.fn(),
     };
+    const redisState: any = {
+      tryAcquireLocationThrottle: jest.fn().mockResolvedValue(true),
+      getDeviationWindow: jest.fn().mockResolvedValue({ majorCount: 0 }),
+      setDeviationWindow: jest.fn().mockResolvedValue(undefined),
+    };
     const prisma: any = {
       trip: {
         findUnique: jest
@@ -380,19 +385,13 @@ describe('RideService antifraud hardening', () => {
       {} as any,
       fraudMock() as any,
       geozoneCache,
+      redisState,
     );
-
-    jest
-      .spyOn(service as any, 'nowMs')
-      .mockReturnValueOnce(3000)
-      .mockReturnValueOnce(3000)
-      .mockReturnValueOnce(6001)
-      .mockReturnValueOnce(6001);
-
     await service.trackLocation('t1', 'd1', { lat: 0, lng: 0 });
     await service.trackLocation('t1', 'd1', { lat: 0.01, lng: 0.01 });
 
     expect(geozoneCache.getActiveZones).toHaveBeenCalledTimes(2);
+    expect(redisState.tryAcquireLocationThrottle).toHaveBeenCalledTimes(2);
     expect(prisma.tripLocation.create).toHaveBeenCalledTimes(2);
   });
 
