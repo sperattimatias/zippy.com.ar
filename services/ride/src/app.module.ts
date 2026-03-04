@@ -16,6 +16,8 @@ import { ScoreService } from './score/score.service';
 import { MeritocracyService } from './meritocracy/meritocracy.service';
 import { LevelAndBonusService } from './levels/level-bonus.service';
 import { FraudService } from './fraud/fraud.service';
+import { GeoZoneCacheService } from './ride/geozone-cache.service';
+import { RedisStateService } from './ride/redis-state.service';
 
 @Module({
   imports: [
@@ -31,6 +33,7 @@ import { FraudService } from './fraud/fraud.service';
         DATABASE_URL: Joi.string().required(),
         REDIS_URL: Joi.string().uri().required(),
         JWT_ACCESS_SECRET: Joi.string().min(32).required(),
+        WS_CORS_ORIGINS: Joi.string().optional(),
       }),
     }),
     JwtModule.register({}),
@@ -44,6 +47,8 @@ import { FraudService } from './fraud/fraud.service';
     RolesGuard,
     RideService,
     RideGateway,
+    GeoZoneCacheService,
+    RedisStateService,
     MeritocracyService,
     ScoreService,
     LevelAndBonusService,
