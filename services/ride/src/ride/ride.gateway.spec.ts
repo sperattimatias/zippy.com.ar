@@ -160,10 +160,12 @@ describe('RideGateway subscribeTrip integration', () => {
     });
   });
 
-  it('unauthorized user cannot subscribe and does not receive trip room events', async () => {
+  it('unauthorized user receives explicit rejection and does not receive trip room events', async () => {
     const intruder = await connectPollingClient('intruder-1');
 
     await emitSubscribeTrip(intruder, 'trip-1');
+
+    await expect(waitForPacketContaining(intruder, 'Forbidden trip subscription')).resolves.toBe(true);
 
     gateway.emitTrip('trip-1', 'trip.updated', { trip_id: 'trip-1', status: 'MATCHED' });
 
