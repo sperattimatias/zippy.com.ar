@@ -1,104 +1,176 @@
+import { INestApplication } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import { WsException } from '@nestjs/websockets';
+import { IoAdapter } from '@nestjs/platform-socket.io';
+import { Test } from '@nestjs/testing';
+import { randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { RideGateway } from './ride.gateway';
 
-type TestSocket = {
-  id: string;
-  handshake: { headers: Record<string, string>; auth: Record<string, string> };
-  data: Record<string, unknown>;
-  joinedRooms: Set<string>;
-  join: jest.Mock;
+type PollingClient = {
+  sid: string;
+  baseUrl: string;
+  authHeader: string;
 };
 
-describe('RideGateway trip subscription flow', () => {
+describe('RideGateway subscribeTrip integration', () => {
+  let app: INestApplication;
+  let port: number;
+  let jwt: JwtService;
+  let gateway: RideGateway;
+
   const prismaMock = {
     trip: {
       findUnique: jest.fn(),
     },
   };
 
-  let gateway: RideGateway;
-  let jwt: JwtService;
+  beforeAll(async () => {
+    const moduleRef = await Test.createTestingModule({
+      providers: [
+        RideGateway,
+        JwtService,
+        { provide: PrismaService, useValue: prismaMock },
+        {
+          provide: ConfigService,
+          useValue: {
+            getOrThrow: (key: string) => {
+              if (key !== 'JWT_ACCESS_SECRET') throw new Error(`Unexpected key ${key}`);
+              return 'test-secret-which-is-long-enough-for-jwt';
+            },
+          },
+        },
+      ],
+    }).compile();
 
-  const createSocket = (id: string, token: string): TestSocket => ({
-    id,
-    handshake: { headers: {}, auth: { token } },
-    data: {},
-    joinedRooms: new Set<string>(),
-    join: jest.fn(async function (this: TestSocket, room: string) {
-      this.joinedRooms.add(room);
-    }),
+    app = moduleRef.createNestApplication();
+    app.useWebSocketAdapter(new IoAdapter(app));
+    await app.init();
+    await app.listen(0);
+
+    port = app.getHttpServer().address().port;
+    jwt = app.get(JwtService);
+    gateway = app.get(RideGateway);
+  });
+
+  afterAll(async () => {
+    await app.close();
   });
 
   beforeEach(() => {
     jest.clearAllMocks();
-
-    jwt = new JwtService();
-    gateway = new RideGateway(
-      jwt,
-      {
-        getOrThrow: () => 'test-secret-which-is-long-enough-for-jwt',
-      } as unknown as ConfigService,
-      prismaMock as unknown as PrismaService,
-    );
-
-    (gateway as any).server = {
-      to: jest.fn((room: string) => ({
-        emit: (event: string, payload: unknown) => {
-          for (const socket of [passengerSocket, intruderSocket]) {
-            if (socket.joinedRooms.has(room)) receivedEvents.push({ socketId: socket.id, event, payload });
-          }
-        },
-      })),
-    };
-  });
-
-  let passengerSocket: TestSocket;
-  let intruderSocket: TestSocket;
-  let receivedEvents: Array<{ socketId: string; event: string; payload: unknown }>;
-
-  it('authorizes trip room join and emits only to authorized subscribers', async () => {
     prismaMock.trip.findUnique.mockResolvedValue({
       id: 'trip-1',
       passenger_user_id: 'passenger-1',
       driver_user_id: 'driver-1',
     });
+  });
 
-    receivedEvents = [];
+  const baseUrl = () => `http://127.0.0.1:${port}/socket.io/`;
 
-    const passengerToken = jwt.sign({ sub: 'passenger-1', roles: ['passenger'] }, {
-      secret: 'test-secret-which-is-long-enough-for-jwt',
+  const parseSid = (payload: string): string => {
+    const sidMatch = payload.match(/"sid":"([^"]+)"/);
+    if (!sidMatch) throw new Error(`sid missing in payload: ${payload}`);
+    return sidMatch[1];
+  };
+
+  const pollingGet = async (url: string, authHeader: string, timeoutMs = 350): Promise<string> => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const res = await fetch(url, {
+        headers: { authorization: authHeader },
+        signal: controller.signal,
+      });
+      return res.text();
+    } finally {
+      clearTimeout(timer);
+    }
+  };
+
+  const pollingPost = async (url: string, authHeader: string, body: string): Promise<void> => {
+    await fetch(url, {
+      method: 'POST',
+      headers: {
+        authorization: authHeader,
+        'content-type': 'text/plain;charset=UTF-8',
+      },
+      body,
     });
-    const intruderToken = jwt.sign({ sub: 'intruder-1', roles: ['passenger'] }, {
-      secret: 'test-secret-which-is-long-enough-for-jwt',
-    });
+  };
 
-    passengerSocket = createSocket('socket-passenger', passengerToken);
-    intruderSocket = createSocket('socket-intruder', intruderToken);
-
-    await gateway.handleConnection(passengerSocket as any);
-    await gateway.handleConnection(intruderSocket as any);
-
-    await expect(gateway.subscribeTrip(passengerSocket as any, { tripId: 'trip-1' })).resolves.toEqual({
-      ok: true,
-      room: 'trip:trip-1',
-    });
-
-    await expect(gateway.subscribeTrip(intruderSocket as any, { tripId: 'trip-1' })).rejects.toBeInstanceOf(
-      WsException,
+  /**
+   * Simulates socket handshake auth by sending bearer token in the initial polling request headers.
+   */
+  const connectPollingClient = async (userId: string): Promise<PollingClient> => {
+    const token = jwt.sign(
+      { sub: userId, roles: ['passenger'] },
+      { secret: 'test-secret-which-is-long-enough-for-jwt' },
     );
+    const authHeader = `Bearer ${token}`;
+    const openUrl = `${baseUrl()}?EIO=4&transport=polling&t=${randomUUID()}`;
+    const openPayload = await pollingGet(openUrl, authHeader);
+    const sid = parseSid(openPayload);
+
+    await pollingPost(`${baseUrl()}?EIO=4&transport=polling&sid=${sid}`, authHeader, '40/rides,');
+
+    return { sid, baseUrl: baseUrl(), authHeader };
+  };
+
+  const emitSubscribeTrip = async (client: PollingClient, tripId: string) => {
+    await pollingPost(
+      `${client.baseUrl}?EIO=4&transport=polling&sid=${client.sid}`,
+      client.authHeader,
+      `42/rides,["subscribeTrip",{"tripId":"${tripId}"}]`,
+    );
+  };
+
+  const waitForPacketContaining = async (
+    client: PollingClient,
+    text: string,
+    timeoutMs = 1500,
+  ): Promise<boolean> => {
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+      try {
+        const payload = await pollingGet(
+          `${client.baseUrl}?EIO=4&transport=polling&sid=${client.sid}&t=${randomUUID()}`,
+          client.authHeader,
+        );
+        if (payload.includes(text)) return true;
+      } catch {
+        // polling request timed out with no server packets, continue loop
+      }
+      await new Promise((r) => setTimeout(r, 40));
+    }
+    return false;
+  };
+
+  it('authorized user subscribes and receives trip room events', async () => {
+    const passenger = await connectPollingClient('passenger-1');
+
+    await emitSubscribeTrip(passenger, 'trip-1');
 
     gateway.emitTrip('trip-1', 'trip.updated', { trip_id: 'trip-1', status: 'MATCHED' });
 
-    expect(receivedEvents).toEqual([
-      {
-        socketId: 'socket-passenger',
-        event: 'trip.updated',
-        payload: { trip_id: 'trip-1', status: 'MATCHED' },
-      },
-    ]);
-    expect(prismaMock.trip.findUnique).toHaveBeenCalledTimes(2);
+    await expect(waitForPacketContaining(passenger, 'trip.updated')).resolves.toBe(true);
+    expect(prismaMock.trip.findUnique).toHaveBeenCalledWith({
+      where: { id: 'trip-1' },
+      select: { id: true, passenger_user_id: true, driver_user_id: true },
+    });
+  });
+
+  it('unauthorized user cannot subscribe and does not receive trip room events', async () => {
+    const intruder = await connectPollingClient('intruder-1');
+
+    await emitSubscribeTrip(intruder, 'trip-1');
+
+    gateway.emitTrip('trip-1', 'trip.updated', { trip_id: 'trip-1', status: 'MATCHED' });
+
+    await expect(waitForPacketContaining(intruder, 'trip.updated', 500)).resolves.toBe(false);
+    expect(prismaMock.trip.findUnique).toHaveBeenCalledWith({
+      where: { id: 'trip-1' },
+      select: { id: true, passenger_user_id: true, driver_user_id: true },
+    });
   });
 });
