@@ -1,0 +1,137 @@
+import { randomUUID } from 'crypto';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
+import { Cron } from '@nestjs/schedule';
+import { PrismaService } from '../prisma/prisma.service';
+import { REDIS_CLIENT, RedisClient } from '../infra/redis/redis.types';
+import { MetricsService } from '../metrics/metrics.service';
+
+@Injectable()
+export class OutboxPublisherService {
+  private readonly logger = new Logger(OutboxPublisherService.name);
+  private readonly instanceId: string;
+  private readonly leaseSeconds: number;
+  private readonly batchSize: number;
+
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() @Inject(REDIS_CLIENT) private readonly redisClient: RedisClient | null = null,
+    instanceId?: string,
+    @Optional() private readonly metrics?: MetricsService,
+  ) {
+    this.instanceId = instanceId ?? process.env.INSTANCE_ID ?? randomUUID();
+    this.leaseSeconds = this.parsePositiveInt(process.env.OUTBOX_LEASE_SECONDS, 60);
+    this.batchSize = this.parsePositiveInt(process.env.OUTBOX_BATCH_SIZE, 50);
+  }
+
+  private parsePositiveInt(value: string | undefined, fallback: number) {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed)) return fallback;
+    const normalized = Math.trunc(parsed);
+    return normalized > 0 ? normalized : fallback;
+  }
+
+  async claimPendingBatch(limit = 50, leaseSeconds = 60, now = new Date()) {
+    const staleBefore = new Date(now.getTime() - leaseSeconds * 1000);
+
+    const candidates = await this.prisma.outboxEvent.findMany({
+      where: {
+        published_at: null,
+        OR: [{ locked_at: null }, { locked_at: { lt: staleBefore } }],
+      },
+      orderBy: { created_at: 'asc' },
+      take: limit,
+      select: { id: true },
+    });
+
+    if (!candidates.length) return [];
+
+    const candidateIds = candidates.map((candidate) => candidate.id);
+    const lockTime = new Date(now);
+
+    const claim = await this.prisma.outboxEvent.updateMany({
+      where: {
+        id: { in: candidateIds },
+        published_at: null,
+        OR: [{ locked_at: null }, { locked_at: { lt: staleBefore } }],
+      },
+      data: {
+        locked_at: lockTime,
+        locked_by: this.instanceId,
+      },
+    });
+
+    if (claim.count === 0) return [];
+
+    return this.prisma.outboxEvent.findMany({
+      where: {
+        id: { in: candidateIds },
+        locked_by: this.instanceId,
+        locked_at: { gte: lockTime },
+        published_at: null,
+      },
+      orderBy: { created_at: 'asc' },
+    });
+  }
+
+  /**
+   * Publishes OutboxEvent rows to Redis Stream `stream:trip-events`
+   * with fields: event_type, aggregate_id, payload.
+   */
+  async publishPendingBatch(limit = 50) {
+    const redis = this.redisClient;
+    if (!redis) return;
+
+    const effectiveLimit = limit === 50 ? this.batchSize : limit;
+    const claimed = await this.claimPendingBatch(effectiveLimit, this.leaseSeconds);
+    const unpublishedCount = await this.prisma.outboxEvent.count({ where: { published_at: null } });
+    this.metrics?.setOutboxUnpublishedCount(unpublishedCount);
+    for (const ev of claimed) {
+      try {
+        await redis.xadd(
+          'stream:trip-events',
+          '*',
+          'event_type',
+          ev.event_type,
+          'aggregate_id',
+          ev.aggregate_id,
+          'payload',
+          JSON.stringify(ev.payload_json),
+        );
+
+        await this.prisma.outboxEvent.updateMany({
+          where: {
+            id: ev.id,
+            published_at: null,
+            locked_by: this.instanceId,
+          },
+          data: {
+            published_at: new Date(),
+            locked_at: null,
+            locked_by: null,
+          },
+        });
+        this.metrics?.incOutboxPublish(true);
+      } catch (error) {
+        await this.prisma.outboxEvent.updateMany({
+          where: {
+            id: ev.id,
+            published_at: null,
+            locked_by: this.instanceId,
+          },
+          data: {
+            attempts: { increment: 1 },
+            locked_at: null,
+            locked_by: null,
+          },
+        });
+        this.metrics?.incOutboxPublish(false);
+        this.logger.warn(`outbox publish failed id=${ev.id} err=${(error as Error).message}`);
+      }
+    }
+  }
+
+  @Cron('*/5 * * * * *')
+  async publishPendingCron() {
+    await this.publishPendingBatch();
+  }
+}
