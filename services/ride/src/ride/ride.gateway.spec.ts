@@ -117,12 +117,47 @@ describe('RideGateway subscribeTrip integration', () => {
     return { sid, baseUrl: baseUrl(), authHeader };
   };
 
-  const emitSubscribeTrip = async (client: PollingClient, tripId: string) => {
+
+
+  const extractSocketIoPackets = (enginePayload: string): string[] =>
+    enginePayload
+      .split('\x1e')
+      .map((chunk) => chunk.replace(/^\d+:/, ''))
+      .filter(Boolean);
+
+  const emitSubscribeTripWithAck = async (
+    client: PollingClient,
+    tripId: string,
+    timeoutMs = 1500,
+  ): Promise<any> => {
+    const ackId = Math.floor(Math.random() * 9000) + 1000;
     await pollingPost(
       `${client.baseUrl}?EIO=4&transport=polling&sid=${client.sid}`,
       client.authHeader,
-      `42/rides,["subscribeTrip",{"tripId":"${tripId}"}]`,
+      `42/rides,${ackId}["subscribeTrip",{"tripId":"${tripId}"}]`,
     );
+
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+      try {
+        const payload = await pollingGet(
+          `${client.baseUrl}?EIO=4&transport=polling&sid=${client.sid}&t=${randomUUID()}`,
+          client.authHeader,
+        );
+        for (const packet of extractSocketIoPackets(payload)) {
+          const match = packet.match(new RegExp(`^43\/rides,${ackId}(.*)$`));
+          if (!match) continue;
+          const raw = match[1] ?? '';
+          if (!raw) return null;
+          const parsed = JSON.parse(raw);
+          return Array.isArray(parsed) ? parsed[0] : parsed;
+        }
+      } catch {
+        // poll timeout, retry
+      }
+      await new Promise((r) => setTimeout(r, 40));
+    }
+    throw new Error('subscribeTrip ACK timeout');
   };
 
   const waitForPacketContaining = async (
@@ -145,20 +180,11 @@ describe('RideGateway subscribeTrip integration', () => {
     }
     return false;
   };
-
-
-
-  const waitForSubscribeRejection = async (client: PollingClient, timeoutMs = 1500): Promise<boolean> => {
-    for (const marker of ['Forbidden trip subscription', 'Forbidden', 'WsException']) {
-      if (await waitForPacketContaining(client, marker, timeoutMs)) return true;
-    }
-    return false;
-  };
-
   it('authorized user subscribes and receives trip room events', async () => {
     const passenger = await connectPollingClient('passenger-1');
 
-    await emitSubscribeTrip(passenger, 'trip-1');
+    const ack = await emitSubscribeTripWithAck(passenger, 'trip-1');
+    expect(ack).toEqual({ ok: true, room: 'trip:trip-1' });
 
     gateway.emitTrip('trip-1', 'trip.updated', { trip_id: 'trip-1', status: 'MATCHED' });
 
@@ -169,12 +195,11 @@ describe('RideGateway subscribeTrip integration', () => {
     });
   });
 
-  it('unauthorized user receives explicit rejection and does not receive trip room events', async () => {
+  it('unauthorized user gets forbidden ACK and does not receive trip room events', async () => {
     const intruder = await connectPollingClient('intruder-1');
 
-    await emitSubscribeTrip(intruder, 'trip-1');
-
-    await expect(waitForSubscribeRejection(intruder)).resolves.toBe(true);
+    const ack = await emitSubscribeTripWithAck(intruder, 'trip-1');
+    expect(ack).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } });
 
     gateway.emitTrip('trip-1', 'trip.updated', { trip_id: 'trip-1', status: 'MATCHED' });
 

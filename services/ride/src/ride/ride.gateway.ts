@@ -19,6 +19,16 @@ type SubscribeTripPayload = {
   tripId?: string;
 };
 
+type SubscribeTripAck =
+  | { ok: true; room: string }
+  | {
+      ok: false;
+      error: {
+        code: 'FORBIDDEN' | 'NOT_FOUND' | 'BAD_REQUEST' | 'INTERNAL';
+        message: string;
+      };
+    };
+
 @Injectable()
 @WebSocketGateway({ namespace: '/rides', cors: getWsCorsOptions() })
 export class RideGateway implements OnGatewayConnection, OnGatewayDisconnect {
@@ -65,40 +75,51 @@ export class RideGateway implements OnGatewayConnection, OnGatewayDisconnect {
   async subscribeTrip(
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: SubscribeTripPayload,
-  ): Promise<{ ok: true; room: string }> {
-    const tripId = payload?.tripId?.trim();
+  ): Promise<SubscribeTripAck> {
+    const tripId = typeof payload?.tripId === 'string' ? payload.tripId.trim() : '';
     const userId = (client.data as { user?: { sub?: string } })?.user?.sub;
 
     this.logger.log(`trip subscription attempt socket=${client.id} user=${userId ?? 'unknown'} trip=${tripId}`);
 
     if (!userId) {
       this.logger.warn(`trip subscription rejected socket=${client.id} reason=missing-user`);
-      throw new WsException('Unauthorized');
+      return { ok: false, error: { code: 'FORBIDDEN', message: 'Unauthorized' } };
     }
 
     if (!tripId) {
       this.logger.warn(`trip subscription rejected socket=${client.id} user=${userId} reason=invalid-trip-id`);
-      throw new WsException('Invalid tripId');
+      return { ok: false, error: { code: 'BAD_REQUEST', message: 'Invalid tripId' } };
     }
 
-    const trip = await this.prisma.trip.findUnique({
-      where: { id: tripId },
-      select: { id: true, passenger_user_id: true, driver_user_id: true },
-    });
+    try {
+      const trip = await this.prisma.trip.findUnique({
+        where: { id: tripId },
+        select: { id: true, passenger_user_id: true, driver_user_id: true },
+      });
 
-    const isAuthorized =
-      !!trip && (trip.passenger_user_id === userId || (trip.driver_user_id && trip.driver_user_id === userId));
+      if (!trip) {
+        this.logger.warn(`trip subscription rejected socket=${client.id} user=${userId} trip=${tripId} reason=not-found`);
+        return { ok: false, error: { code: 'NOT_FOUND', message: 'Trip not found' } };
+      }
 
-    if (!isAuthorized) {
-      this.logger.warn(`trip subscription rejected socket=${client.id} user=${userId} trip=${tripId}`);
-      throw new WsException('Forbidden trip subscription');
+      const isAuthorized =
+        trip.passenger_user_id === userId || (trip.driver_user_id && trip.driver_user_id === userId);
+
+      if (!isAuthorized) {
+        this.logger.warn(`trip subscription rejected socket=${client.id} user=${userId} trip=${tripId}`);
+        return { ok: false, error: { code: 'FORBIDDEN', message: 'Forbidden trip subscription' } };
+      }
+
+      const room = `trip:${tripId}`;
+      await client.join(room);
+      this.logger.log(`trip subscription success socket=${client.id} user=${userId} room=${room}`);
+      return { ok: true, room };
+    } catch (error) {
+      this.logger.error(
+        `trip subscription failed socket=${client.id} user=${userId} trip=${tripId} err=${(error as Error).message}`,
+      );
+      return { ok: false, error: { code: 'INTERNAL', message: 'Subscription failed' } };
     }
-
-    const room = `trip:${tripId}`;
-    await client.join(room);
-    this.logger.log(`trip subscription success socket=${client.id} user=${userId} room=${room}`);
-
-    return { ok: true, room };
   }
 
   /**
