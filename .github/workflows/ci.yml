@@ -51,7 +51,7 @@ jobs:
         run: pnpm lint
 
       - name: Prisma generate
-        run: pnpm -r --if-present exec prisma generate
+        run: pnpm -r --filter "./services/*" exec prisma generate
 
       - name: Typecheck
         run: pnpm run typecheck
