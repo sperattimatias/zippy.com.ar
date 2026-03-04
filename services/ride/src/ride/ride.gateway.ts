@@ -41,8 +41,8 @@ export class RideGateway implements OnGatewayConnection, OnGatewayDisconnect {
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
     private readonly prisma: PrismaService,
+    private readonly rateLimit: RateLimitService,
     @Optional() private readonly metrics?: MetricsService,
-    @Optional() private readonly rateLimit?: RateLimitService,
   ) {}
 
   async handleConnection(client: Socket) {
@@ -88,8 +88,8 @@ export class RideGateway implements OnGatewayConnection, OnGatewayDisconnect {
     this.logger.log(`trip subscription attempt socket=${client.id} user=${userId ?? 'unknown'} trip=${tripId}`);
 
     const limitKey = `rl:ws_subscribe_trip:${userId ?? 'anonymous'}`;
-    const subscribeAllowed = await this.rateLimit?.isAllowed(limitKey, 5, 60);
-    if (subscribeAllowed === false) {
+    const subscribeAllowed = await this.rateLimit.isAllowed(limitKey, 5, 60);
+    if (!subscribeAllowed) {
       this.metrics?.incWsSubscribeTrip(false);
       return { ok: false, error: { code: 'RATE_LIMIT', message: 'Rate limit exceeded' } };
     }
