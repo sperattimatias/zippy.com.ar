@@ -17,7 +17,7 @@
     "lint:fix": "eslint \"{apps,services,shared}/**/*.{ts,js}\" \"scripts/**/*.{js,ts}\" --fix",
     "format": "prettier \"**/*.{ts,js,json,md,yml,yaml}\" --write",
     "format:check": "prettier \"**/*.{ts,js,json,md,yml,yaml}\" --check",
-    "typecheck": "pnpm -r exec tsc --noEmit",
+    "typecheck": "pnpm --filter @zippy/auth exec prisma generate && pnpm --filter @zippy/auth exec tsc --noEmit && pnpm --filter @zippy/driver exec prisma generate && pnpm --filter @zippy/driver exec tsc --noEmit && pnpm --filter @zippy/payment exec prisma generate && pnpm --filter @zippy/payment exec tsc --noEmit && pnpm --filter @zippy/ride exec prisma generate && pnpm --filter @zippy/ride exec tsc --noEmit && pnpm --filter @zippy/api-gateway exec tsc --noEmit && pnpm --filter @zippy/admin-panel exec tsc --noEmit",
     "test": "pnpm --filter @zippy/auth test && pnpm --filter @zippy/api-gateway test",
     "test:e2e": "jest -c jest.e2e.config.cjs --runInBand"
   },
