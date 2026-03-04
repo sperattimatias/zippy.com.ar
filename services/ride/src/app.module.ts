@@ -18,6 +18,7 @@ import { LevelAndBonusService } from './levels/level-bonus.service';
 import { FraudService } from './fraud/fraud.service';
 import { GeoZoneCacheService } from './ride/geozone-cache.service';
 import { RedisStateService } from './ride/redis-state.service';
+import { DriverGeoIndexService } from './ride/driver-geo-index.service';
 
 @Module({
   imports: [
@@ -49,6 +50,7 @@ import { RedisStateService } from './ride/redis-state.service';
     RideGateway,
     GeoZoneCacheService,
     RedisStateService,
+    DriverGeoIndexService,
     MeritocracyService,
     ScoreService,
     LevelAndBonusService,

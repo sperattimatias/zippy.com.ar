@@ -36,6 +36,7 @@ import { LevelAndBonusService } from '../levels/level-bonus.service';
 import { FraudService } from '../fraud/fraud.service';
 import { GeoZoneCacheService } from './geozone-cache.service';
 import { RedisStateService } from './redis-state.service';
+import { DriverGeoIndexService } from './driver-geo-index.service';
 import {
   AcceptBidDto,
   CancelDto,
@@ -57,6 +58,7 @@ export class RideService implements OnModuleInit {
   private readonly logger = new Logger(RideService.name);
   private readonly geoZoneCache: GeoZoneCacheService;
   private readonly redisState: RedisStateService;
+  private readonly driverGeoIndex: DriverGeoIndexService;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -67,9 +69,11 @@ export class RideService implements OnModuleInit {
     private readonly fraud: FraudService,
     geoZoneCache?: GeoZoneCacheService,
     redisState?: RedisStateService,
+    driverGeoIndex?: DriverGeoIndexService,
   ) {
     this.geoZoneCache = geoZoneCache ?? new GeoZoneCacheService(this.prisma);
     this.redisState = redisState ?? new RedisStateService();
+    this.driverGeoIndex = driverGeoIndex ?? new DriverGeoIndexService();
   }
 
   onModuleInit() {
@@ -316,7 +320,7 @@ export class RideService implements OnModuleInit {
       throw new ForbiddenException('Driver score not eligible for premium zone');
     }
 
-    return this.prisma.driverPresence.upsert({
+    const presence = await this.prisma.driverPresence.upsert({
       where: { driver_user_id: driverUserId },
       update: {
         is_online: true,
@@ -338,6 +342,8 @@ export class RideService implements OnModuleInit {
         vehicle_category: dto.category,
       },
     });
+    await this.driverGeoIndex.upsert(driverUserId, dto.lat, dto.lng);
+    return presence;
   }
   async presenceOffline(driverUserId: string) {
     await this.prisma.driverPresence.updateMany({
@@ -351,6 +357,7 @@ export class RideService implements OnModuleInit {
       where: { driver_user_id: driverUserId },
       data: { last_lat: dto.lat, last_lng: dto.lng, last_seen_at: new Date() },
     });
+    await this.driverGeoIndex.upsert(driverUserId, dto.lat, dto.lng);
     return { message: 'pong' };
   }
 
@@ -441,8 +448,27 @@ export class RideService implements OnModuleInit {
     });
 
     const matchingStart = this.nowMs();
+    let redisCandidateIds: string[] = [];
+    try {
+      redisCandidateIds = await this.driverGeoIndex.findNearby({
+        lat: dto.origin_lat,
+        lng: dto.origin_lng,
+        radiusMeters: 5000,
+        limit: 200,
+      });
+    } catch (error) {
+      this.logger.warn(`driver geo index unavailable, falling back to DB presence: ${(error as Error).message}`);
+    }
+
     const presences = await this.prisma.driverPresence.findMany({
-      where: { is_online: true, vehicle_category: dto.category },
+      where:
+        redisCandidateIds.length > 0
+          ? {
+              is_online: true,
+              vehicle_category: dto.category,
+              driver_user_id: { in: redisCandidateIds },
+            }
+          : { is_online: true, vehicle_category: dto.category },
     });
     const activeNearby = presences.filter((p) => this.onlineRecent(p.last_seen_at));
     const driverIds = activeNearby.map((p) => p.driver_user_id);
