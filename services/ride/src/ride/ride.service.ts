@@ -22,6 +22,8 @@ import {
   TripActor,
   TripBidStatus,
   TripStatus,
+  TripBid,
+  Prisma,
 } from '@prisma/client';
 import { createHash } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
@@ -562,14 +564,38 @@ export class RideService implements OnModuleInit {
     if (dto.price_offer < min || dto.price_offer > max)
       throw new BadRequestException('Price offer out of allowed range');
 
-    const bid = await this.prisma.tripBid.create({
-      data: {
-        trip_id: tripId,
-        driver_user_id: driverUserId,
-        price_offer: dto.price_offer,
-        eta_to_pickup_minutes: dto.eta_to_pickup_minutes,
-      },
-    });
+    /**
+     * A driver can maintain at most one active bid per trip.
+     * Re-submitting a bid updates the existing row instead of inserting duplicates.
+     */
+    let bid: TripBid;
+    try {
+      bid = await this.prisma.tripBid.upsert({
+        where: {
+          trip_id_driver_user_id: {
+            trip_id: tripId,
+            driver_user_id: driverUserId,
+          },
+        },
+        update: {
+          price_offer: dto.price_offer,
+          eta_to_pickup_minutes: dto.eta_to_pickup_minutes,
+        },
+        create: {
+          trip_id: tripId,
+          driver_user_id: driverUserId,
+          price_offer: dto.price_offer,
+          eta_to_pickup_minutes: dto.eta_to_pickup_minutes,
+        },
+      });
+    } catch (error) {
+      const prismaCode = (error as Prisma.PrismaClientKnownRequestError | { code?: string })?.code;
+      if (prismaCode === 'P2002' || prismaCode === 'P2025') {
+        throw new BadRequestException('Unable to place bid at this time, please retry');
+      }
+      throw error;
+    }
+
     await this.addEvent(trip.id, driverUserId, 'trip.bid.received', {
       bid_id: bid.id,
       price_offer: bid.price_offer,
