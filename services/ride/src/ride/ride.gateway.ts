@@ -1,4 +1,4 @@
-import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
+import { Injectable, Logger, Optional, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import {
@@ -14,6 +14,7 @@ import {
 import { Server, Socket } from 'socket.io';
 import { PrismaService } from '../prisma/prisma.service';
 import { getWsCorsOptions } from './ws-cors.config';
+import { MetricsService } from '../metrics/metrics.service';
 
 type SubscribeTripPayload = {
   tripId?: string;
@@ -39,6 +40,7 @@ export class RideGateway implements OnGatewayConnection, OnGatewayDisconnect {
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
     private readonly prisma: PrismaService,
+    @Optional() private readonly metrics?: MetricsService,
   ) {}
 
   async handleConnection(client: Socket) {
@@ -59,6 +61,7 @@ export class RideGateway implements OnGatewayConnection, OnGatewayDisconnect {
       if (Array.isArray(user.roles) && (user.roles.includes('admin') || user.roles.includes('sos')))
         client.join('sos:alerts');
       this.logger.log(`socket connected ${client.id} user=${user.sub}`);
+      this.metrics?.setWsConnectedClients(this.server.of('/rides').sockets.size);
     } catch {
       throw new UnauthorizedException('Invalid access token');
     }
@@ -66,6 +69,7 @@ export class RideGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   handleDisconnect(client: Socket) {
     this.logger.log(`socket disconnected ${client.id}`);
+    this.metrics?.setWsConnectedClients(this.server.of('/rides').sockets.size);
   }
 
   /**
@@ -83,11 +87,13 @@ export class RideGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     if (!userId) {
       this.logger.warn(`trip subscription rejected socket=${client.id} reason=missing-user`);
+      this.metrics?.incWsSubscribeTrip(false);
       return { ok: false, error: { code: 'FORBIDDEN', message: 'Unauthorized' } };
     }
 
     if (!tripId) {
       this.logger.warn(`trip subscription rejected socket=${client.id} user=${userId} reason=invalid-trip-id`);
+      this.metrics?.incWsSubscribeTrip(false);
       return { ok: false, error: { code: 'BAD_REQUEST', message: 'Invalid tripId' } };
     }
 
@@ -99,6 +105,7 @@ export class RideGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
       if (!trip) {
         this.logger.warn(`trip subscription rejected socket=${client.id} user=${userId} trip=${tripId} reason=not-found`);
+        this.metrics?.incWsSubscribeTrip(false);
         return { ok: false, error: { code: 'NOT_FOUND', message: 'Trip not found' } };
       }
 
@@ -107,17 +114,20 @@ export class RideGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
       if (!isAuthorized) {
         this.logger.warn(`trip subscription rejected socket=${client.id} user=${userId} trip=${tripId}`);
+        this.metrics?.incWsSubscribeTrip(false);
         return { ok: false, error: { code: 'FORBIDDEN', message: 'Forbidden trip subscription' } };
       }
 
       const room = `trip:${tripId}`;
       await client.join(room);
       this.logger.log(`trip subscription success socket=${client.id} user=${userId} room=${room}`);
+      this.metrics?.incWsSubscribeTrip(true);
       return { ok: true, room };
     } catch (error) {
       this.logger.error(
         `trip subscription failed socket=${client.id} user=${userId} trip=${tripId} err=${(error as Error).message}`,
       );
+      this.metrics?.incWsSubscribeTrip(false);
       return { ok: false, error: { code: 'INTERNAL', message: 'Subscription failed' } };
     }
   }

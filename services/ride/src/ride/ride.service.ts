@@ -6,6 +6,7 @@ import {
   Logger,
   NotFoundException,
   OnModuleInit,
+  Optional,
 } from '@nestjs/common';
 import {
   ActorType,
@@ -37,6 +38,7 @@ import { FraudService } from '../fraud/fraud.service';
 import { GeoZoneCacheService } from './geozone-cache.service';
 import { RedisStateService } from './redis-state.service';
 import { DriverGeoIndexService } from './driver-geo-index.service';
+import { MetricsService } from '../metrics/metrics.service';
 import {
   AcceptBidDto,
   CancelDto,
@@ -70,6 +72,7 @@ export class RideService implements OnModuleInit {
     geoZoneCache?: GeoZoneCacheService,
     redisState?: RedisStateService,
     driverGeoIndex?: DriverGeoIndexService,
+    @Optional() private readonly metrics?: MetricsService,
   ) {
     this.geoZoneCache = geoZoneCache ?? new GeoZoneCacheService(this.prisma);
     this.redisState = redisState ?? new RedisStateService();
@@ -671,9 +674,11 @@ export class RideService implements OnModuleInit {
         bidding_expires_at: trip.bidding_expires_at,
       });
     }
+    const matchingDurationMs = this.nowMs() - matchingStart;
     this.logger.log(
-      `requestTrip matching completed trip=${trip.id} candidates=${activeNearby.length} ranked=${prioritized.length} duration_ms=${this.nowMs() - matchingStart}`,
+      `requestTrip matching completed trip=${trip.id} candidates=${activeNearby.length} ranked=${prioritized.length} duration_ms=${matchingDurationMs}`,
     );
+    this.metrics?.observeMatchingDuration(matchingDurationMs);
     return trip;
   }
 

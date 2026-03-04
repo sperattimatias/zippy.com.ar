@@ -22,6 +22,8 @@ import { DriverGeoIndexService } from './ride/driver-geo-index.service';
 import { OutboxPublisherService } from './ride/outbox-publisher.service';
 import { OutboxConsumerService } from './ride/outbox-consumer.service';
 import { RedisModule } from './infra/redis/redis.module';
+import { MetricsController } from './metrics/metrics.controller';
+import { MetricsService } from './metrics/metrics.service';
 
 @Module({
   imports: [
@@ -51,7 +53,7 @@ import { RedisModule } from './infra/redis/redis.module';
     LoggerModule.forRoot(defaultPinoConfig),
     RedisModule,
   ],
-  controllers: [AppController, RideController],
+  controllers: [AppController, RideController, MetricsController],
   providers: [
     PrismaService,
     JwtAccessGuard,
@@ -67,6 +69,7 @@ import { RedisModule } from './infra/redis/redis.module';
     ScoreService,
     LevelAndBonusService,
     FraudService,
+    MetricsService,
   ],
 })
 export class AppModule {}

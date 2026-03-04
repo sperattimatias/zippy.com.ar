@@ -46,6 +46,7 @@ const makeStatefulPrisma = (rows: Row[]) => ({
       if (select?.id) return result.map((r) => ({ id: r.id }));
       return result.map((r) => ({ ...r }));
     }),
+    count: jest.fn().mockImplementation(({ where }: any = {}) => rows.filter((row) => matchesWhere(row, where)).length),
     updateMany: jest.fn().mockImplementation(({ where, data }: any) => {
       let count = 0;
       for (const row of rows) {
@@ -122,6 +123,7 @@ describe('OutboxPublisherService', () => {
     const prisma: any = {
       outboxEvent: {
         findMany: jest.fn(),
+        count: jest.fn(),
         updateMany: jest.fn(),
       },
     };

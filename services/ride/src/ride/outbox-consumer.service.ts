@@ -3,6 +3,7 @@ import { hostname } from 'os';
 import { Inject, Injectable, Logger, OnModuleInit, Optional } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { REDIS_CLIENT, RedisClient } from '../infra/redis/redis.types';
+import { MetricsService } from '../metrics/metrics.service';
 
 @Injectable()
 export class OutboxConsumerService implements OnModuleInit {
@@ -12,7 +13,10 @@ export class OutboxConsumerService implements OnModuleInit {
   private readonly consumer: string;
   private groupReady = false;
 
-  constructor(@Optional() @Inject(REDIS_CLIENT) private readonly redisClient: RedisClient | null = null) {
+  constructor(
+    @Optional() @Inject(REDIS_CLIENT) private readonly redisClient: RedisClient | null = null,
+    @Optional() private readonly metrics?: MetricsService,
+  ) {
     this.consumer = process.env.INSTANCE_ID ?? `${hostname()}-${randomUUID().slice(0, 8)}`;
   }
 
@@ -126,9 +130,23 @@ export class OutboxConsumerService implements OnModuleInit {
     }
   }
 
+  private async refreshPendingCount() {
+    const redis = this.redisClient;
+    if (!redis || !this.groupReady) return;
+    try {
+      const summary = (await redis.xpending(this.stream, this.group)) as [number, string, string, Array<[string, number]>] | null;
+      const total = Array.isArray(summary) ? Number(summary[0] ?? 0) : 0;
+      this.metrics?.setStreamPendingCount(Number.isFinite(total) ? total : 0);
+    } catch {
+      // ignore metrics refresh errors
+    }
+  }
+
   @Cron('*/10 * * * * *')
   async consumeStub() {
     await this.recoverPending();
     await this.consumeBatch();
+    await this.refreshPendingCount();
   }
 }
+

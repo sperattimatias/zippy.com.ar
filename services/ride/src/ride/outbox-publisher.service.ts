@@ -3,6 +3,7 @@ import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
 import { REDIS_CLIENT, RedisClient } from '../infra/redis/redis.types';
+import { MetricsService } from '../metrics/metrics.service';
 
 @Injectable()
 export class OutboxPublisherService {
@@ -15,6 +16,7 @@ export class OutboxPublisherService {
     private readonly prisma: PrismaService,
     @Optional() @Inject(REDIS_CLIENT) private readonly redisClient: RedisClient | null = null,
     instanceId?: string,
+    @Optional() private readonly metrics?: MetricsService,
   ) {
     this.instanceId = instanceId ?? process.env.INSTANCE_ID ?? randomUUID();
     this.leaseSeconds = this.parsePositiveInt(process.env.OUTBOX_LEASE_SECONDS, 60);
@@ -81,6 +83,8 @@ export class OutboxPublisherService {
 
     const effectiveLimit = limit === 50 ? this.batchSize : limit;
     const claimed = await this.claimPendingBatch(effectiveLimit, this.leaseSeconds);
+    const unpublishedCount = await this.prisma.outboxEvent.count({ where: { published_at: null } });
+    this.metrics?.setOutboxUnpublishedCount(unpublishedCount);
     for (const ev of claimed) {
       try {
         await redis.xadd(
@@ -106,6 +110,7 @@ export class OutboxPublisherService {
             locked_by: null,
           },
         });
+        this.metrics?.incOutboxPublish(true);
       } catch (error) {
         await this.prisma.outboxEvent.updateMany({
           where: {
@@ -119,6 +124,7 @@ export class OutboxPublisherService {
             locked_by: null,
           },
         });
+        this.metrics?.incOutboxPublish(false);
         this.logger.warn(`outbox publish failed id=${ev.id} err=${(error as Error).message}`);
       }
     }
