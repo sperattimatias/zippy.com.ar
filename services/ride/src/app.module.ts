@@ -45,6 +45,7 @@ import { RateLimitService } from './ride/rate-limit.service';
         REDIS_DB: Joi.number().integer().min(0).optional(),
         OUTBOX_LEASE_SECONDS: Joi.number().integer().min(1).default(60),
         OUTBOX_BATCH_SIZE: Joi.number().integer().min(1).default(50),
+        MAX_STREAM_RETRIES: Joi.number().integer().min(1).default(5),
         JWT_ACCESS_SECRET: Joi.string().min(32).required(),
         WS_CORS_ORIGINS: Joi.string().optional(),
       }),

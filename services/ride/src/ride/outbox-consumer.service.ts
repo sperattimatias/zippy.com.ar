@@ -10,6 +10,10 @@ export class OutboxConsumerService implements OnModuleInit {
   private readonly logger = new Logger(OutboxConsumerService.name);
   private readonly stream = 'stream:trip-events';
   private readonly group = 'trip-events-group';
+  private readonly dlqStream = 'stream:trip-events:dlq';
+  private readonly failuresHash = 'trip-events:failures';
+  private readonly failureTtlSeconds = 24 * 60 * 60;
+  private readonly maxRetries: number;
   private readonly consumer: string;
   private groupReady = false;
 
@@ -18,6 +22,14 @@ export class OutboxConsumerService implements OnModuleInit {
     @Optional() private readonly metrics?: MetricsService,
   ) {
     this.consumer = process.env.INSTANCE_ID ?? `${hostname()}-${randomUUID().slice(0, 8)}`;
+    this.maxRetries = this.parsePositiveInt(process.env.MAX_STREAM_RETRIES, 5);
+  }
+
+  private parsePositiveInt(value: string | undefined, fallback: number) {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed)) return fallback;
+    const normalized = Math.trunc(parsed);
+    return normalized > 0 ? normalized : fallback;
   }
 
   async onModuleInit() {
@@ -66,6 +78,31 @@ export class OutboxConsumerService implements OnModuleInit {
     }
   }
 
+  private async handleFailure(messageId: string, payload: Record<string, string>, errorMessage: string) {
+    const redis = this.redisClient;
+    if (!redis) return;
+
+    const retries = await redis.hincrby(this.failuresHash, messageId, 1);
+    await redis.expire(this.failuresHash, this.failureTtlSeconds);
+
+    if (retries < this.maxRetries) return;
+
+    await redis.xadd(
+      this.dlqStream,
+      '*',
+      'original_id',
+      messageId,
+      'error_message',
+      errorMessage,
+      'event_type',
+      payload.event_type ?? 'unknown',
+      'payload',
+      payload.payload ?? '',
+    );
+    await redis.xack(this.stream, this.group, messageId);
+    await redis.hdel(this.failuresHash, messageId);
+  }
+
   private async consumeEntries(entries: Array<[string, string[] | Record<string, string>]>) {
     const redis = this.redisClient;
     if (!redis) return;
@@ -75,8 +112,11 @@ export class OutboxConsumerService implements OnModuleInit {
       try {
         await this.routeEvent(messageId, payload);
         await redis.xack(this.stream, this.group, messageId);
+        await redis.hdel(this.failuresHash, messageId);
       } catch (error) {
-        this.logger.warn(`trip-events consume failed id=${messageId} err=${(error as Error).message}`);
+        const message = (error as Error).message;
+        this.logger.warn(`trip-events consume failed id=${messageId} err=${message}`);
+        await this.handleFailure(messageId, payload, message);
       }
     }
   }
@@ -134,7 +174,9 @@ export class OutboxConsumerService implements OnModuleInit {
     const redis = this.redisClient;
     if (!redis || !this.groupReady) return;
     try {
-      const summary = (await redis.xpending(this.stream, this.group)) as [number, string, string, Array<[string, number]>] | null;
+      const summary = (await redis.xpending(this.stream, this.group)) as
+        | [number, string, string, Array<[string, number]>]
+        | null;
       const total = Array.isArray(summary) ? Number(summary[0] ?? 0) : 0;
       this.metrics?.setStreamPendingCount(Number.isFinite(total) ? total : 0);
     } catch {
@@ -149,4 +191,3 @@ export class OutboxConsumerService implements OnModuleInit {
     await this.refreshPendingCount();
   }
 }
-
