@@ -17,8 +17,7 @@ describe('OutboxPublisherService', () => {
       },
     };
 
-    const service = new OutboxPublisherService(prisma);
-    (service as any).getRedisClient = jest.fn().mockResolvedValue({ xadd });
+    const service = new OutboxPublisherService(prisma, { xadd } as any);
 
     await service.publishPendingBatch(10);
 
@@ -55,10 +54,10 @@ describe('OutboxPublisherService', () => {
       },
     };
 
-    const service = new OutboxPublisherService(prisma);
-    (service as any).getRedisClient = jest.fn().mockResolvedValue({
-      xadd: jest.fn().mockRejectedValue(new Error('boom')),
-    });
+    const service = new OutboxPublisherService(
+      prisma,
+      { xadd: jest.fn().mockRejectedValue(new Error('boom')) } as any,
+    );
 
     await service.publishPendingBatch(10);
 
@@ -76,8 +75,7 @@ describe('OutboxPublisherService', () => {
       },
     };
 
-    const service = new OutboxPublisherService(prisma);
-    (service as any).getRedisClient = jest.fn().mockResolvedValue(null);
+    const service = new OutboxPublisherService(prisma, null);
 
     await expect(service.publishPendingBatch(10)).resolves.toBeUndefined();
     expect(prisma.outboxEvent.findMany).not.toHaveBeenCalled();

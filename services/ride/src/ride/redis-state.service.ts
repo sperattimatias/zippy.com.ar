@@ -1,4 +1,5 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
+import { REDIS_CLIENT, RedisClient } from '../infra/redis/redis.types';
 
 type TrackingState = 'none' | 'minor' | 'major';
 type DeviationWindowState = { over300Since?: number; over700Since?: number; majorCount: number };
@@ -7,34 +8,9 @@ type FallbackEntry = { value: string; expiresAt: number };
 
 @Injectable()
 export class RedisStateService {
-  private readonly logger = new Logger(RedisStateService.name);
   private readonly fallback = new Map<string, FallbackEntry>();
-  private redisClient: any | null = null;
-  private redisDisabled = false;
 
-  private async getRedisClient(): Promise<any | null> {
-    if (this.redisDisabled) return null;
-    if (this.redisClient) return this.redisClient;
-    const redisUrl = process.env.REDIS_URL;
-    if (!redisUrl) {
-      this.redisDisabled = true;
-      return null;
-    }
-
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const Redis = require('ioredis');
-      const client = new Redis(redisUrl, { lazyConnect: true, maxRetriesPerRequest: 1, enableOfflineQueue: false });
-      await client.connect();
-      this.redisClient = client;
-      return client;
-    } catch (error) {
-      this.redisDisabled = true;
-      this.logger.warn(`Redis unavailable, using in-memory fallback: ${(error as Error).message}`);
-      return null;
-    }
-  }
-
+  constructor(@Optional() @Inject(REDIS_CLIENT) private readonly redisClient: RedisClient | null = null) {}
   private setFallback(key: string, value: string, ttlMs: number) {
     this.fallback.set(key, { value, expiresAt: Date.now() + ttlMs });
   }
@@ -58,7 +34,7 @@ export class RedisStateService {
    */
   async tryAcquireLocationThrottle(tripId: string, driverUserId: string, ttlSeconds = 2): Promise<boolean> {
     const key = `throttle:location:${tripId}:${driverUserId}`;
-    const redis = await this.getRedisClient();
+    const redis = this.redisClient;
     if (redis) {
       try {
         const result = await redis.set(key, '1', 'EX', ttlSeconds, 'NX');
@@ -76,7 +52,7 @@ export class RedisStateService {
 
   async getTrackingState(tripId: string): Promise<TrackingState> {
     const key = `tracking:state:${tripId}`;
-    const redis = await this.getRedisClient();
+    const redis = this.redisClient;
     if (redis) {
       try {
         const value = await redis.get(key);
@@ -91,7 +67,7 @@ export class RedisStateService {
 
   async setTrackingState(tripId: string, state: TrackingState, ttlSeconds = 7200): Promise<void> {
     const key = `tracking:state:${tripId}`;
-    const redis = await this.getRedisClient();
+    const redis = this.redisClient;
     if (redis) {
       try {
         await redis.set(key, state, 'EX', ttlSeconds);
@@ -105,7 +81,7 @@ export class RedisStateService {
 
   async getDeviationWindow(tripId: string): Promise<DeviationWindowState> {
     const key = `tracking:window:${tripId}`;
-    const redis = await this.getRedisClient();
+    const redis = this.redisClient;
     if (redis) {
       try {
         const raw = await redis.get(key);
@@ -126,7 +102,7 @@ export class RedisStateService {
   async setDeviationWindow(tripId: string, state: DeviationWindowState, ttlSeconds = 1800): Promise<void> {
     const key = `tracking:window:${tripId}`;
     const payload = JSON.stringify(state);
-    const redis = await this.getRedisClient();
+    const redis = this.redisClient;
     if (redis) {
       try {
         await redis.set(key, payload, 'EX', ttlSeconds);
@@ -140,7 +116,7 @@ export class RedisStateService {
 
   async clearTripTrackingState(tripId: string): Promise<void> {
     const keys = [`tracking:state:${tripId}`, `tracking:window:${tripId}`];
-    const redis = await this.getRedisClient();
+    const redis = this.redisClient;
     if (redis) {
       try {
         await redis.del(...keys);
@@ -157,7 +133,7 @@ export class RedisStateService {
    */
   async getDriverAssignments15m(driverUserId: string): Promise<number | null> {
     const key = `driver:assignments:15m:${driverUserId}`;
-    const redis = await this.getRedisClient();
+    const redis = this.redisClient;
     if (!redis) return null;
     try {
       const value = await redis.get(key);
@@ -169,7 +145,7 @@ export class RedisStateService {
 
   async incrementDriverAssignments15m(driverUserId: string): Promise<boolean> {
     const key = `driver:assignments:15m:${driverUserId}`;
-    const redis = await this.getRedisClient();
+    const redis = this.redisClient;
     if (!redis) return false;
     try {
       const count = await redis.incr(key);

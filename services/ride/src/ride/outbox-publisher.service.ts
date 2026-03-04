@@ -1,44 +1,23 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
+import { REDIS_CLIENT, RedisClient } from '../infra/redis/redis.types';
 
 @Injectable()
 export class OutboxPublisherService {
   private readonly logger = new Logger(OutboxPublisherService.name);
-  private redisClient: any | null = null;
-  private redisDisabled = false;
 
-  constructor(private readonly prisma: PrismaService) {}
-
-  private async getRedisClient(): Promise<any | null> {
-    if (this.redisDisabled) return null;
-    if (this.redisClient) return this.redisClient;
-    const redisUrl = process.env.REDIS_URL;
-    if (!redisUrl) {
-      this.redisDisabled = true;
-      return null;
-    }
-
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const Redis = require('ioredis');
-      const client = new Redis(redisUrl, { lazyConnect: true, maxRetriesPerRequest: 1, enableOfflineQueue: false });
-      await client.connect();
-      this.redisClient = client;
-      return client;
-    } catch (error) {
-      this.redisDisabled = true;
-      this.logger.warn(`Outbox publisher Redis unavailable: ${(error as Error).message}`);
-      return null;
-    }
-  }
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() @Inject(REDIS_CLIENT) private readonly redisClient: RedisClient | null = null,
+  ) {}
 
   /**
    * Publishes OutboxEvent rows to Redis Stream `stream:trip-events`
    * with fields: event_type, aggregate_id, payload.
    */
   async publishPendingBatch(limit = 50) {
-    const redis = await this.getRedisClient();
+    const redis = this.redisClient;
     if (!redis) return;
 
     const pending = await this.prisma.outboxEvent.findMany({

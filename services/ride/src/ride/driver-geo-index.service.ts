@@ -1,4 +1,5 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
+import { REDIS_CLIENT, RedisClient } from '../infra/redis/redis.types';
 
 type NearbyQuery = {
   lat: number;
@@ -10,32 +11,8 @@ type NearbyQuery = {
 @Injectable()
 export class DriverGeoIndexService {
   private readonly logger = new Logger(DriverGeoIndexService.name);
-  private redisClient: any | null = null;
-  private redisDisabled = false;
 
-  private async getRedisClient(): Promise<any | null> {
-    if (this.redisDisabled) return null;
-    if (this.redisClient) return this.redisClient;
-
-    const redisUrl = process.env.REDIS_URL;
-    if (!redisUrl) {
-      this.redisDisabled = true;
-      return null;
-    }
-
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const Redis = require('ioredis');
-      const client = new Redis(redisUrl, { lazyConnect: true, maxRetriesPerRequest: 1, enableOfflineQueue: false });
-      await client.connect();
-      this.redisClient = client;
-      return client;
-    } catch (error) {
-      this.redisDisabled = true;
-      this.logger.warn(`Driver GEO Redis unavailable: ${(error as Error).message}`);
-      return null;
-    }
-  }
+  constructor(@Optional() @Inject(REDIS_CLIENT) private readonly redisClient: RedisClient | null = null) {}
 
   /**
    * Redis GEO driver index keys:
@@ -43,32 +20,41 @@ export class DriverGeoIndexService {
    * - Alive key: drivers:geo:alive:<driverUserId> (TTL 45s)
    */
   async upsert(driverUserId: string, lat: number, lng: number): Promise<void> {
-    const redis = await this.getRedisClient();
+    const redis = this.redisClient;
     if (!redis) return;
 
-    await redis.geoadd('drivers:geo', lng, lat, driverUserId);
-    await redis.set(`drivers:geo:alive:${driverUserId}`, '1', 'EX', 45);
+    try {
+      await redis.geoadd('drivers:geo', lng, lat, driverUserId);
+      await redis.set(`drivers:geo:alive:${driverUserId}`, '1', 'EX', 45);
+    } catch (error) {
+      this.logger.warn(`Driver GEO upsert failed: ${(error as Error).message}`);
+    }
   }
 
   async findNearby(input: NearbyQuery): Promise<string[]> {
-    const redis = await this.getRedisClient();
+    const redis = this.redisClient;
     if (!redis) return [];
 
-    const ids = (await redis.georadius(
-      'drivers:geo',
-      input.lng,
-      input.lat,
-      input.radiusMeters,
-      'm',
-      'COUNT',
-      input.limit,
-      'ASC',
-    )) as string[];
+    try {
+      const ids = (await redis.georadius(
+        'drivers:geo',
+        input.lng,
+        input.lat,
+        input.radiusMeters,
+        'm',
+        'COUNT',
+        input.limit,
+        'ASC',
+      )) as string[];
 
-    if (!ids.length) return [];
+      if (!ids.length) return [];
 
-    const aliveKeys = ids.map((id) => `drivers:geo:alive:${id}`);
-    const aliveValues = (await redis.mget(aliveKeys)) as Array<string | null>;
-    return ids.filter((_, idx) => aliveValues[idx] === '1');
+      const aliveKeys = ids.map((id) => `drivers:geo:alive:${id}`);
+      const aliveValues = (await redis.mget(aliveKeys)) as Array<string | null>;
+      return ids.filter((_, idx) => aliveValues[idx] === '1');
+    } catch (error) {
+      this.logger.warn(`Driver GEO lookup failed: ${(error as Error).message}`);
+      throw error;
+    }
   }
 }

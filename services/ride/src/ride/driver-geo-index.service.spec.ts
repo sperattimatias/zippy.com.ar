@@ -6,8 +6,7 @@ describe('DriverGeoIndexService', () => {
       geoadd: jest.fn().mockResolvedValue(1),
       set: jest.fn().mockResolvedValue('OK'),
     };
-    const svc = new DriverGeoIndexService();
-    (svc as any).redisClient = redis;
+    const svc = new DriverGeoIndexService(redis as any);
 
     await svc.upsert('d1', -34.6, -58.4);
 
@@ -20,8 +19,7 @@ describe('DriverGeoIndexService', () => {
       georadius: jest.fn().mockResolvedValue(['d1', 'd2', 'd3']),
       mget: jest.fn().mockResolvedValue(['1', null, '1']),
     };
-    const svc = new DriverGeoIndexService();
-    (svc as any).redisClient = redis;
+    const svc = new DriverGeoIndexService(redis as any);
 
     const ids = await svc.findNearby({ lat: -34.6, lng: -58.4, radiusMeters: 5000, limit: 10 });
 
