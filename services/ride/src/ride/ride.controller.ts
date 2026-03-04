@@ -10,6 +10,7 @@ import {
   Query,
   Req,
   UseGuards,
+  Optional,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { JwtAccessGuard } from '../common/jwt-access.guard';
@@ -45,6 +46,7 @@ import {
   FraudCaseActionDto,
   CreateHoldDto,
 } from '../dto/ride.dto';
+import { MetricsService } from '../metrics/metrics.service';
 
 type AuthReq = { user: { sub: string; roles: string[] } };
 
@@ -53,7 +55,10 @@ type AuthReq = { user: { sub: string; roles: string[] } };
 @Controller()
 @UseGuards(JwtAccessGuard, RolesGuard)
 export class RideController {
-  constructor(private readonly rideService: RideService) {}
+  constructor(
+    private readonly rideService: RideService,
+    @Optional() private readonly metrics?: MetricsService,
+  ) {}
 
   @Get('public/badges/me')
   myBadge(@Req() req: AuthReq, @Query() query: AdminScoreActorDto) {
@@ -86,12 +91,20 @@ export class RideController {
 
   @Post('trips/request')
   @Roles('passenger')
-  requestTrip(@Req() req: any, @Body() dto: TripRequestDto) {
-    return this.rideService.requestTrip(req.user.sub, dto, {
-      ip: req.headers['x-client-ip'] as string | undefined,
-      ua: req.headers['x-client-ua'] as string | undefined,
-      device: req.headers['x-device-fp'] as string | undefined,
-    });
+  async requestTrip(@Req() req: any, @Body() dto: TripRequestDto) {
+    const startedAt = Date.now();
+    try {
+      const result = await this.rideService.requestTrip(req.user.sub, dto, {
+        ip: req.headers['x-client-ip'] as string | undefined,
+        ua: req.headers['x-client-ua'] as string | undefined,
+        device: req.headers['x-device-fp'] as string | undefined,
+      });
+      this.metrics?.observeRideRequest('success', Date.now() - startedAt);
+      return result;
+    } catch (error) {
+      this.metrics?.observeRideRequest('fail', Date.now() - startedAt);
+      throw error;
+    }
   }
 
   @Post('trips/:id/bids')
@@ -106,8 +119,16 @@ export class RideController {
 
   @Post('trips/:id/accept-bid')
   @Roles('passenger')
-  acceptBid(@Req() req: AuthReq, @Param('id') id: string, @Body() dto: AcceptBidDto) {
-    return this.rideService.acceptBid(id, req.user.sub, dto);
+  async acceptBid(@Req() req: AuthReq, @Param('id') id: string, @Body() dto: AcceptBidDto) {
+    const startedAt = Date.now();
+    try {
+      const result = await this.rideService.acceptBid(id, req.user.sub, dto);
+      this.metrics?.observeMatchingDuration(Date.now() - startedAt);
+      return result;
+    } catch (error) {
+      this.metrics?.observeMatchingDuration(Date.now() - startedAt);
+      throw error;
+    }
   }
 
   @Post('trips/:id/driver/en-route')

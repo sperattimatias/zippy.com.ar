@@ -241,9 +241,11 @@ model TripBid {
   eta_to_pickup_minutes  Int?
   status                 TripBidStatus @default(PENDING)
   created_at             DateTime      @default(now())
+  updated_at             DateTime      @updatedAt
 
   trip Trip @relation(fields: [trip_id], references: [id], onDelete: Cascade)
 
+  @@unique([trip_id, driver_user_id])
   @@index([trip_id])
   @@index([driver_user_id])
   @@index([trip_id, price_offer])
@@ -287,6 +289,24 @@ model TripEvent {
   trip Trip @relation(fields: [trip_id], references: [id], onDelete: Cascade)
 
   @@index([trip_id, created_at])
+}
+
+
+model OutboxEvent {
+  id             String   @id @default(uuid())
+  aggregate_type String
+  aggregate_id   String
+  event_type     String
+  payload_json   Json
+  created_at     DateTime @default(now())
+  published_at   DateTime?
+  locked_at      DateTime?
+  locked_by      String?
+  attempts       Int      @default(0)
+
+  @@index([published_at, created_at])
+  @@index([published_at, locked_at, created_at])
+  @@index([aggregate_type, aggregate_id, created_at])
 }
 
 model TripOTP {
