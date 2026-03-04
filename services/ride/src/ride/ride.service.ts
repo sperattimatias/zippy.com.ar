@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
+  HttpException,
   Injectable,
   Logger,
   NotFoundException,
@@ -39,6 +40,7 @@ import { GeoZoneCacheService } from './geozone-cache.service';
 import { RedisStateService } from './redis-state.service';
 import { DriverGeoIndexService } from './driver-geo-index.service';
 import { MetricsService } from '../metrics/metrics.service';
+import { RateLimitService } from './rate-limit.service';
 import {
   AcceptBidDto,
   CancelDto,
@@ -61,6 +63,7 @@ export class RideService implements OnModuleInit {
   private readonly geoZoneCache: GeoZoneCacheService;
   private readonly redisState: RedisStateService;
   private readonly driverGeoIndex: DriverGeoIndexService;
+  private readonly rateLimit: RateLimitService;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -73,10 +76,12 @@ export class RideService implements OnModuleInit {
     redisState?: RedisStateService,
     driverGeoIndex?: DriverGeoIndexService,
     @Optional() private readonly metrics?: MetricsService,
+    rateLimit?: RateLimitService,
   ) {
     this.geoZoneCache = geoZoneCache ?? new GeoZoneCacheService(this.prisma);
     this.redisState = redisState ?? new RedisStateService();
     this.driverGeoIndex = driverGeoIndex ?? new DriverGeoIndexService();
+    this.rateLimit = rateLimit ?? new RateLimitService();
   }
 
   onModuleInit() {
@@ -405,6 +410,9 @@ export class RideService implements OnModuleInit {
     return { message: 'offline' };
   }
   async presencePing(driverUserId: string, dto: PresencePingDto) {
+    const pingAllowed = await this.rateLimit.isAllowed(`rl:presence_ping:${driverUserId}`, 1, 5);
+    if (!pingAllowed) throw new HttpException('Rate limit exceeded', 429);
+
     await this.prisma.driverPresence.updateMany({
       where: { driver_user_id: driverUserId },
       data: { last_lat: dto.lat, last_lng: dto.lng, last_seen_at: new Date() },
@@ -688,6 +696,9 @@ export class RideService implements OnModuleInit {
     dto: CreateBidDto,
     headers?: { ip?: string; ua?: string; device?: string },
   ) {
+    const bidAllowed = await this.rateLimit.isAllowed(`rl:create_bid:${driverUserId}:${tripId}`, 3, 10);
+    if (!bidAllowed) throw new HttpException('Rate limit exceeded', 429);
+
     const trip = await this.prisma.trip.findUnique({ where: { id: tripId } });
     if (!trip) throw new NotFoundException('Trip not found');
     if (trip.status !== TripStatus.BIDDING) throw new BadRequestException('Trip is not in bidding');
@@ -983,6 +994,9 @@ export class RideService implements OnModuleInit {
   }
 
   async trackLocation(tripId: string, driverUserId: string, dto: LocationDto) {
+    const locationAllowed = await this.rateLimit.isAllowed(`rl:track_location:${driverUserId}:${tripId}`, 1, 2);
+    if (!locationAllowed) throw new HttpException('Rate limit exceeded', 429);
+
     const trip = await this.getTripForDriver(tripId, driverUserId);
     const allowedStatuses: TripStatus[] = [TripStatus.DRIVER_EN_ROUTE, TripStatus.IN_PROGRESS];
     if (!allowedStatuses.includes(trip.status))

@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, HttpException } from '@nestjs/common';
 import {
   ActorType,
   FraudSeverity,
@@ -41,6 +41,65 @@ describe('RideService antifraud hardening', () => {
     ).rejects.toBeInstanceOf(ForbiddenException);
   });
 
+
+
+  it('presencePing is rate limited per driver', async () => {
+    const prisma: any = { driverPresence: { updateMany: jest.fn() } };
+    const limiter: any = { isAllowed: jest.fn().mockResolvedValue(false) };
+    const service = new RideService(
+      prisma,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      fraudMock() as any,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      limiter,
+    );
+
+    await expect(service.presencePing('d1', { lat: 0, lng: 0 })).rejects.toMatchObject({ status: 429 });
+  });
+
+  it('createBid is rate limited per (driver,trip)', async () => {
+    const limiter: any = { isAllowed: jest.fn().mockResolvedValue(false) };
+    const service = new RideService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      fraudMock() as any,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      limiter,
+    );
+
+    await expect(service.createBid('t1', 'd1', { price_offer: 1000 }, {})).rejects.toMatchObject({ status: 429 });
+  });
+
+  it('trackLocation is rate limited per (driver,trip)', async () => {
+    const limiter: any = { isAllowed: jest.fn().mockResolvedValue(false) };
+    const service = new RideService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      fraudMock() as any,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      limiter,
+    );
+
+    await expect(service.trackLocation('t1', 'd1', { lat: 0, lng: 0 })).rejects.toMatchObject({ status: 429 });
+  });
   it('createBid captures fingerprint and requires mp account', async () => {
     const fraud = fraudMock();
     const prisma: any = {
@@ -391,6 +450,9 @@ describe('RideService antifraud hardening', () => {
       fraudMock() as any,
       geozoneCache,
       redisState,
+      undefined,
+      undefined,
+      { isAllowed: jest.fn().mockResolvedValue(true) } as any,
     );
     await service.trackLocation('t1', 'd1', { lat: 0, lng: 0 });
     await service.trackLocation('t1', 'd1', { lat: 0.01, lng: 0.01 });

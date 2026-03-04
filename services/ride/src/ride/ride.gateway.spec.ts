@@ -6,6 +6,7 @@ import { Test } from '@nestjs/testing';
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { RideGateway } from './ride.gateway';
+import { RateLimitService } from './rate-limit.service';
 
 type PollingClient = {
   sid: string;
@@ -19,6 +20,8 @@ describe('RideGateway subscribeTrip integration', () => {
   let jwt: JwtService;
   let gateway: RideGateway;
 
+  const rateLimitMock = { isAllowed: jest.fn().mockResolvedValue(true) };
+
   const prismaMock = {
     trip: {
       findUnique: jest.fn(),
@@ -31,6 +34,7 @@ describe('RideGateway subscribeTrip integration', () => {
         RideGateway,
         JwtService,
         { provide: PrismaService, useValue: prismaMock },
+        { provide: RateLimitService, useValue: rateLimitMock },
         {
           provide: ConfigService,
           useValue: {
@@ -59,6 +63,7 @@ describe('RideGateway subscribeTrip integration', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    rateLimitMock.isAllowed.mockResolvedValue(true);
     prismaMock.trip.findUnique.mockResolvedValue({
       id: 'trip-1',
       passenger_user_id: 'passenger-1',
@@ -208,5 +213,14 @@ describe('RideGateway subscribeTrip integration', () => {
       where: { id: 'trip-1' },
       select: { id: true, passenger_user_id: true, driver_user_id: true },
     });
+  });
+
+
+  it('rate-limited user gets RATE_LIMIT ACK on subscribeTrip', async () => {
+    rateLimitMock.isAllowed.mockResolvedValue(false);
+    const passenger = await connectPollingClient('passenger-1');
+
+    const ack = await emitSubscribeTripWithAck(passenger, 'trip-1');
+    expect(ack).toMatchObject({ ok: false, error: { code: 'RATE_LIMIT' } });
   });
 });

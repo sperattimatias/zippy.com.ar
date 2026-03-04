@@ -24,6 +24,7 @@ import { OutboxConsumerService } from './ride/outbox-consumer.service';
 import { RedisModule } from './infra/redis/redis.module';
 import { MetricsController } from './metrics/metrics.controller';
 import { MetricsService } from './metrics/metrics.service';
+import { RateLimitService } from './ride/rate-limit.service';
 
 @Module({
   imports: [
@@ -70,6 +71,7 @@ import { MetricsService } from './metrics/metrics.service';
     LevelAndBonusService,
     FraudService,
     MetricsService,
+    RateLimitService,
   ],
 })
 export class AppModule {}

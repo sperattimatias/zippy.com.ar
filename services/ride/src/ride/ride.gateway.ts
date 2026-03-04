@@ -15,6 +15,7 @@ import { Server, Socket } from 'socket.io';
 import { PrismaService } from '../prisma/prisma.service';
 import { getWsCorsOptions } from './ws-cors.config';
 import { MetricsService } from '../metrics/metrics.service';
+import { RateLimitService } from './rate-limit.service';
 
 type SubscribeTripPayload = {
   tripId?: string;
@@ -25,7 +26,7 @@ type SubscribeTripAck =
   | {
       ok: false;
       error: {
-        code: 'FORBIDDEN' | 'NOT_FOUND' | 'BAD_REQUEST' | 'INTERNAL';
+        code: 'FORBIDDEN' | 'NOT_FOUND' | 'BAD_REQUEST' | 'INTERNAL' | 'RATE_LIMIT';
         message: string;
       };
     };
@@ -41,6 +42,7 @@ export class RideGateway implements OnGatewayConnection, OnGatewayDisconnect {
     private readonly config: ConfigService,
     private readonly prisma: PrismaService,
     @Optional() private readonly metrics?: MetricsService,
+    @Optional() private readonly rateLimit?: RateLimitService,
   ) {}
 
   async handleConnection(client: Socket) {
@@ -84,6 +86,13 @@ export class RideGateway implements OnGatewayConnection, OnGatewayDisconnect {
     const userId = (client.data as { user?: { sub?: string } })?.user?.sub;
 
     this.logger.log(`trip subscription attempt socket=${client.id} user=${userId ?? 'unknown'} trip=${tripId}`);
+
+    const limitKey = `rl:ws_subscribe_trip:${userId ?? 'anonymous'}`;
+    const subscribeAllowed = await this.rateLimit?.isAllowed(limitKey, 5, 60);
+    if (subscribeAllowed === false) {
+      this.metrics?.incWsSubscribeTrip(false);
+      return { ok: false, error: { code: 'RATE_LIMIT', message: 'Rate limit exceeded' } };
+    }
 
     if (!userId) {
       this.logger.warn(`trip subscription rejected socket=${client.id} reason=missing-user`);
