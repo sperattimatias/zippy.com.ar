@@ -1,9 +1,10 @@
-import { BadRequestException, ForbiddenException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
 import {
   ActorType,
   FraudSeverity,
   FraudSignalType,
   RestrictionStatus,
+  TripBidStatus,
   TripStatus,
 } from '@prisma/client';
 import { RideService } from './ride.service';
@@ -71,6 +72,132 @@ describe('RideService antifraud hardening', () => {
     );
   });
 
+
+
+  it('createBid upserts when the same driver bids twice on one trip', async () => {
+    const fraud = fraudMock();
+    const ws: any = { emitTrip: jest.fn() };
+    const bids = new Map<string, any>();
+
+    const prisma: any = {
+      trip: {
+        findUnique: jest
+          .fn()
+          .mockResolvedValue({ id: 't1', status: TripStatus.BIDDING, price_base: 1000 }),
+      },
+      driverPresence: {
+        findUnique: jest.fn().mockResolvedValue({ is_online: true, last_seen_at: new Date() }),
+      },
+      externalDriverProfile: { findUnique: jest.fn().mockResolvedValue({ mp_account_id: 'mp_1' }) },
+      tripBid: {
+        upsert: jest.fn().mockImplementation(({ where, update, create }: any) => {
+          const key = `${where.trip_id_driver_user_id.trip_id}:${where.trip_id_driver_user_id.driver_user_id}`;
+          const existing = bids.get(key);
+          if (existing) {
+            const next = { ...existing, ...update, updated_at: new Date() };
+            bids.set(key, next);
+            return Promise.resolve(next);
+          }
+          const created = {
+            id: 'bid-1',
+            status: 'PENDING',
+            created_at: new Date(),
+            updated_at: new Date(),
+            ...create,
+          };
+          bids.set(key, created);
+          return Promise.resolve(created);
+        }),
+      },
+      tripEvent: { create: jest.fn().mockResolvedValue({}) },
+    };
+
+    const service = new RideService(prisma, ws, {} as any, {} as any, {} as any, fraud as any);
+
+    const first = await service.createBid('t1', 'd1', { price_offer: 900, eta_to_pickup_minutes: 6 }, {});
+    const second = await service.createBid('t1', 'd1', { price_offer: 1100, eta_to_pickup_minutes: 4 }, {});
+
+    expect(first.id).toBe(second.id);
+    expect(second.price_offer).toBe(1100);
+    expect(second.eta_to_pickup_minutes).toBe(4);
+    expect(prisma.tripBid.upsert).toHaveBeenCalledTimes(2);
+  });
+
+  it('createBid keeps exactly one bid row per (trip, driver)', async () => {
+    const bids = new Map<string, any>();
+    const prisma: any = {
+      trip: {
+        findUnique: jest
+          .fn()
+          .mockResolvedValue({ id: 't1', status: TripStatus.BIDDING, price_base: 1000 }),
+      },
+      driverPresence: {
+        findUnique: jest.fn().mockResolvedValue({ is_online: true, last_seen_at: new Date() }),
+      },
+      externalDriverProfile: { findUnique: jest.fn().mockResolvedValue({ mp_account_id: 'mp_1' }) },
+      tripBid: {
+        upsert: jest.fn().mockImplementation(({ where, update, create }: any) => {
+          const key = `${where.trip_id_driver_user_id.trip_id}:${where.trip_id_driver_user_id.driver_user_id}`;
+          const existing = bids.get(key);
+          if (existing) {
+            const next = { ...existing, ...update, updated_at: new Date() };
+            bids.set(key, next);
+            return Promise.resolve(next);
+          }
+          const created = { id: `bid-${bids.size + 1}`, ...create, created_at: new Date(), updated_at: new Date() };
+          bids.set(key, created);
+          return Promise.resolve(created);
+        }),
+      },
+      tripEvent: { create: jest.fn().mockResolvedValue({}) },
+    };
+    const service = new RideService(
+      prisma,
+      { emitTrip: jest.fn() } as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      fraudMock() as any,
+    );
+
+    await service.createBid('t1', 'd1', { price_offer: 900, eta_to_pickup_minutes: 5 }, {});
+    await service.createBid('t1', 'd1', { price_offer: 920, eta_to_pickup_minutes: 4 }, {});
+
+    expect(bids.size).toBe(1);
+    expect(Array.from(bids.values())[0].price_offer).toBe(920);
+  });
+
+
+
+  it('createBid maps Prisma uniqueness races to BadRequestException', async () => {
+    const prisma: any = {
+      trip: {
+        findUnique: jest
+          .fn()
+          .mockResolvedValue({ id: 't1', status: TripStatus.BIDDING, price_base: 1000 }),
+      },
+      driverPresence: {
+        findUnique: jest.fn().mockResolvedValue({ is_online: true, last_seen_at: new Date() }),
+      },
+      externalDriverProfile: { findUnique: jest.fn().mockResolvedValue({ mp_account_id: 'mp_1' }) },
+      tripBid: {
+        upsert: jest.fn().mockRejectedValue({ code: 'P2002' }),
+      },
+    };
+    const service = new RideService(
+      prisma,
+      { emitTrip: jest.fn() } as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      fraudMock() as any,
+    );
+
+    await expect(service.createBid('t1', 'd1', { price_offer: 1000 }, {})).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+  });
+
   it('repeated pair with low-distance clustered trips creates HIGH signal', async () => {
     const fraud = fraudMock();
     const prisma: any = {
@@ -95,6 +222,7 @@ describe('RideService antifraud hardening', () => {
         ),
         count: jest.fn().mockResolvedValue(7),
       },
+      tripEvent: { create: jest.fn().mockResolvedValue({}) },
       appConfig: {
         findUnique: jest.fn().mockResolvedValue({
           value_json: {
@@ -129,6 +257,96 @@ describe('RideService antifraud hardening', () => {
         score_delta: 25,
       }),
     );
+  });
+
+
+
+  it('acceptBid allows only one winner under concurrent requests', async () => {
+    const tripState: any = {
+      id: 't1',
+      passenger_user_id: 'p1',
+      status: TripStatus.BIDDING,
+      driver_user_id: null,
+      price_final: null,
+      matched_at: null,
+    };
+    const bids = {
+      b1: {
+        id: 'b1',
+        trip_id: 't1',
+        driver_user_id: 'd1',
+        price_offer: 1000,
+        status: TripBidStatus.PENDING,
+      },
+      b2: {
+        id: 'b2',
+        trip_id: 't1',
+        driver_user_id: 'd2',
+        price_offer: 980,
+        status: TripBidStatus.PENDING,
+      },
+    } as Record<string, any>;
+
+    const prisma: any = {
+      $transaction: async (cb: any) => cb(prisma),
+      trip: {
+        findUnique: jest.fn(async ({ where }: any) => {
+          if (where.id !== 't1') return null;
+          return { ...tripState };
+        }),
+        updateMany: jest.fn(async ({ where, data }: any) => {
+          if (where.id !== 't1') return { count: 0 };
+          if (tripState.status !== where.status) return { count: 0 };
+          Object.assign(tripState, data);
+          return { count: 1 };
+        }),
+      },
+      tripBid: {
+        findUnique: jest.fn(async ({ where }: any) => {
+          const bid = bids[where.id];
+          return bid ? { ...bid } : null;
+        }),
+        updateMany: jest.fn(async ({ where, data }: any) => {
+          for (const bid of Object.values(bids)) {
+            if (bid.trip_id === where.trip_id && bid.id !== where.id?.not && bid.status === where.status) {
+              Object.assign(bid, data);
+            }
+          }
+          return { count: 1 };
+        }),
+        update: jest.fn(async ({ where, data }: any) => {
+          Object.assign(bids[where.id], data);
+          return { ...bids[where.id] };
+        }),
+      },
+      tripEvent: { create: jest.fn().mockResolvedValue({}) },
+    };
+
+    const ws: any = { emitTrip: jest.fn(), emitToDriver: jest.fn() };
+    const service = new RideService(
+      prisma,
+      ws,
+      {} as any,
+      {} as any,
+      {} as any,
+      fraudMock() as any,
+    );
+
+    const [r1, r2] = await Promise.allSettled([
+      service.acceptBid('t1', 'p1', { bid_id: 'b1' }),
+      service.acceptBid('t1', 'p1', { bid_id: 'b2' }),
+    ]);
+
+    const fulfilled = [r1, r2].filter((r) => r.status === 'fulfilled');
+    const rejected = [r1, r2].filter((r) => r.status === 'rejected') as PromiseRejectedResult[];
+
+    expect(fulfilled).toHaveLength(1);
+    expect(rejected).toHaveLength(1);
+    expect(rejected[0].reason).toBeInstanceOf(ConflictException);
+    expect(tripState.status).toBe(TripStatus.MATCHED);
+    expect(Object.values(bids).filter((b: any) => b.status === TripBidStatus.ACCEPTED)).toHaveLength(1);
+    expect(ws.emitTrip).toHaveBeenCalledTimes(1);
+    expect(ws.emitToDriver).toHaveBeenCalledTimes(1);
   });
 
   it('invalid FSM transition fails', async () => {
@@ -182,6 +400,7 @@ describe('RideService antifraud hardening', () => {
       },
       appConfig: { findUnique: jest.fn().mockResolvedValue(null) },
       scoreEvent: { count: jest.fn().mockResolvedValue(0) },
+      userHold: { findFirst: jest.fn().mockResolvedValue(null) },
     };
     const service = new RideService(
       prisma,
