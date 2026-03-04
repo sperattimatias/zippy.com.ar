@@ -23,9 +23,67 @@ const fraudMock = () => ({
   releaseHold: jest.fn(),
 });
 
+const defaultGeoZoneCache = () => ({
+  getActiveZones: jest.fn().mockResolvedValue([]),
+  isInsideAnyZone: jest.fn().mockResolvedValue(false),
+  invalidate: jest.fn(),
+});
+
+const defaultRedisState = () => ({
+  getDriverAssignments15m: jest.fn().mockResolvedValue(0),
+  incrementDriverAssignments15m: jest.fn().mockResolvedValue(1),
+  tryAcquireLocationThrottle: jest.fn().mockResolvedValue(true),
+  getDeviationWindow: jest.fn().mockResolvedValue(null),
+  setDeviationWindow: jest.fn().mockResolvedValue(undefined),
+  getTrackingState: jest.fn().mockResolvedValue('none'),
+  setTrackingState: jest.fn().mockResolvedValue(undefined),
+  clearTripTrackingState: jest.fn().mockResolvedValue(undefined),
+});
+
+const defaultDriverGeoIndex = () => ({
+  findNearby: jest.fn().mockResolvedValue([]),
+  upsertDriverLocation: jest.fn().mockResolvedValue(undefined),
+  setDriverAlive: jest.fn().mockResolvedValue(undefined),
+});
+
+const defaultRateLimit = () => ({
+  isAllowed: jest.fn().mockResolvedValue(true),
+});
+
+const createRideService = (...args: any[]) => {
+  const [prisma, ws, scoreService, merit, levelBonus, fraud] = args;
+  const geoZoneCache = args[6] ?? defaultGeoZoneCache();
+  const redisState = args[7] ?? defaultRedisState();
+  const driverGeoIndex = args[8] ?? defaultDriverGeoIndex();
+  let rateLimit = args[9];
+  let metrics = args[10];
+
+  // Backward-compatible test argument shape used before DI refactor:
+  // (..., geoZoneCache, redisState, driverGeoIndex, metrics, rateLimit)
+  if (!rateLimit && metrics && typeof metrics.isAllowed === 'function') {
+    rateLimit = metrics;
+    metrics = undefined;
+  }
+
+  return new RideService(
+    prisma ?? ({} as any),
+    ws ?? ({} as any),
+    scoreService ?? ({} as any),
+    merit ?? ({} as any),
+    levelBonus ?? ({} as any),
+    fraud ?? (fraudMock() as any),
+    geoZoneCache,
+    redisState,
+    driverGeoIndex,
+    rateLimit ?? defaultRateLimit(),
+    metrics,
+  );
+};
+
+
 describe('RideService antifraud hardening', () => {
   it('presence online blocked by score restriction', async () => {
-    const service = new RideService(
+    const service = createRideService(
       {} as any,
       {} as any,
       {
@@ -46,7 +104,7 @@ describe('RideService antifraud hardening', () => {
   it('presencePing is rate limited per driver', async () => {
     const prisma: any = { driverPresence: { updateMany: jest.fn() } };
     const limiter: any = { isAllowed: jest.fn().mockResolvedValue(false) };
-    const service = new RideService(
+    const service = createRideService(
       prisma,
       {} as any,
       {} as any,
@@ -65,7 +123,7 @@ describe('RideService antifraud hardening', () => {
 
   it('createBid is rate limited per (driver,trip)', async () => {
     const limiter: any = { isAllowed: jest.fn().mockResolvedValue(false) };
-    const service = new RideService(
+    const service = createRideService(
       {} as any,
       {} as any,
       {} as any,
@@ -84,7 +142,7 @@ describe('RideService antifraud hardening', () => {
 
   it('trackLocation is rate limited per (driver,trip)', async () => {
     const limiter: any = { isAllowed: jest.fn().mockResolvedValue(false) };
-    const service = new RideService(
+    const service = createRideService(
       {} as any,
       {} as any,
       {} as any,
@@ -113,7 +171,7 @@ describe('RideService antifraud hardening', () => {
       },
       externalDriverProfile: { findUnique: jest.fn().mockResolvedValue(null) },
     };
-    const service = new RideService(
+    const service = createRideService(
       prisma,
       {} as any,
       {} as any,
@@ -172,7 +230,7 @@ describe('RideService antifraud hardening', () => {
       outboxEvent: { create: jest.fn().mockResolvedValue({}) },
     };
 
-    const service = new RideService(prisma, ws, {} as any, {} as any, {} as any, fraud as any);
+    const service = createRideService(prisma, ws, {} as any, {} as any, {} as any, fraud as any);
 
     const first = await service.createBid('t1', 'd1', { price_offer: 900, eta_to_pickup_minutes: 6 }, {});
     const second = await service.createBid('t1', 'd1', { price_offer: 1100, eta_to_pickup_minutes: 4 }, {});
@@ -213,7 +271,7 @@ describe('RideService antifraud hardening', () => {
       tripEvent: { create: jest.fn().mockResolvedValue({}) },
       outboxEvent: { create: jest.fn().mockResolvedValue({}) },
     };
-    const service = new RideService(
+    const service = createRideService(
       prisma,
       { emitTrip: jest.fn() } as any,
       {} as any,
@@ -246,7 +304,7 @@ describe('RideService antifraud hardening', () => {
         upsert: jest.fn().mockRejectedValue({ code: 'P2002' }),
       },
     };
-    const service = new RideService(
+    const service = createRideService(
       prisma,
       { emitTrip: jest.fn() } as any,
       {} as any,
@@ -304,7 +362,7 @@ describe('RideService antifraud hardening', () => {
       applyScoreEvent: jest.fn(),
       applyRecoveryOnTripCompletion: jest.fn(),
     };
-    const service = new RideService(
+    const service = createRideService(
       prisma,
       { emitTrip: jest.fn() } as any,
       scoreService,
@@ -387,7 +445,7 @@ describe('RideService antifraud hardening', () => {
     };
 
     const ws: any = { emitTrip: jest.fn(), emitToDriver: jest.fn() };
-    const service = new RideService(
+    const service = createRideService(
       prisma,
       ws,
       {} as any,
@@ -441,7 +499,7 @@ describe('RideService antifraud hardening', () => {
       tripRouteBaseline: { findUnique: jest.fn().mockResolvedValue(null) },
     };
 
-    const service = new RideService(
+    const service = createRideService(
       prisma,
       { emitTrip: jest.fn() } as any,
       {} as any,
@@ -470,7 +528,7 @@ describe('RideService antifraud hardening', () => {
           .mockResolvedValue({ id: 't1', driver_user_id: 'd1', status: TripStatus.MATCHED }),
       },
     };
-    const service = new RideService(
+    const service = createRideService(
       prisma,
       {} as any,
       {} as any,
@@ -500,7 +558,7 @@ describe('RideService antifraud hardening', () => {
     };
 
     const geo: any = { findNearby: jest.fn().mockResolvedValue(['dGeo']) };
-    const service = new RideService(
+    const service = createRideService(
       prisma,
       ws,
       { getOrCreateUserScore: jest.fn().mockResolvedValue({ score: 80, status: RestrictionStatus.NONE }) } as any,
@@ -542,7 +600,7 @@ describe('RideService antifraud hardening', () => {
     };
 
     const geo: any = { findNearby: jest.fn().mockRejectedValue(new Error('redis down')) };
-    const service = new RideService(
+    const service = createRideService(
       prisma,
       ws,
       { getOrCreateUserScore: jest.fn().mockResolvedValue({ score: 80, status: RestrictionStatus.NONE }) } as any,
@@ -597,7 +655,7 @@ describe('RideService antifraud hardening', () => {
         .mockResolvedValueOnce(['d1', 'd2', 'd3']),
     };
 
-    const service = new RideService(
+    const service = createRideService(
       prisma,
       ws,
       { getOrCreateUserScore: jest.fn().mockResolvedValue({ score: 80, status: RestrictionStatus.NONE }) } as any,
@@ -644,7 +702,7 @@ describe('RideService antifraud hardening', () => {
       userHold: { findFirst: jest.fn().mockResolvedValue(null) },
     };
 
-    const service = new RideService(
+    const service = createRideService(
       prisma,
       ws,
       { getOrCreateUserScore: jest.fn().mockResolvedValue({ score: 80, status: RestrictionStatus.NONE }) } as any,
@@ -696,7 +754,7 @@ describe('RideService antifraud hardening', () => {
       userHold: { findFirst: jest.fn().mockResolvedValue(null) },
     };
 
-    const service = new RideService(
+    const service = createRideService(
       prisma,
       ws,
       { getOrCreateUserScore: jest.fn().mockResolvedValue({ score: 80, status: RestrictionStatus.NONE }) } as any,
@@ -756,7 +814,7 @@ describe('RideService antifraud hardening', () => {
       scoreEvent: { groupBy: jest.fn().mockResolvedValue([]) },
       userHold: { findFirst: jest.fn().mockResolvedValue(null) },
     };
-    const service = new RideService(
+    const service = createRideService(
       prisma,
       ws,
       {

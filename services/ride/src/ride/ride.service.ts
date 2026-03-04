@@ -60,10 +60,6 @@ import {
 @Injectable()
 export class RideService implements OnModuleInit {
   private readonly logger = new Logger(RideService.name);
-  private readonly geoZoneCache: GeoZoneCacheService;
-  private readonly redisState: RedisStateService;
-  private readonly driverGeoIndex: DriverGeoIndexService;
-  private readonly rateLimit: RateLimitService;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -72,17 +68,12 @@ export class RideService implements OnModuleInit {
     private readonly merit: MeritocracyService,
     private readonly levelBonus: LevelAndBonusService,
     private readonly fraud: FraudService,
-    geoZoneCache?: GeoZoneCacheService,
-    redisState?: RedisStateService,
-    driverGeoIndex?: DriverGeoIndexService,
+    private readonly geoZoneCache: GeoZoneCacheService,
+    private readonly redisState: RedisStateService,
+    private readonly driverGeoIndex: DriverGeoIndexService,
+    private readonly rateLimit: RateLimitService,
     @Optional() private readonly metrics?: MetricsService,
-    rateLimit?: RateLimitService,
-  ) {
-    this.geoZoneCache = geoZoneCache ?? new GeoZoneCacheService(this.prisma);
-    this.redisState = redisState ?? new RedisStateService();
-    this.driverGeoIndex = driverGeoIndex ?? new DriverGeoIndexService();
-    this.rateLimit = rateLimit ?? new RateLimitService();
-  }
+  ) {}
 
   onModuleInit() {
     setInterval(() => void this.autoMatchExpiredBiddingTrips(), 1000);
