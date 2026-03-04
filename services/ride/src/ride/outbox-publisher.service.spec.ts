@@ -202,4 +202,33 @@ describe('OutboxPublisherService', () => {
     expect(rows[0].locked_by).toBe('new-instance');
     expect(rows[0].locked_at).toEqual(now);
   });
+
+  it('uses env tunables for lease seconds and batch size with safe defaults', async () => {
+    process.env.OUTBOX_LEASE_SECONDS = '120';
+    process.env.OUTBOX_BATCH_SIZE = '15';
+
+    const rows: Row[] = [];
+    const prisma: any = makeStatefulPrisma(rows);
+    const service = new OutboxPublisherService(prisma, { xadd: jest.fn() } as any, 'publisher-1');
+
+    const claimSpy = jest.spyOn(service, 'claimPendingBatch').mockResolvedValue([] as any);
+    await service.publishPendingBatch();
+
+    expect(claimSpy).toHaveBeenCalledWith(15, 120);
+
+    delete process.env.OUTBOX_LEASE_SECONDS;
+    delete process.env.OUTBOX_BATCH_SIZE;
+
+    process.env.OUTBOX_LEASE_SECONDS = 'bad';
+    process.env.OUTBOX_BATCH_SIZE = '0';
+    const serviceWithInvalid = new OutboxPublisherService(prisma, { xadd: jest.fn() } as any, 'publisher-1');
+    const claimSpyInvalid = jest.spyOn(serviceWithInvalid, 'claimPendingBatch').mockResolvedValue([] as any);
+
+    await serviceWithInvalid.publishPendingBatch();
+    expect(claimSpyInvalid).toHaveBeenCalledWith(50, 60);
+
+    delete process.env.OUTBOX_LEASE_SECONDS;
+    delete process.env.OUTBOX_BATCH_SIZE;
+  });
+
 });

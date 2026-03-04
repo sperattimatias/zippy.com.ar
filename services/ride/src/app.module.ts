@@ -40,6 +40,8 @@ import { RedisModule } from './infra/redis/redis.module';
         REDIS_PORT: Joi.number().default(6379),
         REDIS_PASSWORD: Joi.string().optional(),
         REDIS_DB: Joi.number().integer().min(0).optional(),
+        OUTBOX_LEASE_SECONDS: Joi.number().integer().min(1).default(60),
+        OUTBOX_BATCH_SIZE: Joi.number().integer().min(1).default(50),
         JWT_ACCESS_SECRET: Joi.string().min(32).required(),
         WS_CORS_ORIGINS: Joi.string().optional(),
       }),

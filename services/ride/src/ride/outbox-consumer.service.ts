@@ -10,27 +10,29 @@ export class OutboxConsumerService implements OnModuleInit {
   private readonly stream = 'stream:trip-events';
   private readonly group = 'trip-events-group';
   private readonly consumer: string;
+  private groupReady = false;
 
   constructor(@Optional() @Inject(REDIS_CLIENT) private readonly redisClient: RedisClient | null = null) {
     this.consumer = process.env.INSTANCE_ID ?? `${hostname()}-${randomUUID().slice(0, 8)}`;
   }
 
   async onModuleInit() {
-    await this.ensureGroup();
+    this.groupReady = await this.ensureGroup();
     await this.recoverPending();
   }
 
   private async ensureGroup() {
     const redis = this.redisClient;
-    if (!redis) return;
+    if (!redis) return false;
 
     try {
       await redis.xgroup('CREATE', this.stream, this.group, '0', 'MKSTREAM');
+      return true;
     } catch (error) {
       const message = (error as Error).message ?? '';
-      if (!message.includes('BUSYGROUP')) {
-        this.logger.warn(`stream group ensure failed: ${message}`);
-      }
+      if (message.includes('BUSYGROUP')) return true;
+      this.logger.warn(`stream group ensure failed: ${message}`);
+      return false;
     }
   }
 
@@ -77,7 +79,7 @@ export class OutboxConsumerService implements OnModuleInit {
 
   async recoverPending(idleMs = 60_000, limit = 50) {
     const redis = this.redisClient;
-    if (!redis) return;
+    if (!redis || !this.groupReady) return;
 
     try {
       const pending = (await redis.xpending(this.stream, this.group, '-', '+', limit)) as Array<
@@ -102,7 +104,7 @@ export class OutboxConsumerService implements OnModuleInit {
 
   async consumeBatch(count = 50, blockMs = 2000) {
     const redis = this.redisClient;
-    if (!redis) return;
+    if (!redis || !this.groupReady) return;
 
     const rows = (await redis.xreadgroup(
       'GROUP',
@@ -126,7 +128,6 @@ export class OutboxConsumerService implements OnModuleInit {
 
   @Cron('*/10 * * * * *')
   async consumeStub() {
-    await this.ensureGroup();
     await this.recoverPending();
     await this.consumeBatch();
   }

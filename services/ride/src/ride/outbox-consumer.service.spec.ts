@@ -1,28 +1,37 @@
 import { OutboxConsumerService } from './outbox-consumer.service';
 
 describe('OutboxConsumerService', () => {
-  const loggerDebug = jest
-    .spyOn((OutboxConsumerService as any).prototype['logger'] ?? console, 'debug' as any)
-    .mockImplementation(() => undefined);
-
   afterEach(() => {
     jest.clearAllMocks();
     delete process.env.INSTANCE_ID;
-  });
-
-  afterAll(() => {
-    loggerDebug.mockRestore();
   });
 
   it('creates consumer group idempotently when group already exists', async () => {
     const redis = {
       xgroup: jest.fn().mockRejectedValue(new Error('BUSYGROUP Consumer Group name already exists')),
       xpending: jest.fn().mockResolvedValue([]),
+      xclaim: jest.fn(),
     };
 
     const service = new OutboxConsumerService(redis as any);
     await expect(service.onModuleInit()).resolves.toBeUndefined();
     expect(redis.xgroup).toHaveBeenCalledWith('CREATE', 'stream:trip-events', 'trip-events-group', '0', 'MKSTREAM');
+  });
+
+  it('does not call ensureGroup on each cron tick', async () => {
+    const redis = {
+      xgroup: jest.fn().mockResolvedValue('OK'),
+      xpending: jest.fn().mockResolvedValue([]),
+      xreadgroup: jest.fn().mockResolvedValue(null),
+      xack: jest.fn(),
+      xclaim: jest.fn(),
+    };
+
+    const service = new OutboxConsumerService(redis as any);
+    await service.onModuleInit();
+    await service.consumeStub();
+
+    expect(redis.xgroup).toHaveBeenCalledTimes(1);
   });
 
   it('acks messages after successful processing', async () => {
@@ -38,9 +47,11 @@ describe('OutboxConsumerService', () => {
         ],
       ]),
       xack: jest.fn().mockResolvedValue(1),
+      xclaim: jest.fn(),
     };
 
     const service = new OutboxConsumerService(redis as any);
+    await service.onModuleInit();
     await service.consumeBatch();
 
     expect(redis.xack).toHaveBeenCalledWith('stream:trip-events', 'trip-events-group', '1710000000000-0');
@@ -64,6 +75,7 @@ describe('OutboxConsumerService', () => {
     const service = new OutboxConsumerService(redis as any);
     const routeSpy = jest.spyOn(service as any, 'routeEvent');
 
+    await service.onModuleInit();
     await service.consumeStub();
 
     expect(redis.xclaim).toHaveBeenCalled();

@@ -8,6 +8,8 @@ import { REDIS_CLIENT, RedisClient } from '../infra/redis/redis.types';
 export class OutboxPublisherService {
   private readonly logger = new Logger(OutboxPublisherService.name);
   private readonly instanceId: string;
+  private readonly leaseSeconds: number;
+  private readonly batchSize: number;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -15,6 +17,15 @@ export class OutboxPublisherService {
     instanceId?: string,
   ) {
     this.instanceId = instanceId ?? process.env.INSTANCE_ID ?? randomUUID();
+    this.leaseSeconds = this.parsePositiveInt(process.env.OUTBOX_LEASE_SECONDS, 60);
+    this.batchSize = this.parsePositiveInt(process.env.OUTBOX_BATCH_SIZE, 50);
+  }
+
+  private parsePositiveInt(value: string | undefined, fallback: number) {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed)) return fallback;
+    const normalized = Math.trunc(parsed);
+    return normalized > 0 ? normalized : fallback;
   }
 
   async claimPendingBatch(limit = 50, leaseSeconds = 60, now = new Date()) {
@@ -68,7 +79,8 @@ export class OutboxPublisherService {
     const redis = this.redisClient;
     if (!redis) return;
 
-    const claimed = await this.claimPendingBatch(limit);
+    const effectiveLimit = limit === 50 ? this.batchSize : limit;
+    const claimed = await this.claimPendingBatch(effectiveLimit, this.leaseSeconds);
     for (const ev of claimed) {
       try {
         await redis.xadd(
