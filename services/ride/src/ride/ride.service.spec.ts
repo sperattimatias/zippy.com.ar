@@ -457,7 +457,7 @@ describe('RideService antifraud hardening', () => {
 
     await service.requestTrip('p1', { origin_lat: 0, origin_lng: 0, origin_address: 'A', dest_lat: 1, dest_lng: 1, dest_address: 'B', category: 'AUTO' as any }, {});
 
-    expect(geo.findNearby).toHaveBeenCalledTimes(1);
+    expect(geo.findNearby).toHaveBeenCalledTimes(3);
     expect(prisma.driverPresence.findMany).toHaveBeenCalledWith(
       expect.objectContaining({ where: expect.objectContaining({ driver_user_id: { in: ['dGeo'] } }) }),
     );
@@ -502,6 +502,160 @@ describe('RideService antifraud hardening', () => {
     expect(prisma.driverPresence.findMany).toHaveBeenCalledWith(
       expect.objectContaining({ where: { is_online: true, vehicle_category: 'AUTO' } }),
     );
+  });
+
+  it('requestTrip expands geo radius when supply is below configured minimum', async () => {
+    const ws: any = { emitTrip: jest.fn(), emitToDriver: jest.fn(), emitToUser: jest.fn() };
+    const prisma: any = {
+      trip: { create: jest.fn().mockResolvedValue({ id: 't1', status: 'BIDDING', origin_address: 'A', dest_address: 'B', price_base: 1000, bidding_expires_at: new Date() }) },
+      tripRouteBaseline: { create: jest.fn().mockResolvedValue({}) },
+      tripSafetyState: { create: jest.fn().mockResolvedValue({}) },
+      tripEvent: { create: jest.fn().mockResolvedValue({}) },
+      outboxEvent: { create: jest.fn().mockResolvedValue({}) },
+      driverPresence: { findMany: jest.fn().mockResolvedValue([
+        { driver_user_id: 'd1', last_seen_at: new Date(), last_lat: 0, last_lng: 0 },
+        { driver_user_id: 'd2', last_seen_at: new Date(), last_lat: 0, last_lng: 0 },
+        { driver_user_id: 'd3', last_seen_at: new Date(), last_lat: 0, last_lng: 0 },
+      ]) },
+      userScore: { findMany: jest.fn().mockResolvedValue([
+        { user_id: 'd1', score: 90, status: RestrictionStatus.NONE },
+        { user_id: 'd2', score: 90, status: RestrictionStatus.NONE },
+        { user_id: 'd3', score: 90, status: RestrictionStatus.NONE },
+      ]) },
+      appConfig: { findUnique: jest.fn().mockResolvedValue({ value_json: { min_candidates: 3, radius_steps_m: [2000, 4000, 7000] } }) },
+      premiumZone: { findMany: jest.fn().mockResolvedValue([]) },
+      scoreEvent: { groupBy: jest.fn().mockResolvedValue([]) },
+      userHold: { findFirst: jest.fn().mockResolvedValue(null) },
+    };
+    const geo: any = {
+      findNearby: jest
+        .fn()
+        .mockResolvedValueOnce(['d1'])
+        .mockResolvedValueOnce(['d1', 'd2'])
+        .mockResolvedValueOnce(['d1', 'd2', 'd3']),
+    };
+
+    const service = new RideService(
+      prisma,
+      ws,
+      { getOrCreateUserScore: jest.fn().mockResolvedValue({ score: 80, status: RestrictionStatus.NONE }) } as any,
+      {
+        evaluatePeakGate: jest.fn().mockResolvedValue({ allowed: true, limitedMode: false }),
+        getPremiumContext: jest.fn().mockResolvedValue({ zone: null, eligible: true, premium_bonus: 0 }),
+        isPeakNow: jest.fn().mockResolvedValue(false),
+        pointInPolygon: jest.fn().mockReturnValue(false),
+      } as any,
+      {} as any,
+      fraudMock() as any,
+      undefined,
+      undefined,
+      geo,
+    );
+
+    await service.requestTrip('p1', { origin_lat: 0, origin_lng: 0, origin_address: 'A', dest_lat: 1, dest_lng: 1, dest_address: 'B', category: 'AUTO' as any }, {});
+
+    expect(geo.findNearby).toHaveBeenCalledTimes(3);
+    expect(prisma.driverPresence.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ driver_user_id: { in: ['d1', 'd2', 'd3'] } }) }),
+    );
+  });
+
+  it('requestTrip uses ETA factor in ranking when configured', async () => {
+    const ws: any = { emitTrip: jest.fn(), emitToDriver: jest.fn(), emitToUser: jest.fn() };
+    const prisma: any = {
+      trip: { create: jest.fn().mockResolvedValue({ id: 't1', status: 'BIDDING', origin_address: 'A', dest_address: 'B', price_base: 1000, bidding_expires_at: new Date() }) },
+      tripRouteBaseline: { create: jest.fn().mockResolvedValue({}) },
+      tripSafetyState: { create: jest.fn().mockResolvedValue({}) },
+      tripEvent: { create: jest.fn().mockResolvedValue({}) },
+      outboxEvent: { create: jest.fn().mockResolvedValue({}) },
+      driverPresence: { findMany: jest.fn().mockResolvedValue([
+        { driver_user_id: 'dNear', last_seen_at: new Date(), last_lat: 0.001, last_lng: 0.001 },
+        { driver_user_id: 'dFar', last_seen_at: new Date(), last_lat: 0.05, last_lng: 0.05 },
+      ]) },
+      userScore: { findMany: jest.fn().mockResolvedValue([
+        { user_id: 'dNear', score: 70, status: RestrictionStatus.NONE },
+        { user_id: 'dFar', score: 70, status: RestrictionStatus.NONE },
+      ]) },
+      appConfig: { findUnique: jest.fn().mockResolvedValue({ value_json: { w_score: 0, w_distance: 0, w_reliability: 0, w_status: 0, w_peak: 0, w_zone: 0, w_eta: 1, avg_speed_kmh: 25 } }) },
+      premiumZone: { findMany: jest.fn().mockResolvedValue([]) },
+      scoreEvent: { groupBy: jest.fn().mockResolvedValue([]) },
+      userHold: { findFirst: jest.fn().mockResolvedValue(null) },
+    };
+
+    const service = new RideService(
+      prisma,
+      ws,
+      { getOrCreateUserScore: jest.fn().mockResolvedValue({ score: 80, status: RestrictionStatus.NONE }) } as any,
+      {
+        evaluatePeakGate: jest.fn().mockResolvedValue({ allowed: true, limitedMode: false }),
+        getPremiumContext: jest.fn().mockResolvedValue({ zone: null, eligible: true, premium_bonus: 0 }),
+        isPeakNow: jest.fn().mockResolvedValue(false),
+        pointInPolygon: jest.fn().mockReturnValue(false),
+      } as any,
+      {} as any,
+      fraudMock() as any,
+      undefined,
+      undefined,
+      { findNearby: jest.fn().mockResolvedValue([]) } as any,
+    );
+
+    await service.requestTrip('p1', { origin_lat: 0, origin_lng: 0, origin_address: 'A', dest_lat: 1, dest_lng: 1, dest_address: 'B', category: 'AUTO' as any }, {});
+
+    expect(ws.emitToDriver.mock.calls[0][0]).toBe('dNear');
+  });
+
+  it('requestTrip exploration path uses assignment counters when available', async () => {
+    const ws: any = { emitTrip: jest.fn(), emitToDriver: jest.fn(), emitToUser: jest.fn() };
+    const randomSpy = jest.spyOn(Math, 'random').mockReturnValue(0);
+    const redisState: any = {
+      getDriverAssignments15m: jest
+        .fn()
+        .mockResolvedValueOnce(10)
+        .mockResolvedValueOnce(0),
+      incrementDriverAssignments15m: jest.fn(),
+    };
+    const prisma: any = {
+      trip: { create: jest.fn().mockResolvedValue({ id: 't1', status: 'BIDDING', origin_address: 'A', dest_address: 'B', price_base: 1000, bidding_expires_at: new Date() }) },
+      tripRouteBaseline: { create: jest.fn().mockResolvedValue({}) },
+      tripSafetyState: { create: jest.fn().mockResolvedValue({}) },
+      tripEvent: { create: jest.fn().mockResolvedValue({}) },
+      outboxEvent: { create: jest.fn().mockResolvedValue({}) },
+      driverPresence: { findMany: jest.fn().mockResolvedValue([
+        { driver_user_id: 'dA', last_seen_at: new Date(), last_lat: 0, last_lng: 0 },
+        { driver_user_id: 'dB', last_seen_at: new Date(), last_lat: 0.001, last_lng: 0.001 },
+      ]) },
+      userScore: { findMany: jest.fn().mockResolvedValue([
+        { user_id: 'dA', score: 95, status: RestrictionStatus.NONE },
+        { user_id: 'dB', score: 90, status: RestrictionStatus.NONE },
+      ]) },
+      appConfig: { findUnique: jest.fn().mockResolvedValue({ value_json: { explore_rate: 1, explore_top_m: 2, top_n: 2 } }) },
+      premiumZone: { findMany: jest.fn().mockResolvedValue([]) },
+      scoreEvent: { groupBy: jest.fn().mockResolvedValue([]) },
+      userHold: { findFirst: jest.fn().mockResolvedValue(null) },
+    };
+
+    const service = new RideService(
+      prisma,
+      ws,
+      { getOrCreateUserScore: jest.fn().mockResolvedValue({ score: 80, status: RestrictionStatus.NONE }) } as any,
+      {
+        evaluatePeakGate: jest.fn().mockResolvedValue({ allowed: true, limitedMode: false }),
+        getPremiumContext: jest.fn().mockResolvedValue({ zone: null, eligible: true, premium_bonus: 0 }),
+        isPeakNow: jest.fn().mockResolvedValue(false),
+        pointInPolygon: jest.fn().mockReturnValue(false),
+      } as any,
+      {} as any,
+      fraudMock() as any,
+      undefined,
+      redisState,
+      { findNearby: jest.fn().mockResolvedValue([]) } as any,
+    );
+
+    await service.requestTrip('p1', { origin_lat: 0, origin_lng: 0, origin_address: 'A', dest_lat: 1, dest_lng: 1, dest_address: 'B', category: 'AUTO' as any }, {});
+
+    expect(redisState.getDriverAssignments15m).toHaveBeenCalledTimes(2);
+    expect(ws.emitToDriver.mock.calls[0][0]).toBe('dB');
+    randomSpy.mockRestore();
   });
 
   it('matching excludes blocked drivers and orders by score', async () => {

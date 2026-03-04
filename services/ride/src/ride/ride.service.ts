@@ -135,6 +135,36 @@ export class RideService implements OnModuleInit {
     return 2 * r * Math.atan2(Math.sqrt(aa), Math.sqrt(1 - aa));
   }
 
+  private async pickExplorationDriver(
+    ranked: Array<{ p: any; match: number }>,
+    exploreTopM: number,
+    exploreRate: number,
+  ): Promise<string | null> {
+    if (!ranked.length || Math.random() >= exploreRate) return null;
+    const pool = ranked.slice(0, Math.max(1, exploreTopM));
+    const assignmentCounts = await Promise.all(
+      pool.map((entry) => this.redisState.getDriverAssignments15m(entry.p.driver_user_id)),
+    );
+    if (assignmentCounts.some((count) => count === null)) return null;
+
+    const weightedPool = pool
+      .map((entry, idx) => ({
+        entry,
+        weight: 1 / (1 + (assignmentCounts[idx] ?? 0)),
+      }))
+      .sort((a, b) => b.weight - a.weight);
+
+    const total = weightedPool.reduce((acc, item) => acc + item.weight, 0);
+    if (total <= 0) return null;
+
+    let threshold = Math.random() * total;
+    for (const item of weightedPool) {
+      threshold -= item.weight;
+      if (threshold <= 0) return item.entry.p.driver_user_id;
+    }
+    return weightedPool[weightedPool.length - 1].entry.p.driver_user_id;
+  }
+
   private computeBasePrice(distanceKm?: number, etaMin?: number) {
     const fixed = 800;
     const kmRate = 250;
@@ -467,21 +497,60 @@ export class RideService implements OnModuleInit {
     });
 
     const matchingStart = this.nowMs();
+    const weightsCfg = await this.prisma.appConfig.findUnique({ where: { key: 'matching_weights' } });
+    /**
+     * matching_weights extra optional keys:
+     * - w_eta: ETA contribution weight (default 0.1)
+     * - avg_speed_kmh: pickup ETA speed heuristic (default 25)
+     * - min_candidates: supply target before stopping radius expansion (default 8)
+     * - radius_steps_m: supply-aware GEO search radii (default [2000, 4000, 7000])
+     * - explore_rate / explore_top_m: fairness exploration controls (defaults 0.08 / 10)
+     */
+    const weights = (weightsCfg?.value_json as any) ?? {
+      w_score: 0.45,
+      w_distance: 0.35,
+      w_reliability: 0.15,
+      w_status: 0.05,
+      w_peak: 0.1,
+      w_zone: 0.1,
+      w_eta: 0.1,
+      avg_speed_kmh: 25,
+      min_candidates: 8,
+      radius_steps_m: [2000, 4000, 7000],
+      explore_rate: 0.08,
+      explore_top_m: 10,
+      top_n: 15,
+    };
+
+    const speedKmh = Math.max(5, Number(weights.avg_speed_kmh ?? 25));
+    const minCandidates = Math.max(1, Number(weights.min_candidates ?? 8));
+    const radiusSteps = Array.isArray(weights.radius_steps_m)
+      ? (weights.radius_steps_m as number[]).map((v) => Number(v)).filter((v) => v > 0)
+      : [2000, 4000, 7000];
+
     let redisCandidateIds: string[] = [];
+    let geoUnavailable = false;
     try {
-      redisCandidateIds = await this.driverGeoIndex.findNearby({
-        lat: dto.origin_lat,
-        lng: dto.origin_lng,
-        radiusMeters: 5000,
-        limit: 200,
-      });
+      const aggregated = new Set<string>();
+      for (const radiusMeters of (radiusSteps.length ? radiusSteps : [2000, 4000, 7000])) {
+        const idsAtRadius = await this.driverGeoIndex.findNearby({
+          lat: dto.origin_lat,
+          lng: dto.origin_lng,
+          radiusMeters,
+          limit: 200,
+        });
+        idsAtRadius.forEach((id) => aggregated.add(id));
+        if (aggregated.size >= minCandidates) break;
+      }
+      redisCandidateIds = Array.from(aggregated);
     } catch (error) {
+      geoUnavailable = true;
       this.logger.warn(`driver geo index unavailable, falling back to DB presence: ${(error as Error).message}`);
     }
 
     const presences = await this.prisma.driverPresence.findMany({
       where:
-        redisCandidateIds.length > 0
+        !geoUnavailable && redisCandidateIds.length > 0
           ? {
               is_online: true,
               vehicle_category: dto.category,
@@ -493,11 +562,10 @@ export class RideService implements OnModuleInit {
     const driverIds = activeNearby.map((p) => p.driver_user_id);
     if (driverIds.length === 0) return trip;
 
-    const [scores, weightsCfg, peakNow, activePremiumZones, reliabilitySignals] = await Promise.all([
+    const [scores, peakNow, activePremiumZones, reliabilitySignals] = await Promise.all([
       this.prisma.userScore.findMany({
         where: { actor_type: ActorType.DRIVER, user_id: { in: driverIds } },
       }),
-      this.prisma.appConfig.findUnique({ where: { key: 'matching_weights' } }),
       this.merit.isPeakNow(),
       this.prisma.premiumZone.findMany({ where: { is_active: true } }),
       this.prisma.scoreEvent.groupBy({
@@ -511,16 +579,6 @@ export class RideService implements OnModuleInit {
         _count: { _all: true },
       }),
     ]);
-    const weights = (weightsCfg?.value_json as any) ?? {
-      w_score: 0.45,
-      w_distance: 0.35,
-      w_reliability: 0.15,
-      w_status: 0.05,
-      w_peak: 0.1,
-      w_zone: 0.1,
-      top_n: 15,
-    };
-
     const scoreMap = new Map(scores.map((sc) => [sc.user_id, sc]));
     const reliabilityMap = new Map(reliabilitySignals.map((item) => [item.user_id, item._count._all]));
     const matchingZone = activePremiumZones.find(
@@ -549,6 +607,7 @@ export class RideService implements OnModuleInit {
       ),
       1,
     );
+    const maxEtaMinutes = Math.max((maxDistance / speedKmh) * 60, 1);
 
     const prioritized = [] as Array<{ p: any; match: number }>;
     for (const p of activeNearby) {
@@ -563,6 +622,8 @@ export class RideService implements OnModuleInit {
       );
       const normScore = driverScore / 100;
       const normDistanceInv = 1 - Math.min(1, distance / maxDistance);
+      const etaMinutes = (distance / speedKmh) * 60;
+      const normEtaInv = 1 - Math.min(1, etaMinutes / maxEtaMinutes);
       const statusBonus =
         us?.status === RestrictionStatus.NONE
           ? 1
@@ -579,6 +640,7 @@ export class RideService implements OnModuleInit {
       const matchingScore =
         weights.w_score * normScore +
         weights.w_distance * normDistanceInv +
+        (weights.w_eta ?? 0.1) * normEtaInv +
         weights.w_reliability * reliability +
         weights.w_status * statusBonus +
         weights.w_peak * peakBonus +
@@ -587,6 +649,18 @@ export class RideService implements OnModuleInit {
     }
 
     prioritized.sort((a, b) => b.match - a.match);
+    const exploreWinner = await this.pickExplorationDriver(
+      prioritized,
+      Number(weights.explore_top_m ?? 10),
+      Number(weights.explore_rate ?? 0.08),
+    );
+    if (exploreWinner) {
+      const idx = prioritized.findIndex((entry) => entry.p.driver_user_id === exploreWinner);
+      if (idx > 0) {
+        const [winner] = prioritized.splice(idx, 1);
+        prioritized.unshift(winner);
+      }
+    }
     const topN = isRestrictedPassenger ? Math.min(10, weights.top_n ?? 15) : (weights.top_n ?? 15);
     for (const { p } of prioritized.slice(0, topN)) {
       this.ws.emitToDriver(p.driver_user_id, 'trip.bidding.started', {
@@ -755,6 +829,7 @@ export class RideService implements OnModuleInit {
       trip_id: tripId,
       passenger_user_id: passengerUserId,
     });
+    await this.redisState.incrementDriverAssignments15m(bid.driver_user_id);
     return updated;
   }
 
@@ -813,6 +888,7 @@ export class RideService implements OnModuleInit {
         driver_user_id: best.driver_user_id,
         auto_selected: true,
       });
+      await this.redisState.incrementDriverAssignments15m(best.driver_user_id);
     }
   }
 

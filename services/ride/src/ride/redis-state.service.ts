@@ -150,4 +150,33 @@ export class RedisStateService {
     }
     for (const key of keys) this.delFallback(key);
   }
+
+  /**
+   * Fairness counter used during matching exploration.
+   * Redis key format: driver:assignments:15m:<driverId>
+   */
+  async getDriverAssignments15m(driverUserId: string): Promise<number | null> {
+    const key = `driver:assignments:15m:${driverUserId}`;
+    const redis = await this.getRedisClient();
+    if (!redis) return null;
+    try {
+      const value = await redis.get(key);
+      return value ? Number(value) || 0 : 0;
+    } catch {
+      return null;
+    }
+  }
+
+  async incrementDriverAssignments15m(driverUserId: string): Promise<boolean> {
+    const key = `driver:assignments:15m:${driverUserId}`;
+    const redis = await this.getRedisClient();
+    if (!redis) return false;
+    try {
+      const count = await redis.incr(key);
+      if (count === 1) await redis.expire(key, 15 * 60);
+      return true;
+    } catch {
+      return false;
+    }
+  }
 }
