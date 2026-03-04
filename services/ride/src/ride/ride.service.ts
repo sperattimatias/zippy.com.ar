@@ -34,6 +34,7 @@ import { ScoreService } from '../score/score.service';
 import { MeritocracyService } from '../meritocracy/meritocracy.service';
 import { LevelAndBonusService } from '../levels/level-bonus.service';
 import { FraudService } from '../fraud/fraud.service';
+import { GeoZoneCacheService } from './geozone-cache.service';
 import {
   AcceptBidDto,
   CancelDto,
@@ -59,6 +60,7 @@ export class RideService implements OnModuleInit {
     { over300Since?: number; over700Since?: number; majorCount: number }
   >();
   private trackingAlertState = new Map<string, 'none' | 'minor' | 'major'>();
+  private readonly geoZoneCache: GeoZoneCacheService;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -67,7 +69,10 @@ export class RideService implements OnModuleInit {
     private readonly merit: MeritocracyService,
     private readonly levelBonus: LevelAndBonusService,
     private readonly fraud: FraudService,
-  ) {}
+    geoZoneCache?: GeoZoneCacheService,
+  ) {
+    this.geoZoneCache = geoZoneCache ?? new GeoZoneCacheService(this.prisma);
+  }
 
   onModuleInit() {
     setInterval(() => void this.autoMatchExpiredBiddingTrips(), 1000);
@@ -868,7 +873,7 @@ export class RideService implements OnModuleInit {
       create: { trip_id: tripId, safety_score: 100, last_driver_location_at: new Date() },
     });
 
-    const zones = await this.prisma.geoZone.findMany({ where: { is_active: true } });
+    const zones = await this.geoZoneCache.getActiveZones();
     let zoneType: GeoZoneType | null = null;
     for (const z of zones.sort((a, b) =>
       a.type === 'RED' ? -1 : a.type === 'CAUTION' ? (b.type === 'RED' ? 1 : -1) : 1,
@@ -1265,9 +1270,11 @@ export class RideService implements OnModuleInit {
   }
 
   async createGeoZone(dto: GeoZoneCreateDto) {
-    return this.prisma.geoZone.create({
+    const created = await this.prisma.geoZone.create({
       data: { ...dto, polygon_json: this.normalizePolygon(dto.polygon_json) as any },
     });
+    this.geoZoneCache.invalidateActiveZones();
+    return created;
   }
   async listGeoZones() {
     return this.prisma.geoZone.findMany({ orderBy: { created_at: 'desc' } });
@@ -1275,10 +1282,13 @@ export class RideService implements OnModuleInit {
   async patchGeoZone(id: string, dto: GeoZonePatchDto) {
     const data: any = { ...dto };
     if (dto.polygon_json) data.polygon_json = this.normalizePolygon(dto.polygon_json);
-    return this.prisma.geoZone.update({ where: { id }, data });
+    const updated = await this.prisma.geoZone.update({ where: { id }, data });
+    this.geoZoneCache.invalidateActiveZones();
+    return updated;
   }
   async deleteGeoZone(id: string) {
     await this.prisma.geoZone.delete({ where: { id } });
+    this.geoZoneCache.invalidateActiveZones();
     return { message: 'deleted' };
   }
 

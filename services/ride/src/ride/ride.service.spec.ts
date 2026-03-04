@@ -349,6 +349,53 @@ describe('RideService antifraud hardening', () => {
     expect(ws.emitToDriver).toHaveBeenCalledTimes(1);
   });
 
+
+
+  it('trackLocation uses geozone cache service instead of querying DB every update', async () => {
+    const geozoneCache: any = {
+      getActiveZones: jest.fn().mockResolvedValue([]),
+      invalidateActiveZones: jest.fn(),
+    };
+    const prisma: any = {
+      trip: {
+        findUnique: jest
+          .fn()
+          .mockResolvedValue({ id: 't1', driver_user_id: 'd1', status: TripStatus.DRIVER_EN_ROUTE }),
+      },
+      tripLocation: {
+        create: jest.fn().mockResolvedValue({ id: 'l1', created_at: new Date() }),
+      },
+      tripSafetyState: {
+        upsert: jest.fn().mockResolvedValue({}),
+        findUnique: jest.fn().mockResolvedValue({ trip_id: 't1', last_zone_type: null }),
+      },
+      tripRouteBaseline: { findUnique: jest.fn().mockResolvedValue(null) },
+    };
+
+    const service = new RideService(
+      prisma,
+      { emitTrip: jest.fn() } as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      fraudMock() as any,
+      geozoneCache,
+    );
+
+    jest
+      .spyOn(service as any, 'nowMs')
+      .mockReturnValueOnce(3000)
+      .mockReturnValueOnce(3000)
+      .mockReturnValueOnce(6001)
+      .mockReturnValueOnce(6001);
+
+    await service.trackLocation('t1', 'd1', { lat: 0, lng: 0 });
+    await service.trackLocation('t1', 'd1', { lat: 0.01, lng: 0.01 });
+
+    expect(geozoneCache.getActiveZones).toHaveBeenCalledTimes(2);
+    expect(prisma.tripLocation.create).toHaveBeenCalledTimes(2);
+  });
+
   it('invalid FSM transition fails', async () => {
     const prisma: any = {
       trip: {
