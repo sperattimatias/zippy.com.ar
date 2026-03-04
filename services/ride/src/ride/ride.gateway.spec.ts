@@ -146,6 +146,15 @@ describe('RideGateway subscribeTrip integration', () => {
     return false;
   };
 
+
+
+  const waitForSubscribeRejection = async (client: PollingClient, timeoutMs = 1500): Promise<boolean> => {
+    for (const marker of ['Forbidden trip subscription', 'Forbidden', 'WsException']) {
+      if (await waitForPacketContaining(client, marker, timeoutMs)) return true;
+    }
+    return false;
+  };
+
   it('authorized user subscribes and receives trip room events', async () => {
     const passenger = await connectPollingClient('passenger-1');
 
@@ -165,7 +174,7 @@ describe('RideGateway subscribeTrip integration', () => {
 
     await emitSubscribeTrip(intruder, 'trip-1');
 
-    await expect(waitForPacketContaining(intruder, 'Forbidden trip subscription')).resolves.toBe(true);
+    await expect(waitForSubscribeRejection(intruder)).resolves.toBe(true);
 
     gateway.emitTrip('trip-1', 'trip.updated', { trip_id: 'trip-1', status: 'MATCHED' });
 

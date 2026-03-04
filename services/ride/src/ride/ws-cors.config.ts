@@ -29,7 +29,10 @@ export function getWsCorsOptions(env: NodeJS.ProcessEnv = process.env): CorsOpti
   return {
     origin: (origin, callback) => {
       const allowed = isWsOriginAllowed(origin, env);
-      callback(allowed ? null : new Error('WS CORS origin denied'), allowed);
+      callback(
+        allowed ? null : new Error('WS CORS origin denied'),
+        allowed,
+      );
     },
     credentials: true,
   };
