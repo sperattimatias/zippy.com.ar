@@ -291,6 +291,21 @@ model TripEvent {
   @@index([trip_id, created_at])
 }
 
+
+model OutboxEvent {
+  id             String   @id @default(uuid())
+  aggregate_type String
+  aggregate_id   String
+  event_type     String
+  payload_json   Json
+  created_at     DateTime @default(now())
+  published_at   DateTime?
+  attempts       Int      @default(0)
+
+  @@index([published_at, created_at])
+  @@index([aggregate_type, aggregate_id, created_at])
+}
+
 model TripOTP {
   trip_id     String   @id
   otp_hash    String

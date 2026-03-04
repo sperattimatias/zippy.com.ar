@@ -110,6 +110,7 @@ describe('RideService antifraud hardening', () => {
         }),
       },
       tripEvent: { create: jest.fn().mockResolvedValue({}) },
+      outboxEvent: { create: jest.fn().mockResolvedValue({}) },
     };
 
     const service = new RideService(prisma, ws, {} as any, {} as any, {} as any, fraud as any);
@@ -121,6 +122,7 @@ describe('RideService antifraud hardening', () => {
     expect(second.price_offer).toBe(1100);
     expect(second.eta_to_pickup_minutes).toBe(4);
     expect(prisma.tripBid.upsert).toHaveBeenCalledTimes(2);
+    expect(prisma.outboxEvent.create).toHaveBeenCalledTimes(2);
   });
 
   it('createBid keeps exactly one bid row per (trip, driver)', async () => {
@@ -150,6 +152,7 @@ describe('RideService antifraud hardening', () => {
         }),
       },
       tripEvent: { create: jest.fn().mockResolvedValue({}) },
+      outboxEvent: { create: jest.fn().mockResolvedValue({}) },
     };
     const service = new RideService(
       prisma,
@@ -223,6 +226,7 @@ describe('RideService antifraud hardening', () => {
         count: jest.fn().mockResolvedValue(7),
       },
       tripEvent: { create: jest.fn().mockResolvedValue({}) },
+      outboxEvent: { create: jest.fn().mockResolvedValue({}) },
       appConfig: {
         findUnique: jest.fn().mockResolvedValue({
           value_json: {
@@ -320,6 +324,7 @@ describe('RideService antifraud hardening', () => {
         }),
       },
       tripEvent: { create: jest.fn().mockResolvedValue({}) },
+      outboxEvent: { create: jest.fn().mockResolvedValue({}) },
     };
 
     const ws: any = { emitTrip: jest.fn(), emitToDriver: jest.fn() };
@@ -423,6 +428,7 @@ describe('RideService antifraud hardening', () => {
       tripRouteBaseline: { create: jest.fn().mockResolvedValue({}) },
       tripSafetyState: { create: jest.fn().mockResolvedValue({}) },
       tripEvent: { create: jest.fn().mockResolvedValue({}) },
+      outboxEvent: { create: jest.fn().mockResolvedValue({}) },
       driverPresence: { findMany: jest.fn().mockResolvedValue([{ driver_user_id: 'dGeo', last_seen_at: new Date(), last_lat: 0, last_lng: 0 }]) },
       userScore: { findMany: jest.fn().mockResolvedValue([{ user_id: 'dGeo', score: 90, status: RestrictionStatus.NONE }]) },
       appConfig: { findUnique: jest.fn().mockResolvedValue(null) },
@@ -464,6 +470,7 @@ describe('RideService antifraud hardening', () => {
       tripRouteBaseline: { create: jest.fn().mockResolvedValue({}) },
       tripSafetyState: { create: jest.fn().mockResolvedValue({}) },
       tripEvent: { create: jest.fn().mockResolvedValue({}) },
+      outboxEvent: { create: jest.fn().mockResolvedValue({}) },
       driverPresence: { findMany: jest.fn().mockResolvedValue([{ driver_user_id: 'dDb', last_seen_at: new Date(), last_lat: 0, last_lng: 0 }]) },
       userScore: { findMany: jest.fn().mockResolvedValue([{ user_id: 'dDb', score: 90, status: RestrictionStatus.NONE }]) },
       appConfig: { findUnique: jest.fn().mockResolvedValue(null) },
@@ -513,6 +520,7 @@ describe('RideService antifraud hardening', () => {
       tripRouteBaseline: { create: jest.fn().mockResolvedValue({}) },
       tripSafetyState: { create: jest.fn().mockResolvedValue({}) },
       tripEvent: { create: jest.fn().mockResolvedValue({}) },
+      outboxEvent: { create: jest.fn().mockResolvedValue({}) },
       driverPresence: {
         findMany: jest.fn().mockResolvedValue([
           { driver_user_id: 'dBlocked', last_seen_at: new Date(), last_lat: 0, last_lng: 0 },

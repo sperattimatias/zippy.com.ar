@@ -19,6 +19,8 @@ import { FraudService } from './fraud/fraud.service';
 import { GeoZoneCacheService } from './ride/geozone-cache.service';
 import { RedisStateService } from './ride/redis-state.service';
 import { DriverGeoIndexService } from './ride/driver-geo-index.service';
+import { OutboxPublisherService } from './ride/outbox-publisher.service';
+import { OutboxConsumerService } from './ride/outbox-consumer.service';
 
 @Module({
   imports: [
@@ -51,6 +53,8 @@ import { DriverGeoIndexService } from './ride/driver-geo-index.service';
     GeoZoneCacheService,
     RedisStateService,
     DriverGeoIndexService,
+    OutboxPublisherService,
+    OutboxConsumerService,
     MeritocracyService,
     ScoreService,
     LevelAndBonusService,

@@ -101,9 +101,28 @@ export class RideService implements OnModuleInit {
     type: string,
     payload: unknown,
   ) {
-    await this.prisma.tripEvent.create({
-      data: { trip_id: tripId, actor_user_id: actorUserId, type, payload_json: payload as any },
-    });
+    const createWith = async (db: any) => {
+      await db.tripEvent.create({
+        data: { trip_id: tripId, actor_user_id: actorUserId, type, payload_json: payload as any },
+      });
+      await db.outboxEvent.create({
+        data: {
+          aggregate_type: 'TRIP',
+          aggregate_id: tripId,
+          event_type: type,
+          payload_json: payload as any,
+        },
+      });
+    };
+
+    if (typeof this.prisma.$transaction === 'function') {
+      await this.prisma.$transaction(async (trx) => {
+        await createWith(trx);
+      });
+      return;
+    }
+
+    await createWith(this.prisma);
   }
 
   private haversineKm(aLat: number, aLng: number, bLat: number, bLng: number) {
@@ -704,6 +723,17 @@ export class RideService implements OnModuleInit {
           trip_id: tripId,
           actor_user_id: passengerUserId,
           type: 'trip.matched',
+          payload_json: {
+            bid_id: bid.id,
+            driver_user_id: bid.driver_user_id,
+          } as any,
+        },
+      });
+      await trx.outboxEvent.create({
+        data: {
+          aggregate_type: 'TRIP',
+          aggregate_id: tripId,
+          event_type: 'trip.matched',
           payload_json: {
             bid_id: bid.id,
             driver_user_id: bid.driver_user_id,
