@@ -13,13 +13,14 @@ import {
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { PrismaService } from '../prisma/prisma.service';
+import { getWsCorsOptions } from './ws-cors.config';
 
 type SubscribeTripPayload = {
   tripId?: string;
 };
 
 @Injectable()
-@WebSocketGateway({ namespace: '/rides', cors: { origin: '*' } })
+@WebSocketGateway({ namespace: '/rides', cors: getWsCorsOptions() })
 export class RideGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer() server!: Server;
   private readonly logger = new Logger(RideGateway.name);

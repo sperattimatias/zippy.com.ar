@@ -33,6 +33,7 @@ import { RedisStateService } from './ride/redis-state.service';
         DATABASE_URL: Joi.string().required(),
         REDIS_URL: Joi.string().uri().required(),
         JWT_ACCESS_SECRET: Joi.string().min(32).required(),
+        WS_CORS_ORIGINS: Joi.string().optional(),
       }),
     }),
     JwtModule.register({}),
