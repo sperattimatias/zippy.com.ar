@@ -399,7 +399,8 @@ describe('RideService antifraud hardening', () => {
         ]),
       },
       appConfig: { findUnique: jest.fn().mockResolvedValue(null) },
-      scoreEvent: { count: jest.fn().mockResolvedValue(0) },
+      premiumZone: { findMany: jest.fn().mockResolvedValue([]) },
+      scoreEvent: { groupBy: jest.fn().mockResolvedValue([]) },
       userHold: { findFirst: jest.fn().mockResolvedValue(null) },
     };
     const service = new RideService(
@@ -416,6 +417,7 @@ describe('RideService antifraud hardening', () => {
           .fn()
           .mockResolvedValue({ zone: null, eligible: true, premium_bonus: 0 }),
         isPeakNow: jest.fn().mockResolvedValue(false),
+        pointInPolygon: jest.fn().mockReturnValue(false),
       } as any,
       {} as any,
       fraudMock() as any,
@@ -435,5 +437,7 @@ describe('RideService antifraud hardening', () => {
     );
     expect(ws.emitToDriver.mock.calls[0][0]).toBe('dHigh');
     expect(ws.emitToDriver.mock.calls.some((c: any[]) => c[0] === 'dBlocked')).toBe(false);
+    expect(prisma.scoreEvent.groupBy).toHaveBeenCalledTimes(1);
+    expect(prisma.premiumZone.findMany).toHaveBeenCalledTimes(1);
   });
 });

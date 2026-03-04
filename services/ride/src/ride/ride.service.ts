@@ -3,6 +3,7 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
   OnModuleInit,
 } from '@nestjs/common';
@@ -51,6 +52,7 @@ import {
 
 @Injectable()
 export class RideService implements OnModuleInit {
+  private readonly logger = new Logger(RideService.name);
   private locationThrottle = new Map<string, number>();
   private deviationWindow = new Map<
     string,
@@ -435,17 +437,31 @@ export class RideService implements OnModuleInit {
       premium_eligible: premium.eligible,
     });
 
+    const matchingStart = this.nowMs();
     const presences = await this.prisma.driverPresence.findMany({
       where: { is_online: true, vehicle_category: dto.category },
     });
     const activeNearby = presences.filter((p) => this.onlineRecent(p.last_seen_at));
     const driverIds = activeNearby.map((p) => p.driver_user_id);
-    const [scores, weightsCfg, peakNow] = await Promise.all([
+    if (driverIds.length === 0) return trip;
+
+    const [scores, weightsCfg, peakNow, activePremiumZones, reliabilitySignals] = await Promise.all([
       this.prisma.userScore.findMany({
         where: { actor_type: ActorType.DRIVER, user_id: { in: driverIds } },
       }),
       this.prisma.appConfig.findUnique({ where: { key: 'matching_weights' } }),
       this.merit.isPeakNow(),
+      this.prisma.premiumZone.findMany({ where: { is_active: true } }),
+      this.prisma.scoreEvent.groupBy({
+        by: ['user_id'],
+        where: {
+          user_id: { in: driverIds },
+          actor_type: ActorType.DRIVER,
+          type: { in: [ScoreEventType.DRIVER_CANCEL_LATE, ScoreEventType.DRIVER_NO_SHOW] },
+          created_at: { gte: new Date(Date.now() - 30 * 24 * 3600 * 1000) },
+        },
+        _count: { _all: true },
+      }),
     ]);
     const weights = (weightsCfg?.value_json as any) ?? {
       w_score: 0.45,
@@ -458,6 +474,22 @@ export class RideService implements OnModuleInit {
     };
 
     const scoreMap = new Map(scores.map((sc) => [sc.user_id, sc]));
+    const reliabilityMap = new Map(reliabilitySignals.map((item) => [item.user_id, item._count._all]));
+    const matchingZone = activePremiumZones.find(
+      (zone) =>
+        Array.isArray(zone.polygon_json) &&
+        this.merit.pointInPolygon(
+          { lat: dto.origin_lat, lng: dto.origin_lng },
+          zone.polygon_json as Array<{ lat: number; lng: number }>,
+        ),
+    );
+
+    /**
+     * Matching optimization:
+     * - no per-driver awaits in ranking loop
+     * - reliability fetched in batch via grouped score events
+     * - premium zones resolved once per request and evaluated in memory
+     */
     const maxDistance = Math.max(
       ...activeNearby.map((p) =>
         this.haversineKm(
@@ -490,25 +522,11 @@ export class RideService implements OnModuleInit {
             ? 0.5
             : 0.2;
       const peakBonus = peakNow && driverScore >= 80 ? 0.3 : 0;
-      const zone = await this.merit.getPremiumContext(
-        { lat: dto.origin_lat, lng: dto.origin_lng },
-        ActorType.DRIVER,
-        driverScore,
-      );
-      const premiumBonus = zone.premium_bonus;
-      const reliability =
-        1 -
-        Math.min(
-          1,
-          (await this.prisma.scoreEvent.count({
-            where: {
-              user_id: p.driver_user_id,
-              actor_type: ActorType.DRIVER,
-              type: { in: [ScoreEventType.DRIVER_CANCEL_LATE, ScoreEventType.DRIVER_NO_SHOW] },
-              created_at: { gte: new Date(Date.now() - 30 * 24 * 3600 * 1000) },
-            },
-          })) / 10,
-        );
+      const premiumBonus =
+        matchingZone && driverScore >= matchingZone.min_driver_score
+          ? 0.5
+          : 0;
+      const reliability = 1 - Math.min(1, (reliabilityMap.get(p.driver_user_id) ?? 0) / 10);
 
       const matchingScore =
         weights.w_score * normScore +
@@ -531,6 +549,9 @@ export class RideService implements OnModuleInit {
         bidding_expires_at: trip.bidding_expires_at,
       });
     }
+    this.logger.log(
+      `requestTrip matching completed trip=${trip.id} candidates=${activeNearby.length} ranked=${prioritized.length} duration_ms=${this.nowMs() - matchingStart}`,
+    );
     return trip;
   }
 
