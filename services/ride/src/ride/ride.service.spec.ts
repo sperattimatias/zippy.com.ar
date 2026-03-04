@@ -1,9 +1,10 @@
-import { BadRequestException, ForbiddenException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
 import {
   ActorType,
   FraudSeverity,
   FraudSignalType,
   RestrictionStatus,
+  TripBidStatus,
   TripStatus,
 } from '@prisma/client';
 import { RideService } from './ride.service';
@@ -256,6 +257,96 @@ describe('RideService antifraud hardening', () => {
         score_delta: 25,
       }),
     );
+  });
+
+
+
+  it('acceptBid allows only one winner under concurrent requests', async () => {
+    const tripState: any = {
+      id: 't1',
+      passenger_user_id: 'p1',
+      status: TripStatus.BIDDING,
+      driver_user_id: null,
+      price_final: null,
+      matched_at: null,
+    };
+    const bids = {
+      b1: {
+        id: 'b1',
+        trip_id: 't1',
+        driver_user_id: 'd1',
+        price_offer: 1000,
+        status: TripBidStatus.PENDING,
+      },
+      b2: {
+        id: 'b2',
+        trip_id: 't1',
+        driver_user_id: 'd2',
+        price_offer: 980,
+        status: TripBidStatus.PENDING,
+      },
+    } as Record<string, any>;
+
+    const prisma: any = {
+      $transaction: async (cb: any) => cb(prisma),
+      trip: {
+        findUnique: jest.fn(async ({ where }: any) => {
+          if (where.id !== 't1') return null;
+          return { ...tripState };
+        }),
+        updateMany: jest.fn(async ({ where, data }: any) => {
+          if (where.id !== 't1') return { count: 0 };
+          if (tripState.status !== where.status) return { count: 0 };
+          Object.assign(tripState, data);
+          return { count: 1 };
+        }),
+      },
+      tripBid: {
+        findUnique: jest.fn(async ({ where }: any) => {
+          const bid = bids[where.id];
+          return bid ? { ...bid } : null;
+        }),
+        updateMany: jest.fn(async ({ where, data }: any) => {
+          for (const bid of Object.values(bids)) {
+            if (bid.trip_id === where.trip_id && bid.id !== where.id?.not && bid.status === where.status) {
+              Object.assign(bid, data);
+            }
+          }
+          return { count: 1 };
+        }),
+        update: jest.fn(async ({ where, data }: any) => {
+          Object.assign(bids[where.id], data);
+          return { ...bids[where.id] };
+        }),
+      },
+      tripEvent: { create: jest.fn().mockResolvedValue({}) },
+    };
+
+    const ws: any = { emitTrip: jest.fn(), emitToDriver: jest.fn() };
+    const service = new RideService(
+      prisma,
+      ws,
+      {} as any,
+      {} as any,
+      {} as any,
+      fraudMock() as any,
+    );
+
+    const [r1, r2] = await Promise.allSettled([
+      service.acceptBid('t1', 'p1', { bid_id: 'b1' }),
+      service.acceptBid('t1', 'p1', { bid_id: 'b2' }),
+    ]);
+
+    const fulfilled = [r1, r2].filter((r) => r.status === 'fulfilled');
+    const rejected = [r1, r2].filter((r) => r.status === 'rejected') as PromiseRejectedResult[];
+
+    expect(fulfilled).toHaveLength(1);
+    expect(rejected).toHaveLength(1);
+    expect(rejected[0].reason).toBeInstanceOf(ConflictException);
+    expect(tripState.status).toBe(TripStatus.MATCHED);
+    expect(Object.values(bids).filter((b: any) => b.status === TripBidStatus.ACCEPTED)).toHaveLength(1);
+    expect(ws.emitTrip).toHaveBeenCalledTimes(1);
+    expect(ws.emitToDriver).toHaveBeenCalledTimes(1);
   });
 
   it('invalid FSM transition fails', async () => {

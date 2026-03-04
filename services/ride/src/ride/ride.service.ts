@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -608,37 +609,63 @@ export class RideService implements OnModuleInit {
     return bid;
   }
 
+  /**
+   * Accepts a bid atomically to avoid double-assignment under concurrent requests.
+   */
   async acceptBid(tripId: string, passengerUserId: string, dto: AcceptBidDto) {
-    const trip = await this.prisma.trip.findUnique({ where: { id: tripId } });
-    if (!trip) throw new NotFoundException('Trip not found');
-    if (trip.passenger_user_id !== passengerUserId)
-      throw new ForbiddenException('Not trip passenger');
-    if (trip.status !== TripStatus.BIDDING) throw new BadRequestException('Trip is not in bidding');
-    const bid = await this.prisma.tripBid.findUnique({ where: { id: dto.bid_id } });
-    if (!bid || bid.trip_id !== tripId || bid.status !== TripBidStatus.PENDING)
-      throw new BadRequestException('Invalid bid');
+    const { updated, bid } = await this.prisma.$transaction(async (trx) => {
+      const trip = await trx.trip.findUnique({ where: { id: tripId } });
+      if (!trip) throw new NotFoundException('Trip not found');
+      if (trip.passenger_user_id !== passengerUserId)
+        throw new ForbiddenException('Not trip passenger');
+      if (trip.status !== TripStatus.BIDDING)
+        throw new ConflictException('Trip is no longer accepting bids');
 
-    const updated = await this.prisma.trip.update({
-      where: { id: tripId },
-      data: {
-        status: TripStatus.MATCHED,
-        driver_user_id: bid.driver_user_id,
-        price_final: bid.price_offer,
-        matched_at: new Date(),
-      },
+      const bid = await trx.tripBid.findUnique({ where: { id: dto.bid_id } });
+      if (!bid || bid.trip_id !== tripId || bid.status !== TripBidStatus.PENDING)
+        throw new BadRequestException('Invalid bid');
+
+      const claim = await trx.trip.updateMany({
+        where: {
+          id: tripId,
+          status: TripStatus.BIDDING,
+        },
+        data: {
+          status: TripStatus.MATCHED,
+          driver_user_id: bid.driver_user_id,
+          price_final: bid.price_offer,
+          matched_at: new Date(),
+        },
+      });
+      if (claim.count !== 1) {
+        throw new ConflictException('Trip was already matched by another request');
+      }
+
+      await trx.tripBid.updateMany({
+        where: { trip_id: tripId, id: { not: bid.id }, status: TripBidStatus.PENDING },
+        data: { status: TripBidStatus.REJECTED },
+      });
+      await trx.tripBid.update({
+        where: { id: bid.id },
+        data: { status: TripBidStatus.ACCEPTED },
+      });
+      await trx.tripEvent.create({
+        data: {
+          trip_id: tripId,
+          actor_user_id: passengerUserId,
+          type: 'trip.matched',
+          payload_json: {
+            bid_id: bid.id,
+            driver_user_id: bid.driver_user_id,
+          } as any,
+        },
+      });
+
+      const updated = await trx.trip.findUnique({ where: { id: tripId } });
+      if (!updated) throw new NotFoundException('Trip not found');
+      return { updated, bid };
     });
-    await this.prisma.tripBid.updateMany({
-      where: { trip_id: tripId, id: { not: bid.id }, status: TripBidStatus.PENDING },
-      data: { status: TripBidStatus.REJECTED },
-    });
-    await this.prisma.tripBid.update({
-      where: { id: bid.id },
-      data: { status: TripBidStatus.ACCEPTED },
-    });
-    await this.addEvent(tripId, passengerUserId, 'trip.matched', {
-      bid_id: bid.id,
-      driver_user_id: bid.driver_user_id,
-    });
+
     this.ws.emitTrip(tripId, 'trip.matched', {
       trip_id: tripId,
       driver_user_id: bid.driver_user_id,
