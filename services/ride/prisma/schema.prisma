@@ -300,9 +300,12 @@ model OutboxEvent {
   payload_json   Json
   created_at     DateTime @default(now())
   published_at   DateTime?
+  locked_at      DateTime?
+  locked_by      String?
   attempts       Int      @default(0)
 
   @@index([published_at, created_at])
+  @@index([published_at, locked_at, created_at])
   @@index([aggregate_type, aggregate_id, created_at])
 }
 
