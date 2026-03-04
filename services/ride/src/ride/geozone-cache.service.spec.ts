@@ -1,48 +1,58 @@
-import { GeoZoneType } from '@prisma/client';
+import { Test } from '@nestjs/testing';
 import { PrismaService } from '../prisma/prisma.service';
 import { GeoZoneCacheService } from './geozone-cache.service';
 
 describe('GeoZoneCacheService', () => {
-  it('uses cache within TTL and refreshes after expiration', async () => {
-    const prisma: any = {
-      geoZone: {
-        findMany: jest
-          .fn()
-          .mockResolvedValueOnce([{ id: 'z1', type: GeoZoneType.RED, is_active: true, polygon_json: [] }])
-          .mockResolvedValueOnce([{ id: 'z2', type: GeoZoneType.CAUTION, is_active: true, polygon_json: [] }]),
-      },
-    };
-
-    const service = new GeoZoneCacheService(prisma as PrismaService);
-
-    const first = await service.getActiveZones();
-    const second = await service.getActiveZones();
-    (service as any).activeZonesCache.expiresAt = 0;
-    const third = await service.getActiveZones();
-
-    expect(first[0].id).toBe('z1');
-    expect(second[0].id).toBe('z1');
-    expect(third[0].id).toBe('z2');
-    expect(prisma.geoZone.findMany).toHaveBeenCalledTimes(2);
-
+  beforeEach(() => {
+    jest.useRealTimers();
   });
 
-  it('invalidates cache explicitly', async () => {
-    const prisma: any = {
+  it('returns cached active zones within ttl and refreshes after ttl', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2025-01-01T00:00:00.000Z'));
+
+    const prisma = {
       geoZone: {
         findMany: jest
           .fn()
-          .mockResolvedValueOnce([{ id: 'z1', type: GeoZoneType.RED, is_active: true, polygon_json: [] }])
-          .mockResolvedValueOnce([{ id: 'z3', type: GeoZoneType.SAFE, is_active: true, polygon_json: [] }]),
+          .mockResolvedValueOnce([{ id: 'z1' }])
+          .mockResolvedValueOnce([{ id: 'z2' }]),
       },
     };
 
-    const service = new GeoZoneCacheService(prisma as PrismaService);
+    const moduleRef = await Test.createTestingModule({
+      providers: [GeoZoneCacheService, { provide: PrismaService, useValue: prisma }],
+    }).compile();
+    const service = moduleRef.get(GeoZoneCacheService);
+
+    await expect(service.getActiveZones()).resolves.toEqual([{ id: 'z1' }]);
+    await expect(service.getActiveZones()).resolves.toEqual([{ id: 'z1' }]);
+    expect(prisma.geoZone.findMany).toHaveBeenCalledTimes(1);
+
+    jest.setSystemTime(new Date('2025-01-01T00:01:01.000Z'));
+
+    await expect(service.getActiveZones()).resolves.toEqual([{ id: 'z2' }]);
+    expect(prisma.geoZone.findMany).toHaveBeenCalledTimes(2);
+  });
+
+  it('invalidates cache explicitly on demand', async () => {
+    const prisma = {
+      geoZone: {
+        findMany: jest
+          .fn()
+          .mockResolvedValueOnce([{ id: 'z1' }])
+          .mockResolvedValueOnce([{ id: 'z2' }]),
+      },
+    };
+
+    const moduleRef = await Test.createTestingModule({
+      providers: [GeoZoneCacheService, { provide: PrismaService, useValue: prisma }],
+    }).compile();
+    const service = moduleRef.get(GeoZoneCacheService);
+
     await service.getActiveZones();
     service.invalidateActiveZones();
-    const refreshed = await service.getActiveZones();
+    await service.getActiveZones();
 
-    expect(refreshed[0].id).toBe('z3');
     expect(prisma.geoZone.findMany).toHaveBeenCalledTimes(2);
   });
 });

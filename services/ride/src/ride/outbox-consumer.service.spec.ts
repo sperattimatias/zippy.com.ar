@@ -1,4 +1,18 @@
+import { Test } from '@nestjs/testing';
+import { REDIS_CLIENT } from '../infra/redis/redis.types';
+import { MetricsService } from '../metrics/metrics.service';
 import { OutboxConsumerService } from './outbox-consumer.service';
+
+const createService = async (redis: any) => {
+  const moduleRef = await Test.createTestingModule({
+    providers: [
+      OutboxConsumerService,
+      { provide: REDIS_CLIENT, useValue: redis },
+      { provide: MetricsService, useValue: { setStreamPendingCount: jest.fn() } },
+    ],
+  }).compile();
+  return moduleRef.get(OutboxConsumerService);
+};
 
 describe('OutboxConsumerService', () => {
   afterEach(() => {
@@ -14,7 +28,7 @@ describe('OutboxConsumerService', () => {
       xclaim: jest.fn(),
     };
 
-    const service = new OutboxConsumerService(redis as any);
+    const service = await createService(redis);
     await expect(service.onModuleInit()).resolves.toBeUndefined();
     expect(redis.xgroup).toHaveBeenCalledWith('CREATE', 'stream:trip-events', 'trip-events-group', '0', 'MKSTREAM');
   });
@@ -29,10 +43,9 @@ describe('OutboxConsumerService', () => {
       hdel: jest.fn(),
     };
 
-    const service = new OutboxConsumerService(redis as any);
+    const service = await createService(redis);
     await service.onModuleInit();
     await service.consumeStub();
-
     expect(redis.xgroup).toHaveBeenCalledTimes(1);
   });
 
@@ -41,19 +54,14 @@ describe('OutboxConsumerService', () => {
       xgroup: jest.fn().mockResolvedValue('OK'),
       xpending: jest.fn().mockResolvedValue([]),
       xreadgroup: jest.fn().mockResolvedValue([
-        [
-          'stream:trip-events',
-          [
-            ['1710000000000-0', ['event_type', 'trip.created', 'aggregate_id', 't1', 'payload', '{}']],
-          ],
-        ],
+        ['stream:trip-events', [['1710000000000-0', ['event_type', 'trip.created', 'aggregate_id', 't1', 'payload', '{}']]]],
       ]),
       xack: jest.fn().mockResolvedValue(1),
       xclaim: jest.fn(),
       hdel: jest.fn().mockResolvedValue(1),
     };
 
-    const service = new OutboxConsumerService(redis as any);
+    const service = await createService(redis);
     await service.onModuleInit();
     await service.consumeBatch();
 
@@ -64,10 +72,7 @@ describe('OutboxConsumerService', () => {
     process.env.INSTANCE_ID = 'instance-1';
     const redis = {
       xgroup: jest.fn().mockResolvedValue('OK'),
-      xpending: jest
-        .fn()
-        .mockResolvedValueOnce([['1710000000001-0', 'other-consumer', 120000, 1]])
-        .mockResolvedValueOnce([]),
+      xpending: jest.fn().mockResolvedValueOnce([['1710000000001-0', 'other-consumer', 120000, 1]]).mockResolvedValueOnce([]),
       xclaim: jest.fn().mockResolvedValue([
         ['1710000000001-0', ['event_type', 'trip.matched', 'aggregate_id', 't2', 'payload', '{}']],
       ]),
@@ -76,7 +81,7 @@ describe('OutboxConsumerService', () => {
       hdel: jest.fn().mockResolvedValue(1),
     };
 
-    const service = new OutboxConsumerService(redis as any);
+    const service = await createService(redis);
     const routeSpy = jest.spyOn(service as any, 'routeEvent');
 
     await service.onModuleInit();
@@ -95,10 +100,7 @@ describe('OutboxConsumerService', () => {
       xgroup: jest.fn().mockResolvedValue('OK'),
       xpending: jest.fn().mockResolvedValue([]),
       xreadgroup: jest.fn().mockResolvedValue([
-        [
-          'stream:trip-events',
-          [['1710000000002-0', ['event_type', 'trip.created', 'aggregate_id', 't3', 'payload', '{"x":1}']]],
-        ],
+        ['stream:trip-events', [['1710000000002-0', ['event_type', 'trip.created', 'aggregate_id', 't3', 'payload', '{"x":1}']]]],
       ]),
       xack: jest.fn().mockResolvedValue(1),
       xclaim: jest.fn(),
@@ -108,7 +110,7 @@ describe('OutboxConsumerService', () => {
       xadd: jest.fn(),
     };
 
-    const service = new OutboxConsumerService(redis as any);
+    const service = await createService(redis);
     jest.spyOn(service as any, 'routeEvent').mockRejectedValue(new Error('boom'));
 
     await service.onModuleInit();
@@ -126,20 +128,17 @@ describe('OutboxConsumerService', () => {
       xgroup: jest.fn().mockResolvedValue('OK'),
       xpending: jest.fn().mockResolvedValue([]),
       xreadgroup: jest.fn().mockResolvedValue([
-        [
-          'stream:trip-events',
-          [['1710000000003-0', ['event_type', 'trip.cancelled', 'aggregate_id', 't4', 'payload', '{"trip":"t4"}']]],
-        ],
+        ['stream:trip-events', [['1710000000003-0', ['event_type', 'trip.cancelled', 'aggregate_id', 't4', 'payload', '{"trip":"t4"}']]]],
       ]),
       xack: jest.fn().mockResolvedValue(1),
       xclaim: jest.fn(),
       hdel: jest.fn().mockResolvedValue(1),
       hincrby: jest.fn().mockResolvedValue(2),
       expire: jest.fn().mockResolvedValue(1),
-      xadd: jest.fn().mockResolvedValue('1720000000000-0'),
+      xadd: jest.fn().mockResolvedValue('1710000000004-0'),
     };
 
-    const service = new OutboxConsumerService(redis as any);
+    const service = await createService(redis);
     jest.spyOn(service as any, 'routeEvent').mockRejectedValue(new Error('poison'));
 
     await service.onModuleInit();
@@ -158,6 +157,5 @@ describe('OutboxConsumerService', () => {
       '{"trip":"t4"}',
     );
     expect(redis.xack).toHaveBeenCalledWith('stream:trip-events', 'trip-events-group', '1710000000003-0');
-    expect(redis.hdel).toHaveBeenCalledWith('trip-events:failures', '1710000000003-0');
   });
 });

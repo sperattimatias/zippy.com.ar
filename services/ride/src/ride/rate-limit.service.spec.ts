@@ -1,8 +1,13 @@
+import { Test } from '@nestjs/testing';
+import { REDIS_CLIENT } from '../infra/redis/redis.types';
 import { RateLimitService } from './rate-limit.service';
 
 describe('RateLimitService', () => {
   it('allows requests under limit and blocks when exceeded in fallback mode', async () => {
-    const service = new RateLimitService(null);
+    const moduleRef = await Test.createTestingModule({
+      providers: [RateLimitService, { provide: REDIS_CLIENT, useValue: null }],
+    }).compile();
+    const service = moduleRef.get(RateLimitService);
 
     await expect(service.isAllowed('k1', 2, 1)).resolves.toBe(true);
     await expect(service.isAllowed('k1', 2, 1)).resolves.toBe(true);
@@ -14,7 +19,10 @@ describe('RateLimitService', () => {
       incr: jest.fn().mockResolvedValueOnce(1).mockResolvedValueOnce(2),
       expire: jest.fn().mockResolvedValue(1),
     };
-    const service = new RateLimitService(redis as any);
+    const moduleRef = await Test.createTestingModule({
+      providers: [RateLimitService, { provide: REDIS_CLIENT, useValue: redis }],
+    }).compile();
+    const service = moduleRef.get(RateLimitService);
 
     await expect(service.isAllowed('k2', 2, 10)).resolves.toBe(true);
     await expect(service.isAllowed('k2', 2, 10)).resolves.toBe(true);

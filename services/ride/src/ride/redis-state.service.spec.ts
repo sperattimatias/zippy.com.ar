@@ -1,31 +1,40 @@
+import { Test } from '@nestjs/testing';
+import { REDIS_CLIENT } from '../infra/redis/redis.types';
 import { RedisStateService } from './redis-state.service';
 
-describe('RedisStateService fallback', () => {
-  it('enforces distributed throttle semantics with TTL in fallback mode', async () => {
-    const svc = new RedisStateService();
-    const first = await svc.tryAcquireLocationThrottle('t1', 'd1', 1);
-    const second = await svc.tryAcquireLocationThrottle('t1', 'd1', 1);
+describe('RedisStateService', () => {
+  it('falls back to memory for throttle when redis unavailable', async () => {
+    const moduleRef = await Test.createTestingModule({
+      providers: [RedisStateService, { provide: REDIS_CLIENT, useValue: null }],
+    }).compile();
+    const svc = moduleRef.get(RedisStateService);
 
-    expect(first).toBe(true);
-    expect(second).toBe(false);
+    await expect(svc.tryAcquireLocationThrottle('t1', 'd1', 1)).resolves.toBe(true);
+    await expect(svc.tryAcquireLocationThrottle('t1', 'd1', 1)).resolves.toBe(false);
 
     await new Promise((r) => setTimeout(r, 1100));
-
-    const third = await svc.tryAcquireLocationThrottle('t1', 'd1', 1);
-    expect(third).toBe(true);
+    await expect(svc.tryAcquireLocationThrottle('t1', 'd1', 1)).resolves.toBe(true);
   });
 
-  it('stores and clears tracking state + deviation window', async () => {
-    const svc = new RedisStateService();
-    await svc.setTrackingState('trip-1', 'minor', 10);
-    await svc.setDeviationWindow('trip-1', { majorCount: 2, over300Since: 1, over700Since: 2 }, 10);
+  it('stores tracking state/window and clears keys', async () => {
+    const redis = {
+      set: jest.fn().mockResolvedValue('OK'),
+      get: jest.fn().mockResolvedValueOnce('major').mockResolvedValueOnce(JSON.stringify({ majorCount: 2 })),
+      del: jest.fn().mockResolvedValue(1),
+    };
 
-    await expect(svc.getTrackingState('trip-1')).resolves.toBe('minor');
-    await expect(svc.getDeviationWindow('trip-1')).resolves.toMatchObject({ majorCount: 2 });
+    const moduleRef = await Test.createTestingModule({
+      providers: [RedisStateService, { provide: REDIS_CLIENT, useValue: redis }],
+    }).compile();
+    const svc = moduleRef.get(RedisStateService);
 
-    await svc.clearTripTrackingState('trip-1');
+    await svc.setTrackingState('t1', 'major');
+    await expect(svc.getTrackingState('t1')).resolves.toBe('major');
 
-    await expect(svc.getTrackingState('trip-1')).resolves.toBe('none');
-    await expect(svc.getDeviationWindow('trip-1')).resolves.toEqual({ majorCount: 0 });
+    await svc.setDeviationWindow('t1', { majorCount: 2 });
+    await expect(svc.getDeviationWindow('t1')).resolves.toEqual({ majorCount: 2 });
+
+    await svc.clearTripTrackingState('t1');
+    expect(redis.del).toHaveBeenCalledWith('tracking:state:t1', 'tracking:window:t1');
   });
 });
