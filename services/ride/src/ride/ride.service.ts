@@ -55,11 +55,21 @@ import {
   SafetyAlertUpdateDto,
   TripRequestDto,
   VerifyOtpDto,
+  AdminTripsQueryDto,
 } from '../dto/ride.dto';
 
 @Injectable()
 export class RideService implements OnModuleInit {
   private readonly logger = new Logger(RideService.name);
+  private readonly defaultPricing = {
+    base_fare: 800,
+    per_km: 250,
+    per_min: 80,
+    minimum: 1200,
+    cancel_fee: 500,
+    surge: 1,
+    night_fee: 0,
+  };
 
   constructor(
     private readonly prisma: PrismaService,
@@ -92,6 +102,71 @@ export class RideService implements OnModuleInit {
   }
   private onlineRecent(lastSeen?: Date | null) {
     return !!lastSeen && this.nowMs() - lastSeen.getTime() < 30_000;
+  }
+
+  private sanitizeAuditPayload(payload: unknown): Prisma.InputJsonValue | undefined {
+    if (payload === undefined) return undefined;
+
+    const redact = (value: unknown): unknown => {
+      if (Array.isArray(value)) return value.map(redact);
+      if (value && typeof value === 'object') {
+        const out: Record<string, unknown> = {};
+        for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+          if (/(token|secret|password|authorization|key)/i.test(k)) out[k] = '[REDACTED]';
+          else out[k] = redact(v);
+        }
+        return out;
+      }
+      return value;
+    };
+
+    return redact(payload) as Prisma.InputJsonValue;
+  }
+
+  async logAdminAudit(
+    adminId: string,
+    action: string,
+    entityType: string,
+    entityId: string,
+    payload?: unknown,
+  ) {
+    return this.prisma.adminAuditLog.create({
+      data: {
+        admin_id: adminId,
+        action,
+        entity_type: entityType,
+        entity_id: entityId,
+        payload: this.sanitizeAuditPayload(payload),
+      },
+    });
+  }
+
+  async listAdminAudit(filter: { from?: string; to?: string; action?: string; entityType?: string; adminId?: string }) {
+    return this.prisma.adminAuditLog.findMany({
+      where: {
+        ...(filter.action ? { action: filter.action } : {}),
+        ...(filter.entityType ? { entity_type: filter.entityType } : {}),
+        ...(filter.adminId ? { admin_id: filter.adminId } : {}),
+        ...(filter.from || filter.to
+          ? {
+              created_at: {
+                ...(filter.from ? { gte: new Date(filter.from) } : {}),
+                ...(filter.to ? { lte: new Date(filter.to) } : {}),
+              },
+            }
+          : {}),
+      },
+      orderBy: { created_at: 'desc' },
+      take: 200,
+    });
+  }
+
+  async listAdminAuditByEntity(entityType: string, entityId: string) {
+    return this.prisma.adminAuditLog.findMany({
+      where: { entity_type: entityType, entity_id: entityId },
+      orderBy: { created_at: 'desc' },
+      take: 200,
+    });
   }
 
   private async addEvent(
@@ -164,13 +239,73 @@ export class RideService implements OnModuleInit {
     return weightedPool[weightedPool.length - 1].entry.p.driver_user_id;
   }
 
-  private computeBasePrice(distanceKm?: number, etaMin?: number) {
-    const fixed = 800;
-    const kmRate = 250;
-    const minRate = 80;
+  private async getActivePricing(input?: {
+    origin?: { lat: number; lng: number };
+    dest?: { lat: number; lng: number };
+  }) {
+    const row = await this.prisma.appConfig.findUnique({ where: { key: 'pricing' } });
+    const fromDb = (row?.value_json as Record<string, number> | null) ?? {};
+    const profileKey = await this.resolvePricingProfileKey(input);
+    const profile = profileKey ? await this.getPricingProfileByKey(profileKey) : null;
+    return {
+      ...this.defaultPricing,
+      ...fromDb,
+      ...(profile ?? {}),
+    };
+  }
+
+  private async resolvePricingProfileKey(input?: {
+    origin?: { lat: number; lng: number };
+    dest?: { lat: number; lng: number };
+  }) {
+    if (!input?.origin && !input?.dest) return null;
+
+    const premium = await this.prisma.premiumZone.findMany({
+      where: { is_active: true, pricing_profile_key: { not: null } },
+      select: { polygon_json: true, pricing_profile_key: true },
+    });
+
+    const geozones = await this.prisma.geoZone.findMany({
+      where: { is_active: true, pricing_profile_key: { not: null } },
+      select: { polygon_json: true, pricing_profile_key: true },
+    });
+
+    const points = [input.origin, input.dest].filter((p): p is { lat: number; lng: number } => !!p);
+    const inZone = (polygonJson: unknown, point: { lat: number; lng: number }) =>
+      this.pointInPolygon(point, polygonJson as Array<{ lat: number; lng: number }>);
+
+    for (const point of points) {
+      const premiumMatch = premium.find((zone) => inZone(zone.polygon_json, point));
+      if (premiumMatch?.pricing_profile_key) return premiumMatch.pricing_profile_key;
+      const geoMatch = geozones.find((zone) => inZone(zone.polygon_json, point));
+      if (geoMatch?.pricing_profile_key) return geoMatch.pricing_profile_key;
+    }
+
+    return null;
+  }
+
+  private async getPricingProfiles() {
+    const row = await this.prisma.appConfig.findUnique({ where: { key: 'pricing_profiles' } });
+    const profiles = Array.isArray(row?.value_json) ? row?.value_json : [];
+    return profiles as Array<Record<string, unknown>>;
+  }
+
+  private async getPricingProfileByKey(key: string) {
+    const profiles = await this.getPricingProfiles();
+    return (profiles.find((profile) => profile.key === key) as Record<string, number> | undefined) ?? null;
+  }
+
+  private async computeBasePrice(
+    distanceKm?: number,
+    etaMin?: number,
+    input?: { origin?: { lat: number; lng: number }; dest?: { lat: number; lng: number } },
+  ) {
+    const pricing = await this.getActivePricing(input);
     const km = distanceKm ?? 5;
     const eta = etaMin ?? 10;
-    return Math.round(fixed + km * kmRate + eta * minRate);
+    const subtotal = pricing.base_fare + km * pricing.per_km + eta * pricing.per_min + (pricing.night_fee ?? 0);
+    const surged = subtotal * Math.max(1, Number(pricing.surge ?? 1));
+    return Math.round(Math.max(pricing.minimum, surged));
   }
 
   private buildBaseline(
@@ -454,7 +589,10 @@ export class RideService implements OnModuleInit {
       passengerScore.status === RestrictionStatus.BLOCKED || passengerScore.score < 60;
     const biddingWindowMs = isRestrictedPassenger ? 25_000 : 45_000;
 
-    const price_base = this.computeBasePrice(dto.distance_km, dto.eta_minutes);
+    const price_base = await this.computeBasePrice(dto.distance_km, dto.eta_minutes, {
+      origin: { lat: dto.origin_lat, lng: dto.origin_lng },
+      dest: { lat: dto.dest_lat, lng: dto.dest_lng },
+    });
     const expires = new Date(this.nowMs() + biddingWindowMs);
 
     const trip = await this.prisma.trip.create({
@@ -1524,6 +1662,241 @@ export class RideService implements OnModuleInit {
     return this.merit.putConfig(key, value);
   }
 
+
+  async listIncentiveCampaigns() {
+    const campaigns = await this.prisma.incentiveCampaign.findMany({ orderBy: { created_at: 'desc' } });
+    const now = new Date();
+    return campaigns.map((campaign) => ({
+      ...campaign,
+      status: campaign.is_active && campaign.starts_at <= now && campaign.ends_at >= now ? 'active' : 'inactive',
+    }));
+  }
+
+  async createIncentiveCampaign(
+    adminUserId: string,
+    dto: {
+      name: string;
+      target_trips?: number;
+      target_hours?: number;
+      starts_at: string;
+      ends_at: string;
+      payout_amount: number;
+      is_active?: boolean;
+    },
+  ) {
+    const created = await this.prisma.incentiveCampaign.create({
+      data: {
+        name: dto.name,
+        target_trips: dto.target_trips,
+        target_hours: dto.target_hours,
+        starts_at: new Date(dto.starts_at),
+        ends_at: new Date(dto.ends_at),
+        payout_amount: dto.payout_amount,
+        is_active: dto.is_active ?? true,
+        created_by: adminUserId,
+      },
+    });
+    await this.logAdminAudit(adminUserId, 'incentive.create', 'incentive_campaign', created.id, {
+      name: dto.name,
+      starts_at: dto.starts_at,
+      ends_at: dto.ends_at,
+      payout_amount: dto.payout_amount,
+    });
+    return created;
+  }
+
+  async getIncentiveCampaign(id: string) {
+    const campaign = await this.prisma.incentiveCampaign.findUnique({ where: { id } });
+    if (!campaign) throw new NotFoundException('Campaign not found');
+
+    const trips = await this.prisma.trip.findMany({
+      where: {
+        status: TripStatus.COMPLETED,
+        completed_at: { gte: campaign.starts_at, lte: campaign.ends_at },
+        driver_user_id: { not: null },
+      },
+      select: { driver_user_id: true, started_at: true, completed_at: true },
+    });
+
+    const blocked = await this.prisma.userScore.findMany({
+      where: { actor_type: ActorType.DRIVER, status: RestrictionStatus.BLOCKED },
+      select: { user_id: true },
+    });
+    const blockedSet = new Set(blocked.map((row) => row.user_id));
+
+    const byDriver = new Map<string, { trips_completed: number; hours_completed: number }>();
+    for (const trip of trips) {
+      const driverId = trip.driver_user_id;
+      if (!driverId || blockedSet.has(driverId)) continue;
+      const current = byDriver.get(driverId) ?? { trips_completed: 0, hours_completed: 0 };
+      current.trips_completed += 1;
+      const hours = trip.started_at && trip.completed_at ? (trip.completed_at.getTime() - trip.started_at.getTime()) / 3600000 : 0;
+      current.hours_completed += Math.max(0, hours);
+      byDriver.set(driverId, current);
+    }
+
+    const progress = Array.from(byDriver.entries()).map(([driver_id, value]) => ({
+      driver_id,
+      ...value,
+      target_trips: campaign.target_trips,
+      target_hours: campaign.target_hours,
+      reached:
+        (campaign.target_trips ? value.trips_completed >= campaign.target_trips : true) &&
+        (campaign.target_hours ? value.hours_completed >= campaign.target_hours : true),
+    }));
+
+    return {
+      campaign,
+      progress,
+      excluded_blocked_drivers: blockedSet.size,
+    };
+  }
+
+
+  private resolveReportRange(input?: { from?: string; to?: string }) {
+    const to = input?.to ? new Date(input.to) : new Date();
+    const from = input?.from ? new Date(input.from) : new Date(to.getTime() - 6 * 24 * 60 * 60 * 1000);
+    const safeFrom = Number.isNaN(from.getTime()) ? new Date(to.getTime() - 6 * 24 * 60 * 60 * 1000) : from;
+    const safeTo = Number.isNaN(to.getTime()) ? new Date() : to;
+    return safeFrom <= safeTo ? { from: safeFrom, to: safeTo } : { from: safeTo, to: safeFrom };
+  }
+
+  async adminReportsOverview(query: { from?: string; to?: string }) {
+    const range = this.resolveReportRange(query);
+    const msPerDay = 24 * 60 * 60 * 1000;
+    const days = Math.max(1, Math.ceil((range.to.getTime() - range.from.getTime() + 1) / msPerDay));
+
+    const [totalRides, completedRides, cancelledRides, revenueAgg, activeDriverRows, activeRiderRows, commissionPolicy] =
+      await Promise.all([
+        this.prisma.trip.count({ where: { created_at: { gte: range.from, lte: range.to } } }),
+        this.prisma.trip.count({ where: { status: TripStatus.COMPLETED, created_at: { gte: range.from, lte: range.to } } }),
+        this.prisma.trip.count({
+          where: {
+            status: { in: [TripStatus.CANCELLED_BY_DRIVER, TripStatus.CANCELLED_BY_PASSENGER] },
+            created_at: { gte: range.from, lte: range.to },
+          },
+        }),
+        this.prisma.trip.aggregate({
+          _sum: { price_final: true },
+          where: { status: TripStatus.COMPLETED, created_at: { gte: range.from, lte: range.to } },
+        }),
+        this.prisma.trip.groupBy({
+          by: ['driver_user_id'],
+          where: { driver_user_id: { not: null }, created_at: { gte: range.from, lte: range.to } },
+        }),
+        this.prisma.trip.groupBy({
+          by: ['passenger_user_id'],
+          where: { created_at: { gte: range.from, lte: range.to } },
+        }),
+        this.prisma.commissionPolicy.findUnique({ where: { key: 'default_commission_bps' } }),
+      ]);
+
+    const defaultCommissionBps = Number(commissionPolicy?.value_json ?? 1000);
+    const takeRate = Number(((defaultCommissionBps / 10000) * 100).toFixed(2));
+    const revenue = Number(revenueAgg._sum.price_final ?? 0);
+
+    return {
+      from: range.from.toISOString(),
+      to: range.to.toISOString(),
+      kpis: {
+        rides_per_day: Number((completedRides / days).toFixed(2)),
+        cancel_rate: Number((totalRides > 0 ? (cancelledRides / totalRides) * 100 : 0).toFixed(2)),
+        revenue,
+        take_rate: takeRate,
+        active_drivers: activeDriverRows.length,
+        active_riders: activeRiderRows.length,
+      },
+      totals: {
+        rides_total: totalRides,
+        rides_completed: completedRides,
+        rides_cancelled: cancelledRides,
+      },
+    };
+  }
+
+  async adminReportsExportCsv(query: { from?: string; to?: string }) {
+    const overview = await this.adminReportsOverview(query);
+    const csvRows = [
+      ['from', overview.from],
+      ['to', overview.to],
+      ['rides_per_day', String(overview.kpis.rides_per_day)],
+      ['cancel_rate_percent', String(overview.kpis.cancel_rate)],
+      ['revenue', String(overview.kpis.revenue)],
+      ['take_rate_percent', String(overview.kpis.take_rate)],
+      ['active_drivers', String(overview.kpis.active_drivers)],
+      ['active_riders', String(overview.kpis.active_riders)],
+      ['rides_total', String(overview.totals.rides_total)],
+      ['rides_completed', String(overview.totals.rides_completed)],
+      ['rides_cancelled', String(overview.totals.rides_cancelled)],
+    ];
+    const escape = (value: string) => `"${value.replace(/"/g, '""')}"`;
+    return csvRows.map(([k, v]) => `${escape(k)},${escape(v)}`).join('\n');
+  }
+
+  async getAdminPricing() {
+    return this.getActivePricing();
+  }
+
+  async listAdminPricingProfiles() {
+    return this.getPricingProfiles();
+  }
+
+  async upsertAdminPricingProfile(
+    adminUserId: string,
+    dto: {
+      key: string;
+      name: string;
+      base_fare: number;
+      per_km: number;
+      per_min: number;
+      minimum: number;
+      cancel_fee: number;
+      surge: number;
+      night_fee?: number;
+    },
+  ) {
+    const profiles = await this.getPricingProfiles();
+    const next = {
+      key: dto.key,
+      name: dto.name,
+      base_fare: dto.base_fare,
+      per_km: dto.per_km,
+      per_min: dto.per_min,
+      minimum: dto.minimum,
+      cancel_fee: dto.cancel_fee,
+      surge: dto.surge,
+      ...(dto.night_fee !== undefined ? { night_fee: dto.night_fee } : {}),
+    };
+    const without = profiles.filter((profile) => profile.key !== dto.key);
+    const updatedProfiles = [...without, next];
+    await this.putConfig('pricing_profiles', updatedProfiles);
+    await this.logAdminAudit(adminUserId, 'pricing_profile.upsert', 'settings', dto.key, next);
+    return next;
+  }
+
+  async putAdminPricing(adminUserId: string, dto: {
+    base_fare: number;
+    per_km: number;
+    per_min: number;
+    minimum: number;
+    cancel_fee: number;
+    surge: number;
+    night_fee?: number;
+  }) {
+    const payload = {
+      base_fare: dto.base_fare,
+      per_km: dto.per_km,
+      per_min: dto.per_min,
+      minimum: dto.minimum,
+      cancel_fee: dto.cancel_fee,
+      surge: dto.surge,
+      ...(dto.night_fee !== undefined ? { night_fee: dto.night_fee } : {}),
+    };
+    const updated = await this.putConfig('pricing', payload);
+    await this.logAdminAudit(adminUserId, 'pricing.update', 'settings', 'pricing', payload);
+    return updated;
+  }
+
   async listPremiumZones() {
     return this.prisma.premiumZone.findMany({ orderBy: { created_at: 'desc' } });
   }
@@ -1587,6 +1960,89 @@ export class RideService implements OnModuleInit {
   async userFraudRisk(userId: string) {
     return this.fraud.userRisk(userId);
   }
+
+  async manualReviewFraudCase(id: string, actorUserId: string, notes: string) {
+    const nextNotes = notes?.trim() || 'manual review';
+    const assigned = await this.assignFraudCase(id, actorUserId);
+    const updated = await this.prisma.fraudCase.update({
+      where: { id },
+      data: {
+        status: 'IN_REVIEW' as any,
+        assigned_to_user_id: actorUserId,
+        summary: `${assigned.summary ?? ''}
+manual_review: ${nextNotes}`.trim(),
+      },
+    });
+
+    await this.logAdminAudit(actorUserId, 'fraud.manual_review', 'fraud_case', id, { notes: nextNotes });
+    return updated;
+  }
+
+  async blockUserFromFraudCase(id: string, actorUserId: string, userId: string, note: string) {
+    const hold = await this.fraud.createHoldIfAbsent(
+      userId,
+      HoldType.ACCOUNT_BLOCK,
+      note || `Blocked by fraud case ${id}`,
+      undefined,
+      actorUserId,
+      { case_id: id, action: 'block_user' },
+    );
+    await this.assignFraudCase(id, actorUserId);
+    await this.logAdminAudit(actorUserId, 'fraud.block_user', 'user', userId, { case_id: id, note });
+    return { ok: true, hold };
+  }
+
+  async blockDriverFromFraudCase(id: string, actorUserId: string, driverId: string, note: string) {
+    const hold = await this.fraud.createHoldIfAbsent(
+      driverId,
+      HoldType.ACCOUNT_BLOCK,
+      note || `Driver blocked by fraud case ${id}`,
+      undefined,
+      actorUserId,
+      { case_id: id, action: 'block_driver' },
+    );
+    await this.assignFraudCase(id, actorUserId);
+    await this.logAdminAudit(actorUserId, 'fraud.block_driver', 'driver', driverId, { case_id: id, note });
+    return { ok: true, hold };
+  }
+
+  async freezePaymentsFromFraudCase(
+    id: string,
+    actorUserId: string,
+    dto: { payment_id?: string; trip_id?: string; note?: string },
+  ) {
+    const fraudCase = await this.getFraudCase(id);
+    const payload = {
+      action: 'freeze_payments',
+      case_id: id,
+      payment_id: dto.payment_id ?? null,
+      trip_id: dto.trip_id ?? null,
+      note: dto.note ?? null,
+      actor_user_id: actorUserId,
+      at: new Date().toISOString(),
+    };
+
+    await this.fraud.applySignal({
+      user_id: fraudCase?.fraud_case?.primary_user_id ?? undefined,
+      trip_id: dto.trip_id ?? undefined,
+      payment_id: dto.payment_id ?? undefined,
+      type: 'MANUAL_REVIEW_TRIGGER' as any,
+      severity: 'HIGH' as any,
+      score_delta: 0,
+      payload,
+    });
+
+    await this.assignFraudCase(id, actorUserId);
+
+    await this.logAdminAudit(actorUserId, 'fraud.freeze_payments', 'fraud_case', id, payload);
+
+    return {
+      ok: true,
+      delegated: false,
+      message: 'payment freeze flag recorded for manual review',
+      payload,
+    };
+  }
   async createFraudHold(
     actorUserId: string,
     dto: { user_id: string; hold_type: any; reason: string; ends_at?: string; notes?: unknown },
@@ -1607,8 +2063,63 @@ export class RideService implements OnModuleInit {
     return this.fraud.releaseHold(id, actorUserId);
   }
 
-  async listTripsRecent() {
-    return this.prisma.trip.findMany({ orderBy: { created_at: 'desc' }, take: 100 });
+  async listTripsRecent(query: AdminTripsQueryDto = {}) {
+    const page = Math.max(1, Number(query.page ?? 1));
+    const pageSize = Math.min(100, Math.max(1, Number(query.page_size ?? 20)));
+
+    const where: Prisma.TripWhereInput = {
+      ...(query.status ? { status: query.status as TripStatus } : {}),
+      ...(query.driver_id ? { driver_user_id: query.driver_id } : {}),
+      ...(query.rider_id ? { passenger_user_id: query.rider_id } : {}),
+      ...(query.search
+        ? {
+            OR: [
+              { id: { contains: query.search, mode: 'insensitive' } },
+              { origin_address: { contains: query.search, mode: 'insensitive' } },
+              { dest_address: { contains: query.search, mode: 'insensitive' } },
+            ],
+          }
+        : {}),
+      ...(query.from || query.to
+        ? {
+            created_at: {
+              ...(query.from ? { gte: new Date(query.from) } : {}),
+              ...(query.to ? { lte: new Date(query.to) } : {}),
+            },
+          }
+        : {}),
+    };
+
+    const [total, trips] = await this.prisma.$transaction([
+      this.prisma.trip.count({ where }),
+      this.prisma.trip.findMany({
+        where,
+        orderBy: { created_at: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+    ]);
+
+    const paymentRows = await this.prisma.externalTripPayment.findMany({
+      where: { trip_id: { in: trips.map((trip) => trip.id) } },
+      select: { trip_id: true, status: true },
+    });
+    const paymentMap = new Map(paymentRows.map((payment) => [payment.trip_id, payment.status]));
+
+    const items = trips.map((trip) => ({
+      ...trip,
+      rider_user_id: trip.passenger_user_id,
+      total: trip.price_final ?? trip.price_base,
+      payment_method: paymentMap.get(trip.id) ?? 'cash',
+    }));
+
+    return {
+      items,
+      page,
+      page_size: pageSize,
+      total,
+      total_pages: Math.max(1, Math.ceil(total / pageSize)),
+    };
   }
   async tripDetail(id: string) {
     const trip = await this.prisma.trip.findUnique({
@@ -1624,4 +2135,109 @@ export class RideService implements OnModuleInit {
     if (!trip) throw new NotFoundException('Trip not found');
     return trip;
   }
+  async adminCancelTrip(id: string, adminUserId: string, reason: string) {
+    const trip = await this.prisma.trip.findUnique({ where: { id } });
+    if (!trip) throw new NotFoundException('Trip not found');
+
+    const cancelled = await this.prisma.trip.update({
+      where: { id },
+      data: {
+        status: 'CANCELLED_BY_PASSENGER',
+        cancelled_at: new Date(),
+        cancelled_by_user_id: adminUserId,
+        cancel_reason: CancelReason.OTHER,
+      },
+    });
+
+    await this.prisma.tripEvent.create({
+      data: {
+        trip_id: id,
+        actor_user_id: adminUserId,
+        type: 'admin.trip.cancelled',
+        payload_json: { reason },
+      },
+    });
+
+    await this.logAdminAudit(adminUserId, 'trip.cancel', 'trip', id, { reason });
+    return { ok: true, trip: cancelled };
+  }
+
+  async adminReassignTrip(id: string, adminUserId: string, driverId: string) {
+    const trip = await this.prisma.trip.findUnique({ where: { id } });
+    if (!trip) throw new NotFoundException('Trip not found');
+
+    const updated = await this.prisma.trip.update({
+      where: { id },
+      data: {
+        driver_user_id: driverId,
+        status: TripStatus.MATCHED,
+        matched_at: new Date(),
+      },
+    });
+
+    await this.prisma.tripEvent.create({
+      data: {
+        trip_id: id,
+        actor_user_id: adminUserId,
+        type: 'admin.trip.reassigned',
+        payload_json: { driver_id: driverId },
+      },
+    });
+
+    return { ok: true, trip: updated };
+  }
+
+  async adminRetryMatching(id: string, adminUserId: string) {
+    const trip = await this.prisma.trip.findUnique({ where: { id } });
+    if (!trip) throw new NotFoundException('Trip not found');
+
+    const updated = await this.prisma.trip.update({
+      where: { id },
+      data: {
+        status: TripStatus.BIDDING,
+        driver_user_id: null,
+        matched_at: null,
+        bidding_expires_at: new Date(Date.now() + 2 * 60 * 1000),
+      },
+    });
+
+    await this.prisma.tripEvent.create({
+      data: {
+        trip_id: id,
+        actor_user_id: adminUserId,
+        type: 'admin.trip.retry_matching',
+        payload_json: {},
+      },
+    });
+
+    return { ok: true, trip: updated };
+  }
+
+  async adminMarkIncident(id: string, adminUserId: string, note: string) {
+    const trip = await this.prisma.trip.findUnique({ where: { id } });
+    if (!trip) throw new NotFoundException('Trip not found');
+
+    const alert = await this.prisma.safetyAlert.create({
+      data: {
+        trip_id: id,
+        type: SafetyAlertType.MANUAL_SOS_TRIGGER,
+        status: SafetyAlertStatus.OPEN,
+        severity: 3,
+        message: `Admin incident: ${note}`,
+        payload_json: { note, created_by: adminUserId },
+      },
+    });
+
+    await this.prisma.tripEvent.create({
+      data: {
+        trip_id: id,
+        actor_user_id: adminUserId,
+        type: 'admin.trip.incident',
+        payload_json: { note, alert_id: alert.id },
+      },
+    });
+
+    return { ok: true, alert };
+  }
+
 }
