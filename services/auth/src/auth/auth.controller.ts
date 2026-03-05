@@ -3,12 +3,15 @@ import {
   Controller,
   Get,
   Headers,
+  Param,
+  Patch,
   HttpCode,
   Ip,
   Post,
   Req,
   UseGuards,
   ForbiddenException,
+  Query,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
@@ -19,6 +22,7 @@ import { LoginDto } from '../dto/login.dto';
 import { RefreshDto } from '../dto/refresh.dto';
 import { LogoutDto } from '../dto/logout.dto';
 import { GrantRoleDto } from '../dto/grant-role.dto';
+import { AdminUserNoteDto, AdminUsersQueryDto, AdminUserPaymentLimitDto, AdminUserStatusDto } from '../dto/admin-user.dto';
 import { JwtAccessGuard } from '../common/jwt-access.guard';
 import { getRequestId } from '@shared/utils/request-id';
 import { ROLES } from '@shared/enums/role.enum';
@@ -86,6 +90,62 @@ export class AuthController {
     }
     return this.authService.grantRole(dto.user_id, dto.role);
   }
+
+  @Get('admin/users')
+  @UseGuards(JwtAccessGuard)
+  @ApiBearerAuth()
+  async adminUsers(@Req() req: { user: { roles: string[] } }, @Query() query: AdminUsersQueryDto) {
+    const roles = req.user.roles ?? [];
+    if (!roles.includes(ROLES.ADMIN) && !roles.includes(ROLES.SOS)) {
+      throw new ForbiddenException('admin/sos role required');
+    }
+    return this.authService.adminListUsers(query);
+  }
+
+  @Get('admin/users/:id')
+  @UseGuards(JwtAccessGuard)
+  @ApiBearerAuth()
+  async adminUserDetail(@Req() req: { user: { roles: string[] } }, @Param('id') id: string) {
+    const roles = req.user.roles ?? [];
+    if (!roles.includes(ROLES.ADMIN) && !roles.includes(ROLES.SOS)) {
+      throw new ForbiddenException('admin/sos role required');
+    }
+    return this.authService.adminUserDetail(id);
+  }
+
+  @Patch('admin/users/:id/status')
+  @UseGuards(JwtAccessGuard)
+  @ApiBearerAuth()
+  async adminUserStatus(@Req() req: { user: { roles: string[] } }, @Param('id') id: string, @Body() dto: AdminUserStatusDto) {
+    const roles = req.user.roles ?? [];
+    if (!roles.includes(ROLES.ADMIN) && !roles.includes(ROLES.SOS)) {
+      throw new ForbiddenException('admin/sos role required');
+    }
+    return this.authService.adminPatchUserStatus(id, dto.status);
+  }
+
+  @Patch('admin/users/:id/payment-limit')
+  @UseGuards(JwtAccessGuard)
+  @ApiBearerAuth()
+  async adminUserPaymentLimit(@Req() req: { user: { roles: string[] } }, @Param('id') id: string, @Body() dto: AdminUserPaymentLimitDto) {
+    const roles = req.user.roles ?? [];
+    if (!roles.includes(ROLES.ADMIN) && !roles.includes(ROLES.SOS)) {
+      throw new ForbiddenException('admin/sos role required');
+    }
+    return this.authService.adminPatchUserPaymentLimit(id, dto.payment_limited);
+  }
+
+  @Post('admin/users/:id/notes')
+  @UseGuards(JwtAccessGuard)
+  @ApiBearerAuth()
+  async adminUserNotes(@Req() req: { user: { roles: string[] } }, @Param('id') id: string, @Body() dto: AdminUserNoteDto) {
+    const roles = req.user.roles ?? [];
+    if (!roles.includes(ROLES.ADMIN) && !roles.includes(ROLES.SOS)) {
+      throw new ForbiddenException('admin/sos role required');
+    }
+    return this.authService.adminAddUserNote(id, dto.note);
+  }
+
   @Get('me')
   @UseGuards(JwtAccessGuard)
   @ApiBearerAuth()

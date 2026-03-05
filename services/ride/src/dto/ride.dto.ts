@@ -16,9 +16,11 @@ import {
   IsArray,
   IsBoolean,
   IsDateString,
+  IsEmail,
   IsEnum,
   IsInt,
   IsNumber,
+  IsIn,
   IsOptional,
   IsString,
   Max,
@@ -140,6 +142,47 @@ export class AdjustScoreDto {
   @IsOptional() @IsString() notes?: string;
 }
 
+
+
+export class AdminTripsQueryDto {
+  @IsOptional() @IsString() status?: string;
+  @IsOptional() @IsDateString() from?: string;
+  @IsOptional() @IsDateString() to?: string;
+  @IsOptional() @IsString() driver_id?: string;
+  @IsOptional() @IsString() rider_id?: string;
+  @IsOptional() @IsString() zone?: string;
+  @IsOptional() @IsString() search?: string;
+  @IsOptional() @IsString() page?: string;
+  @IsOptional() @IsString() page_size?: string;
+}
+
+export class AdminTripCancelDto {
+  @IsString() reason!: string;
+}
+
+export class AdminTripReassignDto {
+  @IsString() driverId!: string;
+}
+
+export class AdminTripIncidentDto {
+  @IsString() note!: string;
+}
+
+export class AdminSettingsFilterDto {
+  @IsOptional() @IsString() category?: string;
+}
+
+export class SystemSettingPutDto {
+  @IsString() value!: string;
+  @IsOptional() @IsString() category?: string;
+  @IsOptional() @IsBoolean() encrypted?: boolean;
+}
+
+
+export class SmtpTestDto {
+  @IsString() @IsEmail() toEmail!: string;
+}
+
 export class AdminLevelFilterDto {
   @IsOptional() @IsEnum(ActorType) actor_type?: ActorType;
   @IsOptional() @IsEnum(LevelTier) tier?: LevelTier;
@@ -177,4 +220,34 @@ export class CreateHoldDto {
   @IsString() reason!: string;
   @IsOptional() @IsDateString() ends_at?: string;
   @IsOptional() notes?: unknown;
+}
+
+export class FraudManualReviewDto {
+  @IsString() notes!: string;
+}
+
+export class FraudBlockEntityDto {
+  @IsString() entity_id!: string;
+  @IsOptional() @IsString() note?: string;
+}
+
+export class FraudFreezePaymentsDto {
+  @IsOptional() @IsString() payment_id?: string;
+  @IsOptional() @IsString() trip_id?: string;
+  @IsOptional() @IsString() note?: string;
+}
+
+
+export class AdminAuditFilterDto {
+  @IsOptional() @IsDateString() from?: string;
+  @IsOptional() @IsDateString() to?: string;
+  @IsOptional() @IsString() action?: string;
+  @IsOptional() @IsString() entityType?: string;
+  @IsOptional() @IsString() adminId?: string;
+}
+
+export class AdminAuditEntityParamsDto {
+  @IsIn(['trip', 'user', 'driver', 'payment', 'settings', 'fraud_case'])
+  entityType!: string;
+  @IsString() entityId!: string;
 }
