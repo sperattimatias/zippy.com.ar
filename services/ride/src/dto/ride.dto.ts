@@ -280,3 +280,14 @@ export class AdminAuditEntityParamsDto {
   entityType!: string;
   @IsString() entityId!: string;
 }
+
+
+export class IncentiveCampaignCreateDto {
+  @IsString() name!: string;
+  @IsOptional() @IsInt() target_trips?: number;
+  @IsOptional() @IsNumber() target_hours?: number;
+  @IsDateString() starts_at!: string;
+  @IsDateString() ends_at!: string;
+  @IsInt() payout_amount!: number;
+  @IsOptional() @IsBoolean() is_active?: boolean;
+}

@@ -561,6 +561,24 @@ model MonthlyBonusLedger {
   @@unique([driver_user_id, year, month])
 }
 
+
+model IncentiveCampaign {
+  id             String   @id @default(cuid())
+  name           String
+  target_trips   Int?
+  target_hours   Float?
+  starts_at      DateTime
+  ends_at        DateTime
+  payout_amount  Int
+  is_active      Boolean  @default(true)
+  created_by     String?
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
+
+  @@index([starts_at, ends_at])
+  @@index([is_active, created_at])
+}
+
 model CommissionPolicy {
   id         String   @id @default(cuid())
   key        String   @unique

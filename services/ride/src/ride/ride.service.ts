@@ -1662,6 +1662,96 @@ export class RideService implements OnModuleInit {
     return this.merit.putConfig(key, value);
   }
 
+
+  async listIncentiveCampaigns() {
+    const campaigns = await this.prisma.incentiveCampaign.findMany({ orderBy: { created_at: 'desc' } });
+    const now = new Date();
+    return campaigns.map((campaign) => ({
+      ...campaign,
+      status: campaign.is_active && campaign.starts_at <= now && campaign.ends_at >= now ? 'active' : 'inactive',
+    }));
+  }
+
+  async createIncentiveCampaign(
+    adminUserId: string,
+    dto: {
+      name: string;
+      target_trips?: number;
+      target_hours?: number;
+      starts_at: string;
+      ends_at: string;
+      payout_amount: number;
+      is_active?: boolean;
+    },
+  ) {
+    const created = await this.prisma.incentiveCampaign.create({
+      data: {
+        name: dto.name,
+        target_trips: dto.target_trips,
+        target_hours: dto.target_hours,
+        starts_at: new Date(dto.starts_at),
+        ends_at: new Date(dto.ends_at),
+        payout_amount: dto.payout_amount,
+        is_active: dto.is_active ?? true,
+        created_by: adminUserId,
+      },
+    });
+    await this.logAdminAudit(adminUserId, 'incentive.create', 'incentive_campaign', created.id, {
+      name: dto.name,
+      starts_at: dto.starts_at,
+      ends_at: dto.ends_at,
+      payout_amount: dto.payout_amount,
+    });
+    return created;
+  }
+
+  async getIncentiveCampaign(id: string) {
+    const campaign = await this.prisma.incentiveCampaign.findUnique({ where: { id } });
+    if (!campaign) throw new NotFoundException('Campaign not found');
+
+    const trips = await this.prisma.trip.findMany({
+      where: {
+        status: TripStatus.COMPLETED,
+        completed_at: { gte: campaign.starts_at, lte: campaign.ends_at },
+        driver_user_id: { not: null },
+      },
+      select: { driver_user_id: true, started_at: true, completed_at: true },
+    });
+
+    const blocked = await this.prisma.userScore.findMany({
+      where: { actor_type: ActorType.DRIVER, status: RestrictionStatus.BLOCKED },
+      select: { user_id: true },
+    });
+    const blockedSet = new Set(blocked.map((row) => row.user_id));
+
+    const byDriver = new Map<string, { trips_completed: number; hours_completed: number }>();
+    for (const trip of trips) {
+      const driverId = trip.driver_user_id;
+      if (!driverId || blockedSet.has(driverId)) continue;
+      const current = byDriver.get(driverId) ?? { trips_completed: 0, hours_completed: 0 };
+      current.trips_completed += 1;
+      const hours = trip.started_at && trip.completed_at ? (trip.completed_at.getTime() - trip.started_at.getTime()) / 3600000 : 0;
+      current.hours_completed += Math.max(0, hours);
+      byDriver.set(driverId, current);
+    }
+
+    const progress = Array.from(byDriver.entries()).map(([driver_id, value]) => ({
+      driver_id,
+      ...value,
+      target_trips: campaign.target_trips,
+      target_hours: campaign.target_hours,
+      reached:
+        (campaign.target_trips ? value.trips_completed >= campaign.target_trips : true) &&
+        (campaign.target_hours ? value.hours_completed >= campaign.target_hours : true),
+    }));
+
+    return {
+      campaign,
+      progress,
+      excluded_blocked_drivers: blockedSet.size,
+    };
+  }
+
   async getAdminPricing() {
     return this.getActivePricing();
   }

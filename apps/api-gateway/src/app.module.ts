@@ -123,6 +123,10 @@ const adminPricingRoutes: RouteInfo[] = [
   { path: 'api/admin/pricing', method: RequestMethod.ALL },
   { path: 'api/admin/pricing/*', method: RequestMethod.ALL },
 ];
+const adminIncentivesRoutes: RouteInfo[] = [
+  { path: 'api/admin/incentives', method: RequestMethod.ALL },
+  { path: 'api/admin/incentives/*', method: RequestMethod.ALL },
+];
 const adminAuditRoutes: RouteInfo[] = [
   { path: 'api/admin/audit', method: RequestMethod.ALL },
   { path: 'api/admin/audit/*', method: RequestMethod.ALL },
@@ -300,6 +304,7 @@ export class AppModule implements NestModule {
         ...adminPoliciesRoutes,
         ...adminSettingsRoutes,
         ...adminPricingRoutes,
+        ...adminIncentivesRoutes,
         ...adminAuditRoutes,
         ...adminPaymentsRoutes,
         ...adminSupportRoutes,
@@ -460,6 +465,7 @@ export class AppModule implements NestModule {
       [adminPoliciesRoutes, '^/api/admin/policies', '/admin/policies'],
       [adminSettingsRoutes, '^/api/admin/settings', '/admin/settings'],
       [adminPricingRoutes, '^/api/admin/pricing', '/admin/pricing'],
+      [adminIncentivesRoutes, '^/api/admin/incentives', '/admin/incentives'],
       [adminAuditRoutes, '^/api/admin/audit', '/admin/audit'],
       [adminPaymentsRoutes, '^/api/admin/payments', '/admin/payments'],
       [driverCommissionRoutes, '^/api/drivers/commission/current', '/drivers/commission/current'],

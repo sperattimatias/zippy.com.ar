@@ -58,6 +58,7 @@ import {
   AdminAuditFilterDto,
   AdminPricingDto,
   AdminPricingProfileDto,
+  IncentiveCampaignCreateDto,
 } from '../dto/ride.dto';
 import { MetricsService } from '../metrics/metrics.service';
 import { SettingsService } from '../settings/settings.service';
@@ -435,6 +436,25 @@ export class RideController {
   @Roles('admin', 'owner', 'finance', 'sos')
   adminUpsertPricingProfile(@Req() req: AuthReq, @Body() dto: AdminPricingProfileDto) {
     return this.rideService.upsertAdminPricingProfile(req.user.sub, dto);
+  }
+
+
+  @Get('admin/incentives')
+  @Roles('admin', 'owner', 'ops', 'finance', 'sos')
+  adminListIncentives() {
+    return this.rideService.listIncentiveCampaigns();
+  }
+
+  @Post('admin/incentives')
+  @Roles('admin', 'owner', 'ops', 'finance', 'sos')
+  adminCreateIncentive(@Req() req: AuthReq, @Body() dto: IncentiveCampaignCreateDto) {
+    return this.rideService.createIncentiveCampaign(req.user.sub, dto);
+  }
+
+  @Get('admin/incentives/:id')
+  @Roles('admin', 'owner', 'ops', 'finance', 'sos')
+  adminIncentiveDetail(@Param('id') id: string) {
+    return this.rideService.getIncentiveCampaign(id);
   }
 
   @Get('admin/settings')
