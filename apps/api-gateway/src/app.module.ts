@@ -79,6 +79,13 @@ const adminUserScoreRoutes: RouteInfo[] = [
 const adminRestrictionsRoutes: RouteInfo[] = [
   { path: 'api/admin/restrictions/:id/lift', method: RequestMethod.ALL },
 ];
+const adminUsersRoutes: RouteInfo[] = [
+  { path: 'api/admin/users', method: RequestMethod.ALL },
+  { path: 'api/admin/users/:id', method: RequestMethod.ALL },
+  { path: 'api/admin/users/:id/status', method: RequestMethod.ALL },
+  { path: 'api/admin/users/:id/payment-limit', method: RequestMethod.ALL },
+  { path: 'api/admin/users/:id/notes', method: RequestMethod.ALL },
+];
 const adminConfigRoutes: RouteInfo[] = [
   { path: 'api/admin/config/:key', method: RequestMethod.ALL },
 ];
@@ -103,6 +110,10 @@ const adminBonusesRoutes: RouteInfo[] = [
 ];
 const adminPoliciesRoutes: RouteInfo[] = [
   { path: 'api/admin/policies/:key', method: RequestMethod.ALL },
+];
+const adminSettingsRoutes: RouteInfo[] = [
+  { path: 'api/admin/settings', method: RequestMethod.ALL },
+  { path: 'api/admin/settings/*', method: RequestMethod.ALL },
 ];
 const driverCommissionRoutes: RouteInfo[] = [
   { path: 'api/drivers/commission/current', method: RequestMethod.ALL },
@@ -257,6 +268,7 @@ export class AppModule implements NestModule {
         ...adminScoresRoutes,
         ...adminUserScoreRoutes,
         ...adminRestrictionsRoutes,
+        ...adminUsersRoutes,
         ...adminConfigRoutes,
         ...adminPremiumZoneRoutes,
         ...adminFraudRoutes,
@@ -264,6 +276,7 @@ export class AppModule implements NestModule {
         ...adminMonthlyPerformanceRoutes,
         ...adminBonusesRoutes,
         ...adminPoliciesRoutes,
+        ...adminSettingsRoutes,
       );
 
     consumer
@@ -300,6 +313,21 @@ export class AppModule implements NestModule {
         ),
       )
       .forRoutes(...authRoutes);
+
+    consumer
+      .apply(
+        createServiceProxy(
+          {
+            target: process.env.AUTH_SERVICE_URL,
+            changeOrigin: true,
+            xfwd: true,
+            pathRewrite: { '^/api/admin/users': '/auth/admin/users' },
+          },
+          timeoutMs,
+          connectTimeoutMs,
+        ),
+      )
+      .forRoutes(...adminUsersRoutes);
 
     consumer
       .apply(
@@ -372,6 +400,7 @@ export class AppModule implements NestModule {
       ],
       [adminBonusesRoutes, '^/api/admin/bonuses', '/admin/bonuses'],
       [adminPoliciesRoutes, '^/api/admin/policies', '/admin/policies'],
+      [adminSettingsRoutes, '^/api/admin/settings', '/admin/settings'],
       [driverCommissionRoutes, '^/api/drivers/commission/current', '/drivers/commission/current'],
     ];
 

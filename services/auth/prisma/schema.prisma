@@ -23,6 +23,7 @@ model User {
   roles              UserRole[]
   verificationCodes  EmailVerificationCode[]
   refreshTokens      RefreshToken[]
+  admin_meta         UserAdminMeta?
 }
 
 model Role {
@@ -68,4 +69,14 @@ model RefreshToken {
 
   @@index([user_id])
   @@index([token_hash])
+}
+
+
+model UserAdminMeta {
+  user_id          String   @id
+  payment_limited  Boolean  @default(false)
+  notes            String?
+  updated_at       DateTime @updatedAt
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
 }

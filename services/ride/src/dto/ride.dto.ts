@@ -16,6 +16,7 @@ import {
   IsArray,
   IsBoolean,
   IsDateString,
+  IsEmail,
   IsEnum,
   IsInt,
   IsNumber,
@@ -138,6 +139,47 @@ export class AdjustScoreDto {
   @IsEnum(ActorType) actor_type!: ActorType;
   @IsInt() delta!: number;
   @IsOptional() @IsString() notes?: string;
+}
+
+
+
+export class AdminTripsQueryDto {
+  @IsOptional() @IsString() status?: string;
+  @IsOptional() @IsDateString() from?: string;
+  @IsOptional() @IsDateString() to?: string;
+  @IsOptional() @IsString() driver_id?: string;
+  @IsOptional() @IsString() rider_id?: string;
+  @IsOptional() @IsString() zone?: string;
+  @IsOptional() @IsString() search?: string;
+  @IsOptional() @IsString() page?: string;
+  @IsOptional() @IsString() page_size?: string;
+}
+
+export class AdminTripCancelDto {
+  @IsString() reason!: string;
+}
+
+export class AdminTripReassignDto {
+  @IsString() driverId!: string;
+}
+
+export class AdminTripIncidentDto {
+  @IsString() note!: string;
+}
+
+export class AdminSettingsFilterDto {
+  @IsOptional() @IsString() category?: string;
+}
+
+export class SystemSettingPutDto {
+  @IsString() value!: string;
+  @IsOptional() @IsString() category?: string;
+  @IsOptional() @IsBoolean() encrypted?: boolean;
+}
+
+
+export class SmtpTestDto {
+  @IsString() @IsEmail() toEmail!: string;
 }
 
 export class AdminLevelFilterDto {
