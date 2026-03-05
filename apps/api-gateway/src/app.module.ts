@@ -79,6 +79,13 @@ const adminUserScoreRoutes: RouteInfo[] = [
 const adminRestrictionsRoutes: RouteInfo[] = [
   { path: 'api/admin/restrictions/:id/lift', method: RequestMethod.ALL },
 ];
+const adminUsersRoutes: RouteInfo[] = [
+  { path: 'api/admin/users', method: RequestMethod.ALL },
+  { path: 'api/admin/users/:id', method: RequestMethod.ALL },
+  { path: 'api/admin/users/:id/status', method: RequestMethod.ALL },
+  { path: 'api/admin/users/:id/payment-limit', method: RequestMethod.ALL },
+  { path: 'api/admin/users/:id/notes', method: RequestMethod.ALL },
+];
 const adminConfigRoutes: RouteInfo[] = [
   { path: 'api/admin/config/:key', method: RequestMethod.ALL },
 ];
@@ -103,6 +110,18 @@ const adminBonusesRoutes: RouteInfo[] = [
 ];
 const adminPoliciesRoutes: RouteInfo[] = [
   { path: 'api/admin/policies/:key', method: RequestMethod.ALL },
+];
+const adminSettingsRoutes: RouteInfo[] = [
+  { path: 'api/admin/settings', method: RequestMethod.ALL },
+  { path: 'api/admin/settings/*', method: RequestMethod.ALL },
+];
+const adminPaymentsRoutes: RouteInfo[] = [
+  { path: 'api/admin/payments', method: RequestMethod.ALL },
+  { path: 'api/admin/payments/*', method: RequestMethod.ALL },
+];
+const adminSupportRoutes: RouteInfo[] = [
+  { path: 'api/admin/support/tickets', method: RequestMethod.ALL },
+  { path: 'api/admin/support/tickets/*', method: RequestMethod.ALL },
 ];
 const driverCommissionRoutes: RouteInfo[] = [
   { path: 'api/drivers/commission/current', method: RequestMethod.ALL },
@@ -186,6 +205,7 @@ const createServiceProxy = (
         RIDE_SERVICE_URL: Joi.string().uri().required(),
         DRIVER_SERVICE_URL: Joi.string().uri().required(),
         PAYMENT_SERVICE_URL: Joi.string().uri().required(),
+        SUPPORT_SERVICE_URL: Joi.string().uri().required(),
         REDIS_URL: Joi.string().uri().required(),
 
         JWT_ACCESS_SECRET: Joi.string().min(32).required(),
@@ -257,6 +277,7 @@ export class AppModule implements NestModule {
         ...adminScoresRoutes,
         ...adminUserScoreRoutes,
         ...adminRestrictionsRoutes,
+        ...adminUsersRoutes,
         ...adminConfigRoutes,
         ...adminPremiumZoneRoutes,
         ...adminFraudRoutes,
@@ -264,6 +285,9 @@ export class AppModule implements NestModule {
         ...adminMonthlyPerformanceRoutes,
         ...adminBonusesRoutes,
         ...adminPoliciesRoutes,
+        ...adminSettingsRoutes,
+        ...adminPaymentsRoutes,
+        ...adminSupportRoutes,
       );
 
     consumer
@@ -304,12 +328,44 @@ export class AppModule implements NestModule {
     consumer
       .apply(
         createServiceProxy(
+          {
+            target: process.env.AUTH_SERVICE_URL,
+            changeOrigin: true,
+            xfwd: true,
+            pathRewrite: { '^/api/admin/users': '/auth/admin/users' },
+          },
+          timeoutMs,
+          connectTimeoutMs,
+        ),
+      )
+      .forRoutes(...adminUsersRoutes);
+
+    consumer
+      .apply(
+        createServiceProxy(
           { target: process.env.DRIVER_SERVICE_URL, changeOrigin: true, xfwd: true },
           timeoutMs,
           connectTimeoutMs,
         ),
       )
       .forRoutes(...driverRoutes);
+
+
+
+    consumer
+      .apply(
+        createServiceProxy(
+          {
+            target: process.env.SUPPORT_SERVICE_URL,
+            changeOrigin: true,
+            xfwd: true,
+            pathRewrite: { '^/api/admin/support/tickets': '/admin/support/tickets' },
+          },
+          timeoutMs,
+          connectTimeoutMs,
+        ),
+      )
+      .forRoutes(...adminSupportRoutes);
 
     consumer
       .apply(
@@ -372,6 +428,8 @@ export class AppModule implements NestModule {
       ],
       [adminBonusesRoutes, '^/api/admin/bonuses', '/admin/bonuses'],
       [adminPoliciesRoutes, '^/api/admin/policies', '/admin/policies'],
+      [adminSettingsRoutes, '^/api/admin/settings', '/admin/settings'],
+      [adminPaymentsRoutes, '^/api/admin/payments', '/admin/payments'],
       [driverCommissionRoutes, '^/api/drivers/commission/current', '/drivers/commission/current'],
     ];
 

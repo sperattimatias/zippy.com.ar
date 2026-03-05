@@ -45,8 +45,16 @@ import {
   FraudCaseFilterDto,
   FraudCaseActionDto,
   CreateHoldDto,
+  AdminSettingsFilterDto,
+  SystemSettingPutDto,
+  SmtpTestDto,
+  AdminTripsQueryDto,
+  AdminTripCancelDto,
+  AdminTripReassignDto,
+  AdminTripIncidentDto,
 } from '../dto/ride.dto';
 import { MetricsService } from '../metrics/metrics.service';
+import { SettingsService } from '../settings/settings.service';
 
 type AuthReq = { user: { sub: string; roles: string[] } };
 
@@ -57,6 +65,7 @@ type AuthReq = { user: { sub: string; roles: string[] } };
 export class RideController {
   constructor(
     private readonly rideService: RideService,
+    private readonly settingsService: SettingsService,
     @Optional() private readonly metrics?: MetricsService,
   ) {}
 
@@ -181,8 +190,8 @@ export class RideController {
 
   @Get('admin/trips')
   @Roles('admin', 'sos')
-  adminTrips() {
-    return this.rideService.listTripsRecent();
+  adminTrips(@Query() query: AdminTripsQueryDto) {
+    return this.rideService.listTripsRecent(query);
   }
 
   @Get('admin/trips/:id')
@@ -275,6 +284,31 @@ export class RideController {
     return this.rideService.adjustScore(userId, req.user.sub, dto);
   }
 
+
+  @Post('admin/trips/:id/cancel')
+  @Roles('admin', 'sos')
+  adminCancelTrip(@Req() req: AuthReq, @Param('id') id: string, @Body() dto: AdminTripCancelDto) {
+    return this.rideService.adminCancelTrip(id, req.user.sub, dto.reason);
+  }
+
+  @Post('admin/trips/:id/reassign')
+  @Roles('admin', 'sos')
+  adminReassignTrip(@Req() req: AuthReq, @Param('id') id: string, @Body() dto: AdminTripReassignDto) {
+    return this.rideService.adminReassignTrip(id, req.user.sub, dto.driverId);
+  }
+
+  @Post('admin/trips/:id/retry-matching')
+  @Roles('admin', 'sos')
+  adminRetryMatching(@Req() req: AuthReq, @Param('id') id: string) {
+    return this.rideService.adminRetryMatching(id, req.user.sub);
+  }
+
+  @Post('admin/trips/:id/incident')
+  @Roles('admin', 'sos')
+  adminMarkIncident(@Req() req: AuthReq, @Param('id') id: string, @Body() dto: AdminTripIncidentDto) {
+    return this.rideService.adminMarkIncident(id, req.user.sub, dto.note);
+  }
+
   @Get('admin/config/:key')
   @Roles('admin', 'sos')
   adminGetConfig(@Param('key') key: string) {
@@ -333,6 +367,36 @@ export class RideController {
   @Roles('admin', 'sos')
   adminFraudReleaseHold(@Req() req: AuthReq, @Param('id') id: string) {
     return this.rideService.releaseFraudHold(id, req.user.sub);
+  }
+
+
+  @Get('admin/settings')
+  @Roles('admin', 'sos')
+  adminListSettings(@Query() query: AdminSettingsFilterDto) {
+    return this.settingsService.list(query.category);
+  }
+
+  @Put('admin/settings/:key')
+  @Roles('admin', 'sos')
+  adminSetSetting(@Req() req: AuthReq, @Param('key') key: string, @Body() dto: SystemSettingPutDto) {
+    return this.settingsService.set(key, dto.value, {
+      category: dto.category,
+      encrypted: dto.encrypted,
+      updatedBy: req.user.sub,
+    });
+  }
+
+
+  @Post('admin/settings/test/mercadopago')
+  @Roles('admin', 'sos')
+  adminTestMercadoPagoConnection() {
+    return this.settingsService.testMercadoPagoConnection();
+  }
+
+  @Post('admin/settings/test/smtp')
+  @Roles('admin', 'sos')
+  adminTestSmtpConnection(@Body() dto: SmtpTestDto) {
+    return this.settingsService.testSmtpConnection(dto.toEmail);
   }
 
   @Get('admin/levels')

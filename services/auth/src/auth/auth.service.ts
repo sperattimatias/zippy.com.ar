@@ -16,6 +16,7 @@ import { RegisterDto } from '../dto/register.dto';
 import { VerifyEmailDto } from '../dto/verify-email.dto';
 import { RefreshDto } from '../dto/refresh.dto';
 import { LogoutDto } from '../dto/logout.dto';
+import { AdminUsersQueryDto } from '../dto/admin-user.dto';
 import { ROLES } from '@shared/enums/role.enum';
 
 @Injectable()
@@ -253,4 +254,116 @@ export class AuthService {
       roles: user.roles.map((ur) => ur.role.name),
     };
   }
+
+  async adminListUsers(query: AdminUsersQueryDto = {}) {
+    const page = Math.max(1, Number(query.page ?? 1));
+    const pageSize = Math.min(100, Math.max(1, Number(query.page_size ?? 20)));
+
+    const statusMap: Record<string, UserStatus> = {
+      active: UserStatus.ACTIVE,
+      blocked: UserStatus.SUSPENDED,
+    };
+
+    const where: any = {
+      ...(query.status && statusMap[query.status] ? { status: statusMap[query.status] } : {}),
+      ...(query.search
+        ? {
+            OR: [
+              { email: { contains: query.search, mode: 'insensitive' } },
+              { id: { contains: query.search, mode: 'insensitive' } },
+            ],
+          }
+        : {}),
+      ...(query.from || query.to
+        ? {
+            created_at: {
+              ...(query.from ? { gte: new Date(query.from) } : {}),
+              ...(query.to ? { lte: new Date(query.to) } : {}),
+            },
+          }
+        : {}),
+    };
+
+    const [total, users] = await this.prisma.$transaction([
+      this.prisma.user.count({ where }),
+      this.prisma.user.findMany({
+        where,
+        include: { admin_meta: true },
+        orderBy: { created_at: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+    ]);
+
+    return {
+      items: users.map((u) => ({
+        id: u.id,
+        email: u.email,
+        phone: null,
+        status: u.status,
+        created_at: u.created_at,
+        total_trips: 0,
+        flags: {
+          payment_limited: u.admin_meta?.payment_limited ?? false,
+        },
+      })),
+      page,
+      page_size: pageSize,
+      total,
+      total_pages: Math.max(1, Math.ceil(total / pageSize)),
+    };
+  }
+
+  async adminUserDetail(id: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id },
+      include: { roles: { include: { role: true } }, admin_meta: true, refreshTokens: { orderBy: { created_at: 'desc' }, take: 20 } },
+    });
+    if (!user) throw new NotFoundException('User not found');
+
+    return {
+      id: user.id,
+      email: user.email,
+      phone: null,
+      status: user.status,
+      created_at: user.created_at,
+      roles: user.roles.map((r) => r.role.name),
+      flags: { payment_limited: user.admin_meta?.payment_limited ?? false },
+      notes: user.admin_meta?.notes ?? null,
+      history: {
+        trips: [],
+        cancellations: [],
+        claims: [],
+        fraud: [],
+      },
+      sessions: user.refreshTokens.map((t) => ({ id: t.id, created_at: t.created_at, revoked_at: t.revoked_at, ip: t.ip })),
+    };
+  }
+
+  async adminPatchUserStatus(id: string, status: string) {
+    const normalized = status.toLowerCase();
+    const next = normalized === 'active' ? UserStatus.ACTIVE : normalized === 'blocked' ? UserStatus.SUSPENDED : null;
+    if (!next) throw new BadRequestException('Invalid status');
+    return this.prisma.user.update({ where: { id }, data: { status: next } });
+  }
+
+  async adminPatchUserPaymentLimit(id: string, paymentLimited: boolean) {
+    await this.prisma.user.findUniqueOrThrow({ where: { id } });
+    return this.prisma.userAdminMeta.upsert({
+      where: { user_id: id },
+      update: { payment_limited: paymentLimited },
+      create: { user_id: id, payment_limited: paymentLimited },
+    });
+  }
+
+  async adminAddUserNote(id: string, note: string) {
+    await this.prisma.user.findUniqueOrThrow({ where: { id } });
+    const current = await this.prisma.userAdminMeta.findUnique({ where: { user_id: id } });
+    return this.prisma.userAdminMeta.upsert({
+      where: { user_id: id },
+      update: { notes: [current?.notes, note.trim()].filter(Boolean).join('\n') },
+      create: { user_id: id, notes: note.trim() },
+    });
+  }
+
 }

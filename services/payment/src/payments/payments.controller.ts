@@ -1,4 +1,15 @@
-import { Body, Controller, Get, Headers, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Headers,
+  Param,
+  Patch,
+  Post,
+  Query,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { JwtAccessGuard } from '../common/jwt-access.guard';
 import { Roles } from '../common/roles.decorator';
@@ -6,6 +17,8 @@ import { RolesGuard } from '../common/roles.guard';
 import {
   AdminFinanceTripsFilterDto,
   AdminLedgerFilterDto,
+  AdminPaymentFlagDto,
+  AdminPaymentsQueryDto,
   AdminRefundDto,
   AdminRefundsFilterDto,
   CreatePreferenceDto,
@@ -73,6 +86,20 @@ export class PaymentsController {
     return this.payments.adminReconciliation(query.date);
   }
 
+  @Get('admin/payments')
+  @UseGuards(JwtAccessGuard, RolesGuard)
+  @Roles('admin', 'sos')
+  adminPayments(@Query() query: AdminPaymentsQueryDto) {
+    return this.payments.adminPayments(query);
+  }
+
+  @Get('admin/payments/:trip_payment_id')
+  @UseGuards(JwtAccessGuard, RolesGuard)
+  @Roles('admin', 'sos')
+  adminPaymentDetail(@Param('trip_payment_id') tripPaymentId: string) {
+    return this.payments.adminPaymentDetail(tripPaymentId);
+  }
+
   @Post('admin/payments/:trip_payment_id/refund')
   @UseGuards(JwtAccessGuard, RolesGuard)
   @Roles('admin', 'sos')
@@ -81,12 +108,18 @@ export class PaymentsController {
     @Body() dto: AdminRefundDto,
     @Req() req: AuthReq,
   ) {
-    return this.payments.adminRefundTripPayment(
-      tripPaymentId,
-      dto.amount,
-      dto.reason,
-      req.user.sub,
-    );
+    return this.payments.adminRefundTripPayment(tripPaymentId, dto.amount, dto.reason, req.user.sub);
+  }
+
+  @Patch('admin/payments/:trip_payment_id/flag')
+  @UseGuards(JwtAccessGuard, RolesGuard)
+  @Roles('admin', 'sos')
+  adminFlagPayment(
+    @Param('trip_payment_id') tripPaymentId: string,
+    @Body() dto: AdminPaymentFlagDto,
+    @Req() req: AuthReq,
+  ) {
+    return this.payments.adminFlagPayment(tripPaymentId, dto.type, dto.note, req.user.sub);
   }
 
   @Get('admin/finance/refunds')
