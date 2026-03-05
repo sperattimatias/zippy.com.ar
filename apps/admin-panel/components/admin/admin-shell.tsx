@@ -21,6 +21,7 @@ const navItems = [
   { href: '/admin/payments', label: 'Payments' },
   { href: '/admin/support/tickets', label: 'Support · Tickets' },
   { href: '/admin/audit', label: 'Audit', permission: 'audit.view' as const },
+  { href: '/admin/settings/pricing', label: 'Settings · Pricing', permission: 'settings.edit' as const },
   { href: '/admin/settings/integrations', label: 'Settings · Integrations', permission: 'settings.edit' as const },
 ];
 

@@ -172,6 +172,17 @@ export class AdminSettingsFilterDto {
   @IsOptional() @IsString() category?: string;
 }
 
+
+export class AdminPricingDto {
+  @IsNumber() base_fare!: number;
+  @IsNumber() per_km!: number;
+  @IsNumber() per_min!: number;
+  @IsNumber() minimum!: number;
+  @IsNumber() cancel_fee!: number;
+  @IsNumber() surge!: number;
+  @IsOptional() @IsNumber() night_fee?: number;
+}
+
 export class SystemSettingPutDto {
   @IsString() value!: string;
   @IsOptional() @IsString() category?: string;

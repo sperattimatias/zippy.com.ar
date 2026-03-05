@@ -61,6 +61,15 @@ import {
 @Injectable()
 export class RideService implements OnModuleInit {
   private readonly logger = new Logger(RideService.name);
+  private readonly defaultPricing = {
+    base_fare: 800,
+    per_km: 250,
+    per_min: 80,
+    minimum: 1200,
+    cancel_fee: 500,
+    surge: 1,
+    night_fee: 0,
+  };
 
   constructor(
     private readonly prisma: PrismaService,
@@ -230,13 +239,22 @@ export class RideService implements OnModuleInit {
     return weightedPool[weightedPool.length - 1].entry.p.driver_user_id;
   }
 
-  private computeBasePrice(distanceKm?: number, etaMin?: number) {
-    const fixed = 800;
-    const kmRate = 250;
-    const minRate = 80;
+  private async getActivePricing() {
+    const row = await this.prisma.appConfig.findUnique({ where: { key: 'pricing' } });
+    const fromDb = (row?.value_json as Record<string, number> | null) ?? {};
+    return {
+      ...this.defaultPricing,
+      ...fromDb,
+    };
+  }
+
+  private async computeBasePrice(distanceKm?: number, etaMin?: number) {
+    const pricing = await this.getActivePricing();
     const km = distanceKm ?? 5;
     const eta = etaMin ?? 10;
-    return Math.round(fixed + km * kmRate + eta * minRate);
+    const subtotal = pricing.base_fare + km * pricing.per_km + eta * pricing.per_min + (pricing.night_fee ?? 0);
+    const surged = subtotal * Math.max(1, Number(pricing.surge ?? 1));
+    return Math.round(Math.max(pricing.minimum, surged));
   }
 
   private buildBaseline(
@@ -520,7 +538,7 @@ export class RideService implements OnModuleInit {
       passengerScore.status === RestrictionStatus.BLOCKED || passengerScore.score < 60;
     const biddingWindowMs = isRestrictedPassenger ? 25_000 : 45_000;
 
-    const price_base = this.computeBasePrice(dto.distance_km, dto.eta_minutes);
+    const price_base = await this.computeBasePrice(dto.distance_km, dto.eta_minutes);
     const expires = new Date(this.nowMs() + biddingWindowMs);
 
     const trip = await this.prisma.trip.create({
@@ -1588,6 +1606,33 @@ export class RideService implements OnModuleInit {
 
   async putConfig(key: string, value: unknown) {
     return this.merit.putConfig(key, value);
+  }
+
+  async getAdminPricing() {
+    return this.getActivePricing();
+  }
+
+  async putAdminPricing(adminUserId: string, dto: {
+    base_fare: number;
+    per_km: number;
+    per_min: number;
+    minimum: number;
+    cancel_fee: number;
+    surge: number;
+    night_fee?: number;
+  }) {
+    const payload = {
+      base_fare: dto.base_fare,
+      per_km: dto.per_km,
+      per_min: dto.per_min,
+      minimum: dto.minimum,
+      cancel_fee: dto.cancel_fee,
+      surge: dto.surge,
+      ...(dto.night_fee !== undefined ? { night_fee: dto.night_fee } : {}),
+    };
+    const updated = await this.putConfig('pricing', payload);
+    await this.logAdminAudit(adminUserId, 'pricing.update', 'settings', 'pricing', payload);
+    return updated;
   }
 
   async listPremiumZones() {
