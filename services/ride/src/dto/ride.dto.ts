@@ -16,6 +16,7 @@ import {
   IsArray,
   IsBoolean,
   IsDateString,
+  IsEmail,
   IsEnum,
   IsInt,
   IsNumber,
@@ -138,6 +139,22 @@ export class AdjustScoreDto {
   @IsEnum(ActorType) actor_type!: ActorType;
   @IsInt() delta!: number;
   @IsOptional() @IsString() notes?: string;
+}
+
+
+export class AdminSettingsFilterDto {
+  @IsOptional() @IsString() category?: string;
+}
+
+export class SystemSettingPutDto {
+  @IsString() value!: string;
+  @IsOptional() @IsString() category?: string;
+  @IsOptional() @IsBoolean() encrypted?: boolean;
+}
+
+
+export class SmtpTestDto {
+  @IsString() @IsEmail() toEmail!: string;
 }
 
 export class AdminLevelFilterDto {

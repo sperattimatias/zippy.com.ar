@@ -45,8 +45,12 @@ import {
   FraudCaseFilterDto,
   FraudCaseActionDto,
   CreateHoldDto,
+  AdminSettingsFilterDto,
+  SystemSettingPutDto,
+  SmtpTestDto,
 } from '../dto/ride.dto';
 import { MetricsService } from '../metrics/metrics.service';
+import { SettingsService } from '../settings/settings.service';
 
 type AuthReq = { user: { sub: string; roles: string[] } };
 
@@ -57,6 +61,7 @@ type AuthReq = { user: { sub: string; roles: string[] } };
 export class RideController {
   constructor(
     private readonly rideService: RideService,
+    private readonly settingsService: SettingsService,
     @Optional() private readonly metrics?: MetricsService,
   ) {}
 
@@ -333,6 +338,36 @@ export class RideController {
   @Roles('admin', 'sos')
   adminFraudReleaseHold(@Req() req: AuthReq, @Param('id') id: string) {
     return this.rideService.releaseFraudHold(id, req.user.sub);
+  }
+
+
+  @Get('admin/settings')
+  @Roles('admin', 'sos')
+  adminListSettings(@Query() query: AdminSettingsFilterDto) {
+    return this.settingsService.list(query.category);
+  }
+
+  @Put('admin/settings/:key')
+  @Roles('admin', 'sos')
+  adminSetSetting(@Req() req: AuthReq, @Param('key') key: string, @Body() dto: SystemSettingPutDto) {
+    return this.settingsService.set(key, dto.value, {
+      category: dto.category,
+      encrypted: dto.encrypted,
+      updatedBy: req.user.sub,
+    });
+  }
+
+
+  @Post('admin/settings/test/mercadopago')
+  @Roles('admin', 'sos')
+  adminTestMercadoPagoConnection() {
+    return this.settingsService.testMercadoPagoConnection();
+  }
+
+  @Post('admin/settings/test/smtp')
+  @Roles('admin', 'sos')
+  adminTestSmtpConnection(@Body() dto: SmtpTestDto) {
+    return this.settingsService.testSmtpConnection(dto.toEmail);
   }
 
   @Get('admin/levels')
