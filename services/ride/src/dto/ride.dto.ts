@@ -142,6 +142,31 @@ export class AdjustScoreDto {
 }
 
 
+
+export class AdminTripsQueryDto {
+  @IsOptional() @IsString() status?: string;
+  @IsOptional() @IsDateString() from?: string;
+  @IsOptional() @IsDateString() to?: string;
+  @IsOptional() @IsString() driver_id?: string;
+  @IsOptional() @IsString() rider_id?: string;
+  @IsOptional() @IsString() zone?: string;
+  @IsOptional() @IsString() search?: string;
+  @IsOptional() @IsString() page?: string;
+  @IsOptional() @IsString() page_size?: string;
+}
+
+export class AdminTripCancelDto {
+  @IsString() reason!: string;
+}
+
+export class AdminTripReassignDto {
+  @IsString() driverId!: string;
+}
+
+export class AdminTripIncidentDto {
+  @IsString() note!: string;
+}
+
 export class AdminSettingsFilterDto {
   @IsOptional() @IsString() category?: string;
 }
