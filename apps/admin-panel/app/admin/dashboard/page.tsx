@@ -2,11 +2,11 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { PageHeader } from '../../../components/admin/page-header';
-import { SectionCard } from '../../../components/admin/section-card';
-import { LoadingSkeleton } from '../../../components/admin/states';
 import { Badge } from '../../../components/ui/badge';
 import { Button } from '../../../components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../../components/ui/card';
+import { Separator } from '../../../components/ui/separator';
+import { Skeleton } from '../../../components/ui/skeleton';
 
 type MePayload = { email: string; roles: string[] };
 
@@ -30,38 +30,62 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Admin Dashboard"
-        subtitle="Centro operativo para monitorear y accionar sobre la plataforma."
-        rightActions={<Badge variant="secondary">{(me?.roles ?? ['admin']).join(', ')}</Badge>}
-      />
-
-      <SectionCard title="Sesión actual" description="Información de autenticación y roles activos.">
-        {!me ? (
-          <LoadingSkeleton rows={2} />
-        ) : (
-          <div className="space-y-2 text-sm text-slate-300">
-            <p>
-              <span className="text-slate-400">Email:</span> {me.email}
-            </p>
-            <p>
-              <span className="text-slate-400">Roles:</span> {me.roles.join(', ') || 'sin roles'}
-            </p>
+      <Card>
+        <CardHeader className="pb-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="space-y-1">
+              <CardTitle className="text-2xl tracking-tight">Admin Dashboard</CardTitle>
+              <CardDescription>Centro operativo para monitorear y accionar sobre la plataforma.</CardDescription>
+            </div>
+            <Badge variant="secondary" className="text-xs">
+              {(me?.roles ?? ['admin']).join(', ')}
+            </Badge>
           </div>
-        )}
-      </SectionCard>
+        </CardHeader>
+      </Card>
 
-      <SectionCard title="Accesos rápidos" description="Navegación a secciones críticas.">
-        <div className="grid gap-2 md:grid-cols-3 lg:grid-cols-5">
-          {quickLinks.map((link) => (
-            <Link key={link.href} href={link.href}>
-              <Button variant="outline" className="w-full justify-start gap-2">
-                {link.label}
-              </Button>
-            </Link>
-          ))}
-        </div>
-      </SectionCard>
+      <Card>
+        <CardHeader>
+          <CardTitle>Sesión actual</CardTitle>
+          <CardDescription>Información de autenticación y roles activos.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {!me ? (
+            <div className="space-y-2">
+              <Skeleton className="h-4 w-72" />
+              <Skeleton className="h-4 w-96" />
+            </div>
+          ) : (
+            <div className="space-y-2 text-sm text-slate-300">
+              <p>
+                <span className="text-slate-400">Email:</span> {me.email}
+              </p>
+              <p>
+                <span className="text-slate-400">Roles:</span> {me.roles.join(', ') || 'sin roles'}
+              </p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Accesos rápidos</CardTitle>
+          <CardDescription>Navegación a secciones críticas.</CardDescription>
+        </CardHeader>
+        <Separator />
+        <CardContent className="pt-4">
+          <div className="grid gap-2 md:grid-cols-3 lg:grid-cols-5">
+            {quickLinks.map((link) => (
+              <Link key={link.href} href={link.href}>
+                <Button variant="outline" className="w-full justify-start">
+                  {link.label}
+                </Button>
+              </Link>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
