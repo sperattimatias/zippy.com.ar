@@ -475,7 +475,7 @@ export class PaymentsService {
 
   async adminRefundTripPayment(
     tripPaymentId: string,
-    amount: number,
+    amount: number | undefined,
     reason: string,
     adminUserId: string,
   ) {
@@ -495,12 +495,13 @@ export class PaymentsService {
       if (processing) throw new BadRequestException('Refund already processing for this payment');
 
       const refundable = payment.amount_total - payment.refunded_amount;
-      if (amount <= 0) throw new BadRequestException('Refund amount must be > 0');
-      if (amount > refundable)
+      const amountToRefund = amount ?? refundable;
+      if (amountToRefund <= 0) throw new BadRequestException('Refund amount must be > 0');
+      if (amountToRefund > refundable)
         throw new BadRequestException('Refund amount exceeds refundable balance');
 
       const idempotencyKey = createHash('sha256')
-        .update(`${tripPaymentId}:${amount}:${reason}`)
+        .update(`${tripPaymentId}:${amountToRefund}:${reason}`)
         .digest('hex');
       const existingByKey = await trx.tripRefund.findUnique({
         where: { idempotency_key: idempotencyKey },
@@ -510,7 +511,7 @@ export class PaymentsService {
       const refund = await trx.tripRefund.create({
         data: {
           trip_payment_id: tripPaymentId,
-          amount,
+          amount: amountToRefund,
           reason,
           status: RefundStatus.PROCESSING,
           idempotency_key: idempotencyKey,
@@ -519,7 +520,7 @@ export class PaymentsService {
       });
 
       try {
-        const mp = await this.mpRefund(payment.mp_payment_id ?? payment.trip_id, amount, reason);
+        const mp = await this.mpRefund(payment.mp_payment_id ?? payment.trip_id, amountToRefund, reason);
         const mpRefundId = String(mp?.id ?? '');
         if (!mpRefundId) throw new Error('Missing mp_refund_id');
 
@@ -530,7 +531,7 @@ export class PaymentsService {
           return { refund: existingByMp, idempotent: true };
 
         const { commissionReversal, driverReversal } = this.computeRefundSplit(
-          amount,
+          amountToRefund,
           payment.amount_total,
           payment.commission_amount,
         );
@@ -542,7 +543,7 @@ export class PaymentsService {
               actor_user_id: null,
               trip_id: payment.trip_id,
               type: LedgerEntryType.REFUND_REVERSAL,
-              amount: -amount,
+              amount: -amountToRefund,
               reference_id: mpRefundId,
               payload_json: { refund_id: refund.id } as any,
             },
@@ -567,7 +568,7 @@ export class PaymentsService {
           ],
         });
 
-        const nextRefunded = payment.refunded_amount + amount;
+        const nextRefunded = payment.refunded_amount + amountToRefund;
         const full = nextRefunded >= payment.amount_total;
         let nextSettlement = payment.settlement_status;
         if (full) nextSettlement = SettlementStatus.FAILED;
@@ -599,11 +600,11 @@ export class PaymentsService {
           where: { driver_user_id: payment.driver_user_id },
         });
         const nextSummary = {
-          total_gross: BigInt((summary?.total_gross ?? BigInt(0)) - BigInt(amount)),
+          total_gross: BigInt((summary?.total_gross ?? BigInt(0)) - BigInt(amountToRefund)),
           total_commission: BigInt(
             (summary?.total_commission ?? BigInt(0)) - BigInt(commissionReversal),
           ),
-          total_bonus_discount: BigInt(summary?.total_bonus_discount ?? BigInt(0)),
+          total_bonus_discount: summary?.total_bonus_discount ?? BigInt(0),
           total_net: BigInt((summary?.total_net ?? BigInt(0)) - BigInt(driverReversal)),
         };
         await trx.driverPayoutSummary.upsert({
@@ -625,7 +626,7 @@ export class PaymentsService {
                 trip_id: payment.trip_id,
                 year: y,
                 month: m,
-                amount,
+                amount: amountToRefund,
                 reason: 'revoke_next_month_discount',
                 status: 'PENDING',
                 payload_json: { refund_id: refund.id, revoke_next_month_discount: true } as any,
@@ -658,6 +659,161 @@ export class PaymentsService {
           failed: true,
         };
       }
+    });
+  }
+
+  async adminPayments(filter: {
+    status?: PaymentStatus;
+    from?: string;
+    to?: string;
+    method?: string;
+    trip_id?: string;
+    driver_id?: string;
+    rider_id?: string;
+    page?: string;
+    page_size?: string;
+  }) {
+    const page = Math.max(1, Number(filter.page ?? 1));
+    const pageSize = Math.min(100, Math.max(1, Number(filter.page_size ?? 20)));
+
+    const where: any = {
+      ...(filter.status ? { status: filter.status } : {}),
+      ...(filter.trip_id ? { trip_id: filter.trip_id } : {}),
+      ...(filter.driver_id ? { driver_user_id: filter.driver_id } : {}),
+      ...(filter.rider_id ? { passenger_user_id: filter.rider_id } : {}),
+      ...(filter.from || filter.to
+        ? {
+            created_at: {
+              ...(filter.from ? { gte: new Date(filter.from) } : {}),
+              ...(filter.to ? { lte: new Date(filter.to) } : {}),
+            },
+          }
+        : {}),
+    };
+
+    const [total, rows] = await this.prisma.$transaction([
+      this.prisma.tripPayment.count({ where }),
+      this.prisma.tripPayment.findMany({
+        where,
+        include: { admin_flag: true },
+        orderBy: { created_at: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+    ]);
+
+    const items = rows
+      .filter((r) => {
+        if (!filter.method) return true;
+        const method = r.mp_payment_id || r.mp_preference_id ? 'mercadopago' : 'unknown';
+        return method === filter.method;
+      })
+      .map((r) => ({
+        payment_id: r.id,
+        trip_id: r.trip_id,
+        rider_id: r.passenger_user_id,
+        driver_id: r.driver_user_id,
+        amount: r.amount_total,
+        fee_platform: r.commission_amount,
+        status: r.status,
+        method: r.mp_payment_id || r.mp_preference_id ? 'mercadopago' : 'unknown',
+        created_at: r.created_at,
+        duplicate_flag: r.admin_flag?.duplicate_flag ?? false,
+        not_settled_flag: r.admin_flag?.not_settled_flag ?? false,
+      }));
+
+    return {
+      items,
+      page,
+      page_size: pageSize,
+      total,
+      total_pages: Math.max(1, Math.ceil(total / pageSize)),
+    };
+  }
+
+  async adminPaymentDetail(tripPaymentId: string) {
+    const payment = await this.prisma.tripPayment.findUnique({
+      where: { id: tripPaymentId },
+      include: {
+        refunds: { orderBy: { created_at: 'desc' } },
+        admin_flag: true,
+      },
+    });
+    if (!payment) throw new BadRequestException('Payment not found');
+
+    const status_history = [
+      { status: 'CREATED', at: payment.created_at },
+      { status: payment.status, at: payment.updated_at },
+      ...(payment.refunds ?? []).map((r) => ({ status: `REFUND_${r.status}`, at: r.created_at })),
+    ];
+
+    return {
+      payment_id: payment.id,
+      trip_id: payment.trip_id,
+      rider_id: payment.passenger_user_id,
+      driver_id: payment.driver_user_id,
+      status: payment.status,
+      settlement_status: payment.settlement_status,
+      method: payment.mp_payment_id || payment.mp_preference_id ? 'mercadopago' : 'unknown',
+      created_at: payment.created_at,
+      updated_at: payment.updated_at,
+      breakdown: {
+        amount_total: payment.amount_total,
+        fee_platform: payment.commission_amount,
+        driver_net: payment.driver_net_amount,
+        refunded_amount: payment.refunded_amount,
+      },
+      references: {
+        mp_payment_id: payment.mp_payment_id,
+        mp_preference_id: payment.mp_preference_id,
+        currency: payment.currency,
+        commission_bps_applied: payment.commission_bps_applied,
+      },
+      flags: {
+        duplicate: payment.admin_flag?.duplicate_flag ?? false,
+        not_settled: payment.admin_flag?.not_settled_flag ?? false,
+        note: payment.admin_flag?.note ?? null,
+      },
+      refunds: payment.refunds,
+      status_history,
+      gateway_logs: payment.refunds.map((r) => ({
+        refund_id: r.id,
+        status: r.status,
+        mp_refund_id: r.mp_refund_id,
+        payload_json: r.payload_json,
+        created_at: r.created_at,
+      })),
+    };
+  }
+
+  async adminFlagPayment(
+    tripPaymentId: string,
+    type: 'duplicate' | 'not_settled',
+    note: string | undefined,
+    adminUserId: string,
+  ) {
+    await this.prisma.tripPayment.findUniqueOrThrow({ where: { id: tripPaymentId } });
+    const current = await this.prisma.paymentAdminFlag.findUnique({ where: { trip_payment_id: tripPaymentId } });
+
+    const nextDuplicate = type === 'duplicate' ? !(current?.duplicate_flag ?? false) : (current?.duplicate_flag ?? false);
+    const nextNotSettled =
+      type === 'not_settled' ? !(current?.not_settled_flag ?? false) : (current?.not_settled_flag ?? false);
+
+    return this.prisma.paymentAdminFlag.upsert({
+      where: { trip_payment_id: tripPaymentId },
+      update: {
+        duplicate_flag: nextDuplicate,
+        not_settled_flag: nextNotSettled,
+        note: note ?? current?.note,
+        updated_by: adminUserId,
+      },
+      create: {
+        trip_payment_id: tripPaymentId,
+        duplicate_flag: nextDuplicate,
+        not_settled_flag: nextNotSettled,
+        note,
+        updated_by: adminUserId,
+      },
     });
   }
 

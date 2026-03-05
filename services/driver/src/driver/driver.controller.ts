@@ -1,10 +1,17 @@
-import { Body, Controller, Get, Param, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { DriverService } from './driver.service';
 import { PresignDocumentDto } from '../dto/presign-document.dto';
 import { UpsertVehicleDto } from '../dto/upsert-vehicle.dto';
 import { ConnectMpDto } from '../dto/connect-mp.dto';
 import { ReviewActionDto } from '../dto/review-action.dto';
+import {
+  AdminDriverDocPatchDto,
+  AdminDriverNoteDto,
+  AdminDriversQueryDto,
+  AdminDriverStatusPatchDto,
+  AdminKycDriversQueryDto,
+} from '../dto/admin-driver.dto';
 import { JwtAccessGuard } from '../common/jwt-access.guard';
 import { RolesGuard } from '../common/roles.guard';
 import { Roles } from '../common/roles.decorator';
@@ -46,6 +53,13 @@ export class DriverController {
     return this.driverService.upsertVehicle(req.user.sub, dto);
   }
 
+  @Get('admin/drivers')
+  @UseGuards(JwtAccessGuard, RolesGuard)
+  @Roles('admin', 'sos')
+  adminList(@Query() query: AdminDriversQueryDto) {
+    return this.driverService.adminList(query);
+  }
+
   @Get('admin/drivers/pending')
   @UseGuards(JwtAccessGuard, RolesGuard)
   @Roles('admin', 'sos')
@@ -58,6 +72,56 @@ export class DriverController {
   @Roles('admin', 'sos')
   adminDetail(@Param('id') id: string) {
     return this.driverService.adminDetail(id);
+  }
+
+
+
+
+  @Get('admin/kyc/drivers')
+  @UseGuards(JwtAccessGuard, RolesGuard)
+  @Roles('admin', 'sos')
+  adminKycList(@Query() query: AdminKycDriversQueryDto) {
+    return this.driverService.adminKycList(query);
+  }
+
+  @Get('admin/kyc/drivers/:id')
+  @UseGuards(JwtAccessGuard, RolesGuard)
+  @Roles('admin', 'sos')
+  adminKycDetail(@Param('id') id: string) {
+    return this.driverService.adminKycDetail(id);
+  }
+
+  @Patch('admin/kyc/drivers/:id/documents/:documentId')
+  @UseGuards(JwtAccessGuard, RolesGuard)
+  @Roles('admin', 'sos')
+  patchKycDocument(
+    @Param('id') id: string,
+    @Param('documentId') documentId: string,
+    @Req() req: AuthReq,
+    @Body() dto: AdminDriverDocPatchDto,
+  ) {
+    return this.driverService.patchKycDocument(id, documentId, req.user.sub, dto);
+  }
+
+    @Patch('admin/drivers/:id/status')
+  @UseGuards(JwtAccessGuard, RolesGuard)
+  @Roles('admin', 'sos')
+  patchStatus(@Param('id') id: string, @Req() req: AuthReq, @Body() dto: AdminDriverStatusPatchDto) {
+    return this.driverService.patchStatus(id, req.user.sub, dto.status, dto.reason);
+  }
+
+  @Patch('admin/drivers/:id/kyc/reset')
+  @UseGuards(JwtAccessGuard, RolesGuard)
+  @Roles('admin', 'sos')
+  resetKyc(@Param('id') id: string, @Req() req: AuthReq) {
+    return this.driverService.resetKyc(id, req.user.sub);
+  }
+
+  @Post('admin/drivers/:id/notes')
+  @UseGuards(JwtAccessGuard, RolesGuard)
+  @Roles('admin', 'sos')
+  addAdminNote(@Param('id') id: string, @Req() req: AuthReq, @Body() dto: AdminDriverNoteDto) {
+    return this.driverService.addAdminNote(id, req.user.sub, dto.note);
   }
 
   @Post('admin/drivers/:id/review-start')
