@@ -18,6 +18,19 @@ type ZoneRow = {
   updated_at?: string;
   min_driver_score?: number;
   min_passenger_score?: number;
+  pricing_profile_key?: string | null;
+};
+
+type PricingProfile = {
+  key: string;
+  name: string;
+  base_fare: number;
+  per_km: number;
+  per_min: number;
+  minimum: number;
+  cancel_fee: number;
+  surge: number;
+  night_fee?: number;
 };
 
 type ToastState = { tone: 'success' | 'error'; message: string } | null;
@@ -135,6 +148,16 @@ function ZonesManager({ kind }: { kind: ZoneKind }) {
   const [points, setPoints] = useState<LatLngPoint[]>([]);
   const [minDriverScore, setMinDriverScore] = useState(75);
   const [minPassengerScore, setMinPassengerScore] = useState(60);
+  const [pricingProfiles, setPricingProfiles] = useState<PricingProfile[]>([]);
+  const [pricingProfileKey, setPricingProfileKey] = useState('');
+  const [profileName, setProfileName] = useState('');
+  const [profileBaseFare, setProfileBaseFare] = useState(800);
+  const [profilePerKm, setProfilePerKm] = useState(250);
+  const [profilePerMin, setProfilePerMin] = useState(80);
+  const [profileMinimum, setProfileMinimum] = useState(1200);
+  const [profileCancelFee, setProfileCancelFee] = useState(500);
+  const [profileSurge, setProfileSurge] = useState(1);
+  const [profileNightFee, setProfileNightFee] = useState(0);
 
   const endpoint = kind === 'geozones' ? '/api/admin/geozones' : '/api/admin/premium-zones';
 
@@ -148,6 +171,9 @@ function ZonesManager({ kind }: { kind: ZoneKind }) {
       const res = await fetch(endpoint, { cache: 'no-store' });
       if (!res.ok) throw new Error('No se pudo obtener zonas');
       setRows(await res.json());
+
+      const profilesRes = await fetch('/api/admin/pricing/profiles', { cache: 'no-store' });
+      if (profilesRes.ok) setPricingProfiles(await profilesRes.json());
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : 'Error al cargar');
     } finally {
@@ -167,6 +193,7 @@ function ZonesManager({ kind }: { kind: ZoneKind }) {
     setPoints([]);
     setMinDriverScore(75);
     setMinPassengerScore(60);
+    setPricingProfileKey('');
   };
 
   const validate = () => {
@@ -194,6 +221,7 @@ function ZonesManager({ kind }: { kind: ZoneKind }) {
       payload.min_driver_score = minDriverScore;
       payload.min_passenger_score = minPassengerScore;
     }
+    payload.pricing_profile_key = pricingProfileKey || undefined;
 
     const url = editing ? `${endpoint}/${editing.id}` : endpoint;
     const method = editing ? 'PATCH' : 'POST';
@@ -222,6 +250,37 @@ function ZonesManager({ kind }: { kind: ZoneKind }) {
     setPoints(row.polygon_json ?? []);
     setMinDriverScore(row.min_driver_score ?? 75);
     setMinPassengerScore(row.min_passenger_score ?? 60);
+    setPricingProfileKey(row.pricing_profile_key ?? '');
+  };
+
+  const createPricingProfile = async () => {
+    const key = profileName.trim().toLowerCase().replace(/\s+/g, '_');
+    if (!key) {
+      showError('Nombre de perfil requerido');
+      return;
+    }
+    const res = await fetch('/api/admin/pricing/profiles', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        key,
+        name: profileName.trim(),
+        base_fare: profileBaseFare,
+        per_km: profilePerKm,
+        per_min: profilePerMin,
+        minimum: profileMinimum,
+        cancel_fee: profileCancelFee,
+        surge: profileSurge,
+        night_fee: profileNightFee,
+      }),
+    });
+    if (!res.ok) {
+      showError('No se pudo crear perfil');
+      return;
+    }
+    showSuccess('Perfil de pricing guardado');
+    setProfileName('');
+    await load();
   };
 
   const onToggle = async (row: ZoneRow) => {
@@ -255,6 +314,21 @@ function ZonesManager({ kind }: { kind: ZoneKind }) {
   return (
     <div className="space-y-6">
       <AdminCard title={editing ? `Editar ${editing.name}` : `Nueva ${kind === 'geozones' ? 'GeoZone' : 'Premium Zone'}`}>
+        <div className="mb-4 rounded-lg border border-slate-800 bg-slate-900/40 p-3">
+          <p className="mb-2 text-sm font-medium">Pricing profiles</p>
+          <div className="grid gap-2 md:grid-cols-4">
+            <input className="rounded-md border border-slate-700 bg-slate-950 p-2 text-sm" placeholder="Nombre perfil" value={profileName} onChange={(e) => setProfileName(e.target.value)} />
+            <input type="number" className="rounded-md border border-slate-700 bg-slate-950 p-2 text-sm" placeholder="Base fare" value={profileBaseFare} onChange={(e) => setProfileBaseFare(Number(e.target.value))} />
+            <input type="number" className="rounded-md border border-slate-700 bg-slate-950 p-2 text-sm" placeholder="Per km" value={profilePerKm} onChange={(e) => setProfilePerKm(Number(e.target.value))} />
+            <input type="number" className="rounded-md border border-slate-700 bg-slate-950 p-2 text-sm" placeholder="Per min" value={profilePerMin} onChange={(e) => setProfilePerMin(Number(e.target.value))} />
+            <input type="number" className="rounded-md border border-slate-700 bg-slate-950 p-2 text-sm" placeholder="Minimum" value={profileMinimum} onChange={(e) => setProfileMinimum(Number(e.target.value))} />
+            <input type="number" className="rounded-md border border-slate-700 bg-slate-950 p-2 text-sm" placeholder="Cancel fee" value={profileCancelFee} onChange={(e) => setProfileCancelFee(Number(e.target.value))} />
+            <input type="number" step="0.1" className="rounded-md border border-slate-700 bg-slate-950 p-2 text-sm" placeholder="Surge" value={profileSurge} onChange={(e) => setProfileSurge(Number(e.target.value))} />
+            <input type="number" className="rounded-md border border-slate-700 bg-slate-950 p-2 text-sm" placeholder="Night fee" value={profileNightFee} onChange={(e) => setProfileNightFee(Number(e.target.value))} />
+          </div>
+          <button className="mt-2 rounded bg-slate-700 px-3 py-1.5 text-xs" onClick={() => void createPricingProfile()}>Guardar perfil</button>
+        </div>
+
         <div className="grid gap-3 md:grid-cols-2">
           <input className="rounded-md border border-slate-700 bg-slate-950 p-2 text-sm" placeholder="Nombre" value={name} onChange={(e) => setName(e.target.value)} />
           <select className="rounded-md border border-slate-700 bg-slate-950 p-2 text-sm" value={type} onChange={(e) => setType(e.target.value)}>
@@ -285,6 +359,12 @@ function ZonesManager({ kind }: { kind: ZoneKind }) {
           <label className="flex items-center gap-2 text-sm text-slate-300">
             <input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} /> Activo
           </label>
+          <select className="rounded-md border border-slate-700 bg-slate-950 p-2 text-sm" value={pricingProfileKey} onChange={(e) => setPricingProfileKey(e.target.value)}>
+            <option value="">Sin profile</option>
+            {pricingProfiles.map((profile) => (
+              <option key={profile.key} value={profile.key}>{profile.name} ({profile.key})</option>
+            ))}
+          </select>
         </div>
 
         <div className="mt-4">
@@ -317,6 +397,7 @@ function ZonesManager({ kind }: { kind: ZoneKind }) {
                   <th className="p-2">Tipo</th>
                   <th className="p-2">Activo</th>
                   <th className="p-2">UpdatedAt</th>
+                  <th className="p-2">Pricing Profile</th>
                   <th className="p-2">Acciones</th>
                 </tr>
               </thead>
@@ -327,6 +408,7 @@ function ZonesManager({ kind }: { kind: ZoneKind }) {
                     <td className="p-2 text-slate-300">{row.type}</td>
                     <td className="p-2">{row.is_active ? 'Sí' : 'No'}</td>
                     <td className="p-2 text-slate-400">{row.updated_at ? new Date(row.updated_at).toLocaleString() : '-'}</td>
+                    <td className="p-2 text-slate-300">{row.pricing_profile_key ?? '-'}</td>
                     <td className="p-2">
                       <div className="flex flex-wrap gap-2">
                         <button className="rounded bg-slate-800 px-2 py-1 text-xs hover:bg-slate-700" onClick={() => onEdit(row)}>

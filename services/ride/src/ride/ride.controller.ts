@@ -57,6 +57,7 @@ import {
   AdminTripIncidentDto,
   AdminAuditFilterDto,
   AdminPricingDto,
+  AdminPricingProfileDto,
 } from '../dto/ride.dto';
 import { MetricsService } from '../metrics/metrics.service';
 import { SettingsService } from '../settings/settings.service';
@@ -422,6 +423,18 @@ export class RideController {
   @Roles('admin', 'owner', 'finance', 'sos')
   adminPutPricing(@Req() req: AuthReq, @Body() dto: AdminPricingDto) {
     return this.rideService.putAdminPricing(req.user.sub, dto);
+  }
+
+  @Get('admin/pricing/profiles')
+  @Roles('admin', 'owner', 'finance', 'sos')
+  adminGetPricingProfiles() {
+    return this.rideService.listAdminPricingProfiles();
+  }
+
+  @Post('admin/pricing/profiles')
+  @Roles('admin', 'owner', 'finance', 'sos')
+  adminUpsertPricingProfile(@Req() req: AuthReq, @Body() dto: AdminPricingProfileDto) {
+    return this.rideService.upsertAdminPricingProfile(req.user.sub, dto);
   }
 
   @Get('admin/settings')

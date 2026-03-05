@@ -78,6 +78,7 @@ export class GeoZoneCreateDto {
   @IsEnum(GeoZoneType) type!: GeoZoneType;
   @IsArray() polygon_json!: Array<{ lat: number; lng: number }>;
   @IsOptional() @IsBoolean() is_active?: boolean;
+  @IsOptional() @IsString() pricing_profile_key?: string;
 }
 
 export class GeoZonePatchDto {
@@ -85,6 +86,7 @@ export class GeoZonePatchDto {
   @IsOptional() @IsEnum(GeoZoneType) type?: GeoZoneType;
   @IsOptional() @IsArray() polygon_json?: Array<{ lat: number; lng: number }>;
   @IsOptional() @IsBoolean() is_active?: boolean;
+  @IsOptional() @IsString() pricing_profile_key?: string;
 }
 
 export class PremiumZoneCreateDto {
@@ -94,6 +96,7 @@ export class PremiumZoneCreateDto {
   @IsOptional() @IsBoolean() is_active?: boolean;
   @IsOptional() @IsInt() min_driver_score?: number;
   @IsOptional() @IsInt() min_passenger_score?: number;
+  @IsOptional() @IsString() pricing_profile_key?: string;
 }
 
 export class PremiumZonePatchDto {
@@ -103,6 +106,7 @@ export class PremiumZonePatchDto {
   @IsOptional() @IsBoolean() is_active?: boolean;
   @IsOptional() @IsInt() min_driver_score?: number;
   @IsOptional() @IsInt() min_passenger_score?: number;
+  @IsOptional() @IsString() pricing_profile_key?: string;
 }
 
 export class ConfigPutDto {
@@ -174,6 +178,20 @@ export class AdminSettingsFilterDto {
 
 
 export class AdminPricingDto {
+  @IsNumber() base_fare!: number;
+  @IsNumber() per_km!: number;
+  @IsNumber() per_min!: number;
+  @IsNumber() minimum!: number;
+  @IsNumber() cancel_fee!: number;
+  @IsNumber() surge!: number;
+  @IsOptional() @IsNumber() night_fee?: number;
+}
+
+
+
+export class AdminPricingProfileDto {
+  @IsString() key!: string;
+  @IsString() name!: string;
   @IsNumber() base_fare!: number;
   @IsNumber() per_km!: number;
   @IsNumber() per_min!: number;

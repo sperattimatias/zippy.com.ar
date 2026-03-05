@@ -325,6 +325,7 @@ model GeoZone {
   type        GeoZoneType
   polygon_json Json
   is_active   Boolean     @default(true)
+  pricing_profile_key String?
   created_at  DateTime    @default(now())
   updated_at  DateTime    @updatedAt
 
@@ -468,6 +469,7 @@ model PremiumZone {
   is_active          Boolean         @default(true)
   min_driver_score   Int             @default(75)
   min_passenger_score Int            @default(60)
+  pricing_profile_key String?
   created_at         DateTime        @default(now())
   updated_at         DateTime        @updatedAt
 

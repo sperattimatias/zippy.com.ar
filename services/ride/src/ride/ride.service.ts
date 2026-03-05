@@ -239,17 +239,68 @@ export class RideService implements OnModuleInit {
     return weightedPool[weightedPool.length - 1].entry.p.driver_user_id;
   }
 
-  private async getActivePricing() {
+  private async getActivePricing(input?: {
+    origin?: { lat: number; lng: number };
+    dest?: { lat: number; lng: number };
+  }) {
     const row = await this.prisma.appConfig.findUnique({ where: { key: 'pricing' } });
     const fromDb = (row?.value_json as Record<string, number> | null) ?? {};
+    const profileKey = await this.resolvePricingProfileKey(input);
+    const profile = profileKey ? await this.getPricingProfileByKey(profileKey) : null;
     return {
       ...this.defaultPricing,
       ...fromDb,
+      ...(profile ?? {}),
     };
   }
 
-  private async computeBasePrice(distanceKm?: number, etaMin?: number) {
-    const pricing = await this.getActivePricing();
+  private async resolvePricingProfileKey(input?: {
+    origin?: { lat: number; lng: number };
+    dest?: { lat: number; lng: number };
+  }) {
+    if (!input?.origin && !input?.dest) return null;
+
+    const premium = await this.prisma.premiumZone.findMany({
+      where: { is_active: true, pricing_profile_key: { not: null } },
+      select: { polygon_json: true, pricing_profile_key: true },
+    });
+
+    const geozones = await this.prisma.geoZone.findMany({
+      where: { is_active: true, pricing_profile_key: { not: null } },
+      select: { polygon_json: true, pricing_profile_key: true },
+    });
+
+    const points = [input.origin, input.dest].filter((p): p is { lat: number; lng: number } => !!p);
+    const inZone = (polygonJson: unknown, point: { lat: number; lng: number }) =>
+      this.pointInPolygon(point, polygonJson as Array<{ lat: number; lng: number }>);
+
+    for (const point of points) {
+      const premiumMatch = premium.find((zone) => inZone(zone.polygon_json, point));
+      if (premiumMatch?.pricing_profile_key) return premiumMatch.pricing_profile_key;
+      const geoMatch = geozones.find((zone) => inZone(zone.polygon_json, point));
+      if (geoMatch?.pricing_profile_key) return geoMatch.pricing_profile_key;
+    }
+
+    return null;
+  }
+
+  private async getPricingProfiles() {
+    const row = await this.prisma.appConfig.findUnique({ where: { key: 'pricing_profiles' } });
+    const profiles = Array.isArray(row?.value_json) ? row?.value_json : [];
+    return profiles as Array<Record<string, unknown>>;
+  }
+
+  private async getPricingProfileByKey(key: string) {
+    const profiles = await this.getPricingProfiles();
+    return (profiles.find((profile) => profile.key === key) as Record<string, number> | undefined) ?? null;
+  }
+
+  private async computeBasePrice(
+    distanceKm?: number,
+    etaMin?: number,
+    input?: { origin?: { lat: number; lng: number }; dest?: { lat: number; lng: number } },
+  ) {
+    const pricing = await this.getActivePricing(input);
     const km = distanceKm ?? 5;
     const eta = etaMin ?? 10;
     const subtotal = pricing.base_fare + km * pricing.per_km + eta * pricing.per_min + (pricing.night_fee ?? 0);
@@ -538,7 +589,10 @@ export class RideService implements OnModuleInit {
       passengerScore.status === RestrictionStatus.BLOCKED || passengerScore.score < 60;
     const biddingWindowMs = isRestrictedPassenger ? 25_000 : 45_000;
 
-    const price_base = await this.computeBasePrice(dto.distance_km, dto.eta_minutes);
+    const price_base = await this.computeBasePrice(dto.distance_km, dto.eta_minutes, {
+      origin: { lat: dto.origin_lat, lng: dto.origin_lng },
+      dest: { lat: dto.dest_lat, lng: dto.dest_lng },
+    });
     const expires = new Date(this.nowMs() + biddingWindowMs);
 
     const trip = await this.prisma.trip.create({
@@ -1610,6 +1664,43 @@ export class RideService implements OnModuleInit {
 
   async getAdminPricing() {
     return this.getActivePricing();
+  }
+
+  async listAdminPricingProfiles() {
+    return this.getPricingProfiles();
+  }
+
+  async upsertAdminPricingProfile(
+    adminUserId: string,
+    dto: {
+      key: string;
+      name: string;
+      base_fare: number;
+      per_km: number;
+      per_min: number;
+      minimum: number;
+      cancel_fee: number;
+      surge: number;
+      night_fee?: number;
+    },
+  ) {
+    const profiles = await this.getPricingProfiles();
+    const next = {
+      key: dto.key,
+      name: dto.name,
+      base_fare: dto.base_fare,
+      per_km: dto.per_km,
+      per_min: dto.per_min,
+      minimum: dto.minimum,
+      cancel_fee: dto.cancel_fee,
+      surge: dto.surge,
+      ...(dto.night_fee !== undefined ? { night_fee: dto.night_fee } : {}),
+    };
+    const without = profiles.filter((profile) => profile.key !== dto.key);
+    const updatedProfiles = [...without, next];
+    await this.putConfig('pricing_profiles', updatedProfiles);
+    await this.logAdminAudit(adminUserId, 'pricing_profile.upsert', 'settings', dto.key, next);
+    return next;
   }
 
   async putAdminPricing(adminUserId: string, dto: {
