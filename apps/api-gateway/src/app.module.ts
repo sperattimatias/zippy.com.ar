@@ -79,6 +79,13 @@ const adminUserScoreRoutes: RouteInfo[] = [
 const adminRestrictionsRoutes: RouteInfo[] = [
   { path: 'api/admin/restrictions/:id/lift', method: RequestMethod.ALL },
 ];
+const adminUsersRoutes: RouteInfo[] = [
+  { path: 'api/admin/users', method: RequestMethod.ALL },
+  { path: 'api/admin/users/:id', method: RequestMethod.ALL },
+  { path: 'api/admin/users/:id/status', method: RequestMethod.ALL },
+  { path: 'api/admin/users/:id/payment-limit', method: RequestMethod.ALL },
+  { path: 'api/admin/users/:id/notes', method: RequestMethod.ALL },
+];
 const adminConfigRoutes: RouteInfo[] = [
   { path: 'api/admin/config/:key', method: RequestMethod.ALL },
 ];
@@ -261,6 +268,7 @@ export class AppModule implements NestModule {
         ...adminScoresRoutes,
         ...adminUserScoreRoutes,
         ...adminRestrictionsRoutes,
+        ...adminUsersRoutes,
         ...adminConfigRoutes,
         ...adminPremiumZoneRoutes,
         ...adminFraudRoutes,
@@ -305,6 +313,21 @@ export class AppModule implements NestModule {
         ),
       )
       .forRoutes(...authRoutes);
+
+    consumer
+      .apply(
+        createServiceProxy(
+          {
+            target: process.env.AUTH_SERVICE_URL,
+            changeOrigin: true,
+            xfwd: true,
+            pathRewrite: { '^/api/admin/users': '/auth/admin/users' },
+          },
+          timeoutMs,
+          connectTimeoutMs,
+        ),
+      )
+      .forRoutes(...adminUsersRoutes);
 
     consumer
       .apply(

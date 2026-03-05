@@ -13,6 +13,7 @@ type MeResponse = {
 const navItems = [
   { href: '/admin/dashboard', label: 'Dashboard' },
   { href: '/admin/drivers', label: 'Drivers' },
+  { href: '/admin/users', label: 'Users' },
   { href: '/admin/fraud', label: 'Fraud' },
   { href: '/admin/zones', label: 'Zones' },
   { href: '/admin/settings/integrations', label: 'Settings · Integrations' },
