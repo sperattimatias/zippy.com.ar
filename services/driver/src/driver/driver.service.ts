@@ -8,7 +8,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { MinioService } from '../minio/minio.service';
 import { PresignDocumentDto } from '../dto/presign-document.dto';
 import { UpsertVehicleDto } from '../dto/upsert-vehicle.dto';
-import { AdminDriversQueryDto } from '../dto/admin-driver.dto';
+import { AdminDriverDocPatchDto, AdminDriversQueryDto, AdminKycDriversQueryDto } from '../dto/admin-driver.dto';
 
 @Injectable()
 export class DriverService {
@@ -193,6 +193,136 @@ export class DriverService {
       total,
       total_pages: Math.max(1, Math.ceil(total / pageSize)),
     };
+  }
+
+  private requiredDocTypes = ['DNI_FRONT', 'DNI_BACK', 'LICENSE', 'INSURANCE'] as const;
+
+  private summarizeKyc(profile: { documents: Array<{ id: string; type: string; status: string; expires_at?: Date | null }> }, expiresInDays = 30) {
+    const now = new Date();
+    const deadline = new Date(now.getTime() + expiresInDays * 24 * 3600 * 1000);
+    const approvedTypes = new Set(
+      profile.documents.filter((d) => d.status === 'APPROVED').map((d) => d.type),
+    );
+    const missing_documents = this.requiredDocTypes.filter((type) => !approvedTypes.has(type));
+    const upcoming_expirations = profile.documents.filter(
+      (d) => d.expires_at && d.expires_at >= now && d.expires_at <= deadline,
+    );
+    return { missing_documents, upcoming_expirations };
+  }
+
+  async adminKycList(query: AdminKycDriversQueryDto = {}) {
+    const page = Math.max(1, Number(query.page ?? 1));
+    const pageSize = Math.min(100, Math.max(1, Number(query.page_size ?? 20)));
+    const expiresInDays = Math.max(1, Number(query.expires_in_days ?? 30));
+
+    const where: Prisma.DriverProfileWhereInput = {
+      ...(query.status ? { status: query.status as any } : {}),
+      ...(query.search
+        ? {
+            OR: [
+              { user_id: { contains: query.search, mode: 'insensitive' } },
+              { id: { contains: query.search, mode: 'insensitive' } },
+            ],
+          }
+        : {}),
+    };
+
+    const [total, rows] = await this.prisma.$transaction([
+      this.prisma.driverProfile.count({ where }),
+      this.prisma.driverProfile.findMany({
+        where,
+        include: { documents: true },
+        orderBy: { created_at: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+    ]);
+
+    const items = rows.map((row) => {
+      const summary = this.summarizeKyc(row, expiresInDays);
+      return {
+        id: row.id,
+        user_id: row.user_id,
+        kyc_status: row.status,
+        missing_documents: summary.missing_documents,
+        upcoming_expirations: summary.upcoming_expirations.map((d) => ({
+          document_id: d.id,
+          type: d.type,
+          expires_at: d.expires_at,
+        })),
+        created_at: row.created_at,
+      };
+    });
+
+    return {
+      items,
+      page,
+      page_size: pageSize,
+      total,
+      total_pages: Math.max(1, Math.ceil(total / pageSize)),
+    };
+  }
+
+  async adminKycDetail(id: string) {
+    const profile = await this.prisma.driverProfile.findUnique({
+      where: { id },
+      include: { documents: true, events: { orderBy: { created_at: 'desc' }, take: 200 }, vehicle: true },
+    });
+    if (!profile) throw new NotFoundException('Driver profile not found');
+
+    const docs = await Promise.all(
+      profile.documents.map(async (d) => ({
+        ...d,
+        get_url: await this.minio.presignedGetObject(d.object_key),
+      })),
+    );
+
+    const summary = this.summarizeKyc(profile, 30);
+
+    return {
+      ...profile,
+      documents: docs,
+      missing_documents: summary.missing_documents,
+      upcoming_expirations: summary.upcoming_expirations,
+    };
+  }
+
+  async patchKycDocument(
+    profileId: string,
+    documentId: string,
+    actorUserId: string,
+    dto: AdminDriverDocPatchDto,
+  ) {
+    const profile = await this.prisma.driverProfile.findUnique({ where: { id: profileId } });
+    if (!profile) throw new NotFoundException('Driver profile not found');
+
+    const doc = await this.prisma.driverDocument.findFirst({
+      where: { id: documentId, driver_profile_id: profileId },
+    });
+    if (!doc) throw new NotFoundException('Driver document not found');
+
+    const updated = await this.prisma.driverDocument.update({
+      where: { id: documentId },
+      data: {
+        status: dto.status,
+        review_reason: dto.reason ?? null,
+        reviewed_at: new Date(),
+        reviewed_by_user_id: actorUserId,
+        reupload_requested_at: dto.status === 'REUPLOAD_REQUESTED' ? new Date() : null,
+        expires_at: dto.expires_at ? new Date(dto.expires_at) : undefined,
+      },
+    });
+
+    await this.addEvent(profileId, actorUserId, DriverEventType.STATUS_CHANGED, {
+      action: 'document_review',
+      document_id: documentId,
+      document_type: doc.type,
+      status: dto.status,
+      reason: dto.reason ?? null,
+      expires_at: updated.expires_at ?? null,
+    });
+
+    return updated;
   }
 
   async adminPending() {

@@ -5,7 +5,13 @@ import { PresignDocumentDto } from '../dto/presign-document.dto';
 import { UpsertVehicleDto } from '../dto/upsert-vehicle.dto';
 import { ConnectMpDto } from '../dto/connect-mp.dto';
 import { ReviewActionDto } from '../dto/review-action.dto';
-import { AdminDriverNoteDto, AdminDriversQueryDto, AdminDriverStatusPatchDto } from '../dto/admin-driver.dto';
+import {
+  AdminDriverDocPatchDto,
+  AdminDriverNoteDto,
+  AdminDriversQueryDto,
+  AdminDriverStatusPatchDto,
+  AdminKycDriversQueryDto,
+} from '../dto/admin-driver.dto';
 import { JwtAccessGuard } from '../common/jwt-access.guard';
 import { RolesGuard } from '../common/roles.guard';
 import { Roles } from '../common/roles.decorator';
@@ -69,7 +75,35 @@ export class DriverController {
   }
 
 
-  @Patch('admin/drivers/:id/status')
+
+
+  @Get('admin/kyc/drivers')
+  @UseGuards(JwtAccessGuard, RolesGuard)
+  @Roles('admin', 'sos')
+  adminKycList(@Query() query: AdminKycDriversQueryDto) {
+    return this.driverService.adminKycList(query);
+  }
+
+  @Get('admin/kyc/drivers/:id')
+  @UseGuards(JwtAccessGuard, RolesGuard)
+  @Roles('admin', 'sos')
+  adminKycDetail(@Param('id') id: string) {
+    return this.driverService.adminKycDetail(id);
+  }
+
+  @Patch('admin/kyc/drivers/:id/documents/:documentId')
+  @UseGuards(JwtAccessGuard, RolesGuard)
+  @Roles('admin', 'sos')
+  patchKycDocument(
+    @Param('id') id: string,
+    @Param('documentId') documentId: string,
+    @Req() req: AuthReq,
+    @Body() dto: AdminDriverDocPatchDto,
+  ) {
+    return this.driverService.patchKycDocument(id, documentId, req.user.sub, dto);
+  }
+
+    @Patch('admin/drivers/:id/status')
   @UseGuards(JwtAccessGuard, RolesGuard)
   @Roles('admin', 'sos')
   patchStatus(@Param('id') id: string, @Req() req: AuthReq, @Body() dto: AdminDriverStatusPatchDto) {

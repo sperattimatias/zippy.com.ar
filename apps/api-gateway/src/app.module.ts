@@ -55,6 +55,10 @@ const adminDriverRoutes: RouteInfo[] = [
   { path: 'api/admin/drivers', method: RequestMethod.ALL },
   { path: 'api/admin/drivers/*', method: RequestMethod.ALL },
 ];
+const adminKycDriverRoutes: RouteInfo[] = [
+  { path: 'api/admin/kyc/drivers', method: RequestMethod.ALL },
+  { path: 'api/admin/kyc/drivers/*', method: RequestMethod.ALL },
+];
 const adminTripsRoutes: RouteInfo[] = [
   { path: 'api/admin/trips', method: RequestMethod.ALL },
   { path: 'api/admin/trips/*', method: RequestMethod.ALL },
@@ -271,6 +275,7 @@ export class AppModule implements NestModule {
       .apply(JwtClaimsMiddleware, RequireAdminOrSosMiddleware)
       .forRoutes(
         ...adminDriverRoutes,
+        ...adminKycDriverRoutes,
         ...adminTripsRoutes,
         ...adminGeoZonesRoutes,
         ...adminSafetyAlertsRoutes,
@@ -381,6 +386,21 @@ export class AppModule implements NestModule {
         ),
       )
       .forRoutes(...adminDriverRoutes);
+
+    consumer
+      .apply(
+        createServiceProxy(
+          {
+            target: process.env.DRIVER_SERVICE_URL,
+            changeOrigin: true,
+            xfwd: true,
+            pathRewrite: { '^/api/admin/kyc/drivers': '/admin/kyc/drivers' },
+          },
+          timeoutMs,
+          connectTimeoutMs,
+        ),
+      )
+      .forRoutes(...adminKycDriverRoutes);
 
     consumer
       .apply(
