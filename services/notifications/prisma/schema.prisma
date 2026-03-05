@@ -1,0 +1,43 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model NotificationTemplate {
+  id         String   @id @default(cuid())
+  key        String   @unique
+  channel    String
+  title      String
+  body       String
+  is_active  Boolean  @default(true)
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  @@index([channel, is_active])
+}
+
+model NotificationSetting {
+  event_key   String   @id
+  enabled     Boolean  @default(true)
+  updated_by  String?
+  updated_at  DateTime @updatedAt
+}
+
+model NotificationDeliveryLog {
+  id           String   @id @default(cuid())
+  event_key    String
+  channel      String
+  recipient    String
+  template_key String?
+  status       String
+  error        String?
+  attempts     Int      @default(1)
+  created_at   DateTime @default(now())
+
+  @@index([event_key, created_at])
+  @@index([status, created_at])
+}
