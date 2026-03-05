@@ -30,7 +30,6 @@ export default function IntegrationsSettingsPage() {
     mercadopago_webhook_secret: '',
     mercadopago_mode: 'sandbox',
   });
-
   const [email, setEmail] = useState({
     smtp_host: '',
     smtp_port: '587',
@@ -40,10 +39,12 @@ export default function IntegrationsSettingsPage() {
     smtp_from_name: '',
     smtp_from_email: '',
   });
+  const [maps, setMaps] = useState({ google_maps_api_key: '' });
 
-  const [maps, setMaps] = useState({
-    google_maps_api_key: '',
-  });
+  const [testingMp, setTestingMp] = useState(false);
+  const [testingSmtp, setTestingSmtp] = useState(false);
+  const [mpStatus, setMpStatus] = useState('');
+  const [smtpStatus, setSmtpStatus] = useState('');
 
   const encryptedExisting = useMemo(() => {
     const asMap = new Map<string, SettingRow>();
@@ -115,6 +116,61 @@ export default function IntegrationsSettingsPage() {
     }
   };
 
+  const testMercadoPago = async () => {
+    setTestingMp(true);
+    setMpStatus('Probando conexión...');
+    try {
+      const res = await fetch('/api/admin/settings/test/mercadopago', { method: 'POST' });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.ok) {
+        setMpStatus('✅ Conexión exitosa');
+        setToast({ tone: 'success', message: 'MercadoPago conectado correctamente.' });
+      } else {
+        const message = data.error ?? data.message ?? 'Falló la prueba de MercadoPago';
+        setMpStatus(`❌ ${message}`);
+        setToast({ tone: 'error', message });
+      }
+    } catch {
+      setMpStatus('❌ Error de conexión');
+      setToast({ tone: 'error', message: 'No se pudo probar MercadoPago.' });
+    } finally {
+      setTestingMp(false);
+    }
+  };
+
+  const testSmtp = async () => {
+    const toEmail = window.prompt('Ingresá el email destinatario para la prueba SMTP:');
+    if (!toEmail) return;
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(toEmail)) {
+      setToast({ tone: 'error', message: 'Email de prueba inválido.' });
+      return;
+    }
+
+    setTestingSmtp(true);
+    setSmtpStatus('Enviando email de prueba...');
+    try {
+      const res = await fetch('/api/admin/settings/test/smtp', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ toEmail }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.ok) {
+        setSmtpStatus(`✅ Email enviado a ${toEmail}`);
+        setToast({ tone: 'success', message: 'Email de prueba enviado.' });
+      } else {
+        const message = data.error ?? data.message ?? 'Falló la prueba SMTP';
+        setSmtpStatus(`❌ ${message}`);
+        setToast({ tone: 'error', message });
+      }
+    } catch {
+      setSmtpStatus('❌ Error de conexión');
+      setToast({ tone: 'error', message: 'No se pudo probar SMTP.' });
+    } finally {
+      setTestingSmtp(false);
+    }
+  };
+
   const savePayments = async () => {
     if (!modeOptions.includes(payments.mercadopago_mode as (typeof modeOptions)[number])) {
       setToast({ tone: 'error', message: 'Modo de MercadoPago inválido.' });
@@ -122,33 +178,14 @@ export default function IntegrationsSettingsPage() {
     }
 
     try {
-      await putSetting('mercadopago_public_key', {
-        value: payments.mercadopago_public_key,
-        category: 'payments',
-        encrypted: false,
-      });
-      await putSetting('mercadopago_mode', {
-        value: payments.mercadopago_mode,
-        category: 'payments',
-        encrypted: false,
-      });
-
+      await putSetting('mercadopago_public_key', { value: payments.mercadopago_public_key, category: 'payments', encrypted: false });
+      await putSetting('mercadopago_mode', { value: payments.mercadopago_mode, category: 'payments', encrypted: false });
       if (payments.mercadopago_access_token.trim()) {
-        await putSetting('mercadopago_access_token', {
-          value: payments.mercadopago_access_token,
-          category: 'payments',
-          encrypted: true,
-        });
+        await putSetting('mercadopago_access_token', { value: payments.mercadopago_access_token, category: 'payments', encrypted: true });
       }
-
       if (payments.mercadopago_webhook_secret.trim()) {
-        await putSetting('mercadopago_webhook_secret', {
-          value: payments.mercadopago_webhook_secret,
-          category: 'payments',
-          encrypted: true,
-        });
+        await putSetting('mercadopago_webhook_secret', { value: payments.mercadopago_webhook_secret, category: 'payments', encrypted: true });
       }
-
       setToast({ tone: 'success', message: 'MercadoPago actualizado.' });
       await load();
     } catch (saveError) {
@@ -178,11 +215,9 @@ export default function IntegrationsSettingsPage() {
       await putSetting('smtp_encryption', { value: email.smtp_encryption, category: 'email', encrypted: false });
       await putSetting('smtp_from_name', { value: email.smtp_from_name, category: 'email', encrypted: false });
       await putSetting('smtp_from_email', { value: email.smtp_from_email, category: 'email', encrypted: false });
-
       if (email.smtp_password.trim()) {
         await putSetting('smtp_password', { value: email.smtp_password, category: 'email', encrypted: true });
       }
-
       setToast({ tone: 'success', message: 'SMTP actualizado.' });
       await load();
     } catch (saveError) {
@@ -193,11 +228,7 @@ export default function IntegrationsSettingsPage() {
   const saveMaps = async () => {
     try {
       if (maps.google_maps_api_key.trim()) {
-        await putSetting('google_maps_api_key', {
-          value: maps.google_maps_api_key,
-          category: 'maps',
-          encrypted: true,
-        });
+        await putSetting('google_maps_api_key', { value: maps.google_maps_api_key, category: 'maps', encrypted: true });
       }
       setToast({ tone: 'success', message: 'Google Maps actualizado.' });
       await load();
@@ -219,7 +250,7 @@ export default function IntegrationsSettingsPage() {
 
       {!loading && !error && (
         <>
-          <AdminCard title="MercadoPago" action={<button className="rounded bg-cyan-600 px-3 py-1.5 text-sm" onClick={() => void savePayments()}>Guardar</button>}>
+          <AdminCard title="MercadoPago" action={<div className="flex gap-2"><button className="rounded bg-cyan-600 px-3 py-1.5 text-sm" onClick={() => void savePayments()}>Guardar</button><button className="rounded bg-slate-700 px-3 py-1.5 text-sm" disabled={testingMp} onClick={() => void testMercadoPago()}>{testingMp ? 'Probando...' : 'Probar conexión'}</button></div>}>
             <div className="grid gap-3 md:grid-cols-2">
               <input className="rounded-md border border-slate-700 bg-slate-950 p-2 text-sm" placeholder="Public key" value={payments.mercadopago_public_key} onChange={(e) => setPayments((prev) => ({ ...prev, mercadopago_public_key: e.target.value }))} />
               <select className="rounded-md border border-slate-700 bg-slate-950 p-2 text-sm" value={payments.mercadopago_mode} onChange={(e) => setPayments((prev) => ({ ...prev, mercadopago_mode: e.target.value }))}>
@@ -229,9 +260,10 @@ export default function IntegrationsSettingsPage() {
               <input className="rounded-md border border-slate-700 bg-slate-950 p-2 text-sm" placeholder={encryptedExisting.mercadopago_access_token ? '•••••• (cargado, ingresar para reemplazar)' : 'Access token'} value={payments.mercadopago_access_token} onChange={(e) => setPayments((prev) => ({ ...prev, mercadopago_access_token: e.target.value }))} />
               <input className="rounded-md border border-slate-700 bg-slate-950 p-2 text-sm" placeholder={encryptedExisting.mercadopago_webhook_secret ? '•••••• (cargado, ingresar para reemplazar)' : 'Webhook secret'} value={payments.mercadopago_webhook_secret} onChange={(e) => setPayments((prev) => ({ ...prev, mercadopago_webhook_secret: e.target.value }))} />
             </div>
+            {mpStatus && <p className="mt-3 text-xs text-slate-300">{mpStatus}</p>}
           </AdminCard>
 
-          <AdminCard title="SMTP" action={<button className="rounded bg-cyan-600 px-3 py-1.5 text-sm" onClick={() => void saveEmail()}>Guardar</button>}>
+          <AdminCard title="SMTP" action={<div className="flex gap-2"><button className="rounded bg-cyan-600 px-3 py-1.5 text-sm" onClick={() => void saveEmail()}>Guardar</button><button className="rounded bg-slate-700 px-3 py-1.5 text-sm" disabled={testingSmtp} onClick={() => void testSmtp()}>{testingSmtp ? 'Enviando...' : 'Enviar email de prueba'}</button></div>}>
             <div className="grid gap-3 md:grid-cols-2">
               <input className="rounded-md border border-slate-700 bg-slate-950 p-2 text-sm" placeholder="Host" value={email.smtp_host} onChange={(e) => setEmail((prev) => ({ ...prev, smtp_host: e.target.value }))} />
               <input className="rounded-md border border-slate-700 bg-slate-950 p-2 text-sm" placeholder="Port" value={email.smtp_port} onChange={(e) => setEmail((prev) => ({ ...prev, smtp_port: e.target.value }))} />
@@ -245,6 +277,7 @@ export default function IntegrationsSettingsPage() {
               <input className="rounded-md border border-slate-700 bg-slate-950 p-2 text-sm" placeholder="From name" value={email.smtp_from_name} onChange={(e) => setEmail((prev) => ({ ...prev, smtp_from_name: e.target.value }))} />
               <input className="rounded-md border border-slate-700 bg-slate-950 p-2 text-sm md:col-span-2" placeholder="From email" value={email.smtp_from_email} onChange={(e) => setEmail((prev) => ({ ...prev, smtp_from_email: e.target.value }))} />
             </div>
+            {smtpStatus && <p className="mt-3 text-xs text-slate-300">{smtpStatus}</p>}
           </AdminCard>
 
           <AdminCard title="Maps" action={<button className="rounded bg-cyan-600 px-3 py-1.5 text-sm" onClick={() => void saveMaps()}>Guardar</button>}>

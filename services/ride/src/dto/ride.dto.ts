@@ -16,6 +16,7 @@ import {
   IsArray,
   IsBoolean,
   IsDateString,
+  IsEmail,
   IsEnum,
   IsInt,
   IsNumber,
@@ -149,6 +150,11 @@ export class SystemSettingPutDto {
   @IsString() value!: string;
   @IsOptional() @IsString() category?: string;
   @IsOptional() @IsBoolean() encrypted?: boolean;
+}
+
+
+export class SmtpTestDto {
+  @IsString() @IsEmail() toEmail!: string;
 }
 
 export class AdminLevelFilterDto {

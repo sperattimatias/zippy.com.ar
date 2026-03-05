@@ -47,6 +47,7 @@ import {
   CreateHoldDto,
   AdminSettingsFilterDto,
   SystemSettingPutDto,
+  SmtpTestDto,
 } from '../dto/ride.dto';
 import { MetricsService } from '../metrics/metrics.service';
 import { SettingsService } from '../settings/settings.service';
@@ -354,6 +355,19 @@ export class RideController {
       encrypted: dto.encrypted,
       updatedBy: req.user.sub,
     });
+  }
+
+
+  @Post('admin/settings/test/mercadopago')
+  @Roles('admin', 'sos')
+  adminTestMercadoPagoConnection() {
+    return this.settingsService.testMercadoPagoConnection();
+  }
+
+  @Post('admin/settings/test/smtp')
+  @Roles('admin', 'sos')
+  adminTestSmtpConnection(@Body() dto: SmtpTestDto) {
+    return this.settingsService.testSmtpConnection(dto.toEmail);
   }
 
   @Get('admin/levels')
