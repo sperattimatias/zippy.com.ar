@@ -17,6 +17,7 @@ const navItems = [
   { href: '/admin/fraud', label: 'Fraud' },
   { href: '/admin/zones', label: 'Zones' },
   { href: '/admin/payments', label: 'Payments' },
+  { href: '/admin/support/tickets', label: 'Support · Tickets' },
   { href: '/admin/settings/integrations', label: 'Settings · Integrations' },
 ];
 

@@ -119,6 +119,10 @@ const adminPaymentsRoutes: RouteInfo[] = [
   { path: 'api/admin/payments', method: RequestMethod.ALL },
   { path: 'api/admin/payments/*', method: RequestMethod.ALL },
 ];
+const adminSupportRoutes: RouteInfo[] = [
+  { path: 'api/admin/support/tickets', method: RequestMethod.ALL },
+  { path: 'api/admin/support/tickets/*', method: RequestMethod.ALL },
+];
 const driverCommissionRoutes: RouteInfo[] = [
   { path: 'api/drivers/commission/current', method: RequestMethod.ALL },
 ];
@@ -201,6 +205,7 @@ const createServiceProxy = (
         RIDE_SERVICE_URL: Joi.string().uri().required(),
         DRIVER_SERVICE_URL: Joi.string().uri().required(),
         PAYMENT_SERVICE_URL: Joi.string().uri().required(),
+        SUPPORT_SERVICE_URL: Joi.string().uri().required(),
         REDIS_URL: Joi.string().uri().required(),
 
         JWT_ACCESS_SECRET: Joi.string().min(32).required(),
@@ -282,6 +287,7 @@ export class AppModule implements NestModule {
         ...adminPoliciesRoutes,
         ...adminSettingsRoutes,
         ...adminPaymentsRoutes,
+        ...adminSupportRoutes,
       );
 
     consumer
@@ -343,6 +349,23 @@ export class AppModule implements NestModule {
         ),
       )
       .forRoutes(...driverRoutes);
+
+
+
+    consumer
+      .apply(
+        createServiceProxy(
+          {
+            target: process.env.SUPPORT_SERVICE_URL,
+            changeOrigin: true,
+            xfwd: true,
+            pathRewrite: { '^/api/admin/support/tickets': '/admin/support/tickets' },
+          },
+          timeoutMs,
+          connectTimeoutMs,
+        ),
+      )
+      .forRoutes(...adminSupportRoutes);
 
     consumer
       .apply(
