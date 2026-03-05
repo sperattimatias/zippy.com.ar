@@ -1,9 +1,116 @@
 'use client';
+
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { AdminCard, EmptyState, ErrorState, LoadingState } from '../../../../components/admin/ui';
+
+type FraudCase = {
+  id: string;
+  status: string;
+  severity: string;
+  title: string;
+  summary?: string;
+  created_at: string;
+  primary_user_id?: string | null;
+  related_driver_id?: string | null;
+  related_trip_id?: string | null;
+};
 
 export default function FraudCasesPage() {
-  const [rows, setRows] = useState<any[]>([]);
-  useEffect(() => { fetch('/api/admin/fraud/cases', { cache: 'no-store' }).then((r) => r.json()).then(setRows); }, []);
-  return <main className="mx-auto max-w-6xl p-6 space-y-4"><h1 className="text-2xl font-bold">Fraud Cases</h1><table className="w-full text-sm"><thead><tr><th>status</th><th>severity</th><th>title</th><th>created</th><th></th></tr></thead><tbody>{rows.map((r)=><tr key={r.id}><td>{r.status}</td><td>{r.severity}</td><td>{r.title}</td><td>{new Date(r.created_at).toLocaleString()}</td><td><Link className="text-cyan-400" href={`/admin/fraud/cases/${r.id}`}>Open</Link></td></tr>)}</tbody></table></main>;
+  const [rows, setRows] = useState<FraudCase[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const [status, setStatus] = useState('');
+  const [severity, setSeverity] = useState('');
+  const [q, setQ] = useState('');
+
+  const qs = useMemo(() => {
+    const p = new URLSearchParams();
+    if (status) p.set('status', status);
+    if (severity) p.set('severity', severity);
+    if (q) p.set('q', q);
+    return p.toString();
+  }, [status, severity, q]);
+
+  const load = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/admin/fraud/cases${qs ? `?${qs}` : ''}`, { cache: 'no-store' });
+      if (!res.ok) throw new Error('No se pudieron cargar casos de fraude');
+      setRows(await res.json());
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Error inesperado');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void load();
+  }, [qs]);
+
+  return (
+    <div className="space-y-6">
+      <h1 className="text-2xl font-bold">Fraud Cases</h1>
+
+      <AdminCard title="Filtros">
+        <div className="grid gap-2 md:grid-cols-4">
+          <select className="rounded bg-slate-950 p-2" value={status} onChange={(e) => setStatus(e.target.value)}>
+            <option value="">Todos los estados</option>
+            {['OPEN', 'IN_REVIEW', 'RESOLVED', 'DISMISSED'].map((s) => <option key={s} value={s}>{s}</option>)}
+          </select>
+          <select className="rounded bg-slate-950 p-2" value={severity} onChange={(e) => setSeverity(e.target.value)}>
+            <option value="">Todas las severidades</option>
+            {['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'].map((s) => <option key={s} value={s}>{s}</option>)}
+          </select>
+          <input className="rounded bg-slate-950 p-2 md:col-span-2" placeholder="Buscar por título o resumen" value={q} onChange={(e) => setQ(e.target.value)} />
+        </div>
+      </AdminCard>
+
+      <AdminCard title="Casos">
+        {loading && <LoadingState message="Cargando casos..." />}
+        {error && <ErrorState message={error} retry={() => void load()} />}
+        {!loading && !error && rows.length === 0 && <EmptyState message="No hay casos para los filtros seleccionados." />}
+
+        {!loading && !error && rows.length > 0 && (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[1150px] text-left text-sm">
+              <thead className="bg-slate-900 text-xs uppercase text-slate-400">
+                <tr>
+                  <th className="p-2">ID</th>
+                  <th className="p-2">Status</th>
+                  <th className="p-2">Severity</th>
+                  <th className="p-2">Title</th>
+                  <th className="p-2">Score/Evidencia</th>
+                  <th className="p-2">Entidades</th>
+                  <th className="p-2">Creado</th>
+                  <th className="p-2"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r) => (
+                  <tr key={r.id} className="border-t border-slate-800 align-top">
+                    <td className="p-2 font-mono text-xs">{r.id}</td>
+                    <td className="p-2">{r.status}</td>
+                    <td className="p-2">{r.severity}</td>
+                    <td className="p-2">{r.title}</td>
+                    <td className="p-2 max-w-[220px] truncate">{r.summary ?? '-'}</td>
+                    <td className="p-2 text-xs">
+                      <div>user: {r.primary_user_id ?? '-'}</div>
+                      <div>driver: {r.related_driver_id ?? '-'}</div>
+                      <div>trip: {r.related_trip_id ?? '-'}</div>
+                    </td>
+                    <td className="p-2">{new Date(r.created_at).toLocaleString()}</td>
+                    <td className="p-2"><Link className="text-cyan-400" href={`/admin/fraud/cases/${r.id}`}>Abrir</Link></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </AdminCard>
+    </div>
+  );
 }
