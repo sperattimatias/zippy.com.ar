@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { AdminCard, ErrorState, LoadingState, Toast } from '../../../../components/admin/ui';
 
@@ -117,7 +118,7 @@ export default function AdminUserDetailPage({ params }: { params: { id: string }
             </div>
           </AdminCard>
 
-          <AdminCard title="Acciones">
+          <AdminCard title="Acciones" action={<Link className="text-xs text-cyan-300 underline" href={`/admin/audit?entityType=user&entityId=${params.id}`}>Ver auditoría</Link>}>
             <div className="space-y-3 text-sm">
               <div className="flex flex-wrap gap-2">
                 <button className="rounded bg-rose-700 px-3 py-2 text-white" onClick={() => void patchStatus('blocked')}>Bloquear</button>

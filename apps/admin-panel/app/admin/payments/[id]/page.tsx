@@ -1,7 +1,9 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { AdminCard, ErrorState, LoadingState, Toast } from '../../../../components/admin/ui';
+import { can } from '../../../../lib/admin-rbac';
 
 type PaymentDetail = {
   payment_id: string;
@@ -31,6 +33,7 @@ export default function AdminPaymentDetailPage({ params }: { params: { id: strin
   const [refundAmount, setRefundAmount] = useState('');
   const [refundReason, setRefundReason] = useState('');
   const [flagNote, setFlagNote] = useState('');
+  const [roles, setRoles] = useState<string[]>([]);
 
   const load = async () => {
     setLoading(true);
@@ -46,7 +49,13 @@ export default function AdminPaymentDetailPage({ params }: { params: { id: strin
     }
   };
 
-  useEffect(() => { void load(); }, [params.id]);
+  useEffect(() => {
+    void load();
+    fetch('/api/auth/me', { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((m) => setRoles(m?.roles ?? []))
+      .catch(() => undefined);
+  }, [params.id]);
 
   const createRefund = async () => {
     if (!refundReason.trim()) return setToast({ tone: 'error', message: 'El motivo del reembolso es obligatorio' });
@@ -135,13 +144,13 @@ export default function AdminPaymentDetailPage({ params }: { params: { id: strin
             </div>
           </AdminCard>
 
-          <AdminCard title="Acciones">
+          <AdminCard title="Acciones" action={<Link className="text-xs text-cyan-300 underline" href={`/admin/audit?entityType=payment&entityId=${params.id}`}>Ver auditoría</Link>}>
             <div className="space-y-3 text-sm">
               <div className="grid gap-2 md:grid-cols-3">
                 <input className="rounded bg-slate-950 p-2" placeholder="Monto (vacío = total)" value={refundAmount} onChange={(e) => setRefundAmount(e.target.value)} />
                 <input className="rounded bg-slate-950 p-2 md:col-span-2" placeholder="Motivo reembolso" value={refundReason} onChange={(e) => setRefundReason(e.target.value)} />
               </div>
-              <button className="rounded bg-rose-700 px-3 py-2 text-white" onClick={() => void createRefund()}>Crear reembolso</button>
+              <button className="rounded bg-rose-700 px-3 py-2 text-white disabled:opacity-50" disabled={!can(roles, 'payments.refund')} onClick={() => void createRefund()}>Crear reembolso</button>
 
               <div className="grid gap-2 md:grid-cols-3">
                 <input className="rounded bg-slate-950 p-2 md:col-span-2" placeholder="Nota de auditoría (opcional)" value={flagNote} onChange={(e) => setFlagNote(e.target.value)} />

@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { AdminCard, ErrorState, LoadingState, Toast } from '../../../../components/admin/ui';
 
@@ -143,7 +144,7 @@ export default function DriverDetailPage({ params }: { params: { id: string } })
             </div>
           </AdminCard>
 
-          <AdminCard title="Acciones">
+          <AdminCard title="Acciones" action={<Link className="text-xs text-cyan-300 underline" href={`/admin/audit?entityType=driver&entityId=${params.id}`}>Ver auditoría</Link>}>
             <div className="space-y-3 text-sm">
               <input className="w-full rounded bg-slate-950 p-2" placeholder="Motivo para suspend/bloquear" value={statusReason} onChange={(e) => setStatusReason(e.target.value)} />
               <div className="flex flex-wrap gap-2">

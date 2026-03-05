@@ -20,6 +20,7 @@ import {
   IsEnum,
   IsInt,
   IsNumber,
+  IsIn,
   IsOptional,
   IsString,
   Max,
@@ -234,4 +235,19 @@ export class FraudFreezePaymentsDto {
   @IsOptional() @IsString() payment_id?: string;
   @IsOptional() @IsString() trip_id?: string;
   @IsOptional() @IsString() note?: string;
+}
+
+
+export class AdminAuditFilterDto {
+  @IsOptional() @IsDateString() from?: string;
+  @IsOptional() @IsDateString() to?: string;
+  @IsOptional() @IsString() action?: string;
+  @IsOptional() @IsString() entityType?: string;
+  @IsOptional() @IsString() adminId?: string;
+}
+
+export class AdminAuditEntityParamsDto {
+  @IsIn(['trip', 'user', 'driver', 'payment', 'settings', 'fraud_case'])
+  entityType!: string;
+  @IsString() entityId!: string;
 }

@@ -95,6 +95,71 @@ export class RideService implements OnModuleInit {
     return !!lastSeen && this.nowMs() - lastSeen.getTime() < 30_000;
   }
 
+  private sanitizeAuditPayload(payload: unknown): Prisma.InputJsonValue | undefined {
+    if (payload === undefined) return undefined;
+
+    const redact = (value: unknown): unknown => {
+      if (Array.isArray(value)) return value.map(redact);
+      if (value && typeof value === 'object') {
+        const out: Record<string, unknown> = {};
+        for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+          if (/(token|secret|password|authorization|key)/i.test(k)) out[k] = '[REDACTED]';
+          else out[k] = redact(v);
+        }
+        return out;
+      }
+      return value;
+    };
+
+    return redact(payload) as Prisma.InputJsonValue;
+  }
+
+  async logAdminAudit(
+    adminId: string,
+    action: string,
+    entityType: string,
+    entityId: string,
+    payload?: unknown,
+  ) {
+    return this.prisma.adminAuditLog.create({
+      data: {
+        admin_id: adminId,
+        action,
+        entity_type: entityType,
+        entity_id: entityId,
+        payload: this.sanitizeAuditPayload(payload),
+      },
+    });
+  }
+
+  async listAdminAudit(filter: { from?: string; to?: string; action?: string; entityType?: string; adminId?: string }) {
+    return this.prisma.adminAuditLog.findMany({
+      where: {
+        ...(filter.action ? { action: filter.action } : {}),
+        ...(filter.entityType ? { entity_type: filter.entityType } : {}),
+        ...(filter.adminId ? { admin_id: filter.adminId } : {}),
+        ...(filter.from || filter.to
+          ? {
+              created_at: {
+                ...(filter.from ? { gte: new Date(filter.from) } : {}),
+                ...(filter.to ? { lte: new Date(filter.to) } : {}),
+              },
+            }
+          : {}),
+      },
+      orderBy: { created_at: 'desc' },
+      take: 200,
+    });
+  }
+
+  async listAdminAuditByEntity(entityType: string, entityId: string) {
+    return this.prisma.adminAuditLog.findMany({
+      where: { entity_type: entityType, entity_id: entityId },
+      orderBy: { created_at: 'desc' },
+      take: 200,
+    });
+  }
+
   private async addEvent(
     tripId: string,
     actorUserId: string | null,
@@ -1592,7 +1657,7 @@ export class RideService implements OnModuleInit {
   async manualReviewFraudCase(id: string, actorUserId: string, notes: string) {
     const nextNotes = notes?.trim() || 'manual review';
     const assigned = await this.assignFraudCase(id, actorUserId);
-    return this.prisma.fraudCase.update({
+    const updated = await this.prisma.fraudCase.update({
       where: { id },
       data: {
         status: 'IN_REVIEW' as any,
@@ -1601,6 +1666,9 @@ export class RideService implements OnModuleInit {
 manual_review: ${nextNotes}`.trim(),
       },
     });
+
+    await this.logAdminAudit(actorUserId, 'fraud.manual_review', 'fraud_case', id, { notes: nextNotes });
+    return updated;
   }
 
   async blockUserFromFraudCase(id: string, actorUserId: string, userId: string, note: string) {
@@ -1613,6 +1681,7 @@ manual_review: ${nextNotes}`.trim(),
       { case_id: id, action: 'block_user' },
     );
     await this.assignFraudCase(id, actorUserId);
+    await this.logAdminAudit(actorUserId, 'fraud.block_user', 'user', userId, { case_id: id, note });
     return { ok: true, hold };
   }
 
@@ -1626,6 +1695,7 @@ manual_review: ${nextNotes}`.trim(),
       { case_id: id, action: 'block_driver' },
     );
     await this.assignFraudCase(id, actorUserId);
+    await this.logAdminAudit(actorUserId, 'fraud.block_driver', 'driver', driverId, { case_id: id, note });
     return { ok: true, hold };
   }
 
@@ -1656,6 +1726,8 @@ manual_review: ${nextNotes}`.trim(),
     });
 
     await this.assignFraudCase(id, actorUserId);
+
+    await this.logAdminAudit(actorUserId, 'fraud.freeze_payments', 'fraud_case', id, payload);
 
     return {
       ok: true,
@@ -1779,6 +1851,7 @@ manual_review: ${nextNotes}`.trim(),
       },
     });
 
+    await this.logAdminAudit(adminUserId, 'trip.cancel', 'trip', id, { reason });
     return { ok: true, trip: cancelled };
   }
 

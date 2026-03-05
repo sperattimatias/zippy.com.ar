@@ -443,6 +443,23 @@ model SystemSetting {
   @@map("system_settings")
 }
 
+
+model AdminAuditLog {
+  id          String   @id @default(cuid())
+  admin_id    String
+  action      String
+  entity_type String
+  entity_id   String
+  payload     Json?
+  created_at  DateTime @default(now())
+
+  @@index([created_at])
+  @@index([action])
+  @@index([entity_type, entity_id])
+  @@index([admin_id])
+  @@map("admin_audit_log")
+}
+
 model PremiumZone {
   id                 String          @id @default(cuid())
   name               String

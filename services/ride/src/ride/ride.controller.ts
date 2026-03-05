@@ -55,6 +55,7 @@ import {
   AdminTripCancelDto,
   AdminTripReassignDto,
   AdminTripIncidentDto,
+  AdminAuditFilterDto,
 } from '../dto/ride.dto';
 import { MetricsService } from '../metrics/metrics.service';
 import { SettingsService } from '../settings/settings.service';
@@ -289,7 +290,7 @@ export class RideController {
 
 
   @Post('admin/trips/:id/cancel')
-  @Roles('admin', 'sos')
+  @Roles('admin', 'owner', 'ops', 'sos')
   adminCancelTrip(@Req() req: AuthReq, @Param('id') id: string, @Body() dto: AdminTripCancelDto) {
     return this.rideService.adminCancelTrip(id, req.user.sub, dto.reason);
   }
@@ -361,13 +362,13 @@ export class RideController {
   }
 
   @Post('admin/fraud/cases/:id/block-user')
-  @Roles('admin', 'sos')
+  @Roles('admin', 'owner', 'ops', 'sos')
   adminFraudBlockUser(@Req() req: AuthReq, @Param('id') id: string, @Body() dto: FraudBlockEntityDto) {
     return this.rideService.blockUserFromFraudCase(id, req.user.sub, dto.entity_id, dto.note ?? '');
   }
 
   @Post('admin/fraud/cases/:id/block-driver')
-  @Roles('admin', 'sos')
+  @Roles('admin', 'owner', 'ops', 'sos')
   adminFraudBlockDriver(@Req() req: AuthReq, @Param('id') id: string, @Body() dto: FraudBlockEntityDto) {
     return this.rideService.blockDriverFromFraudCase(id, req.user.sub, dto.entity_id, dto.note ?? '');
   }
@@ -385,7 +386,7 @@ export class RideController {
   }
 
   @Put('admin/fraud/rules')
-  @Roles('admin', 'sos')
+  @Roles('admin', 'owner', 'ops', 'sos')
   adminPutFraudRules(@Body() dto: ConfigPutDto) {
     return this.rideService.putConfig('fraud_rules', dto.value_json);
   }
@@ -416,13 +417,18 @@ export class RideController {
   }
 
   @Put('admin/settings/:key')
-  @Roles('admin', 'sos')
-  adminSetSetting(@Req() req: AuthReq, @Param('key') key: string, @Body() dto: SystemSettingPutDto) {
-    return this.settingsService.set(key, dto.value, {
+  @Roles('admin', 'owner', 'sos')
+  async adminSetSetting(@Req() req: AuthReq, @Param('key') key: string, @Body() dto: SystemSettingPutDto) {
+    const updated = await this.settingsService.set(key, dto.value, {
       category: dto.category,
       encrypted: dto.encrypted,
       updatedBy: req.user.sub,
     });
+    await this.rideService.logAdminAudit(req.user.sub, 'settings.update', 'settings', key, {
+      category: dto.category,
+      encrypted: dto.encrypted ?? false,
+    });
+    return updated;
   }
 
 
@@ -436,6 +442,19 @@ export class RideController {
   @Roles('admin', 'sos')
   adminTestSmtpConnection(@Body() dto: SmtpTestDto) {
     return this.settingsService.testSmtpConnection(dto.toEmail);
+  }
+
+
+  @Get('admin/audit')
+  @Roles('admin', 'owner', 'auditor', 'sos')
+  adminAudit(@Query() query: AdminAuditFilterDto) {
+    return this.rideService.listAdminAudit(query);
+  }
+
+  @Get('admin/audit/entity/:entityType/:entityId')
+  @Roles('admin', 'owner', 'auditor', 'sos')
+  adminAuditByEntity(@Param('entityType') entityType: string, @Param('entityId') entityId: string) {
+    return this.rideService.listAdminAuditByEntity(entityType, entityId);
   }
 
   @Get('admin/levels')

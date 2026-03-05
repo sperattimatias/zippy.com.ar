@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { AdminCard, ErrorState, LoadingState, Toast } from '../../../../components/admin/ui';
 
@@ -177,7 +178,7 @@ export default function AdminTripDetailPage({ params }: { params: { id: string }
             </div>
           </AdminCard>
 
-          <AdminCard title="Acciones">
+          <AdminCard title="Acciones" action={<Link className="text-xs text-cyan-300 underline" href={`/admin/audit?entityType=trip&entityId=${params.id}`}>Ver auditoría</Link>}>
             <div className="space-y-3 text-sm">
               <div className="flex flex-wrap gap-2 items-center">
                 <input className="rounded bg-slate-950 p-2" placeholder="Motivo cancelación" value={cancelReason} onChange={(e) => setCancelReason(e.target.value)} />

@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
+import { can } from '../../lib/admin-rbac';
 
 type MeResponse = {
   email?: string;
@@ -19,7 +20,8 @@ const navItems = [
   { href: '/admin/zones', label: 'Zones' },
   { href: '/admin/payments', label: 'Payments' },
   { href: '/admin/support/tickets', label: 'Support · Tickets' },
-  { href: '/admin/settings/integrations', label: 'Settings · Integrations' },
+  { href: '/admin/audit', label: 'Audit', permission: 'audit.view' as const },
+  { href: '/admin/settings/integrations', label: 'Settings · Integrations', permission: 'settings.edit' as const },
 ];
 
 export function AdminShell({ children }: { children: ReactNode }) {
@@ -49,7 +51,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
       <aside className="hidden w-64 shrink-0 border-r border-slate-800 bg-slate-900/60 p-4 md:block">
         <h1 className="mb-6 text-xl font-bold">Zippy Admin</h1>
         <nav className="space-y-1">
-          {navItems.map((item) => {
+          {navItems.filter((item) => !item.permission || can(me.roles, item.permission)).map((item) => {
             const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
             return (
               <Link

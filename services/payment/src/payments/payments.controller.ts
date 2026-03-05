@@ -88,21 +88,21 @@ export class PaymentsController {
 
   @Get('admin/payments')
   @UseGuards(JwtAccessGuard, RolesGuard)
-  @Roles('admin', 'sos')
+  @Roles('admin', 'owner', 'finance', 'ops', 'auditor', 'support', 'sos')
   adminPayments(@Query() query: AdminPaymentsQueryDto) {
     return this.payments.adminPayments(query);
   }
 
   @Get('admin/payments/:trip_payment_id')
   @UseGuards(JwtAccessGuard, RolesGuard)
-  @Roles('admin', 'sos')
+  @Roles('admin', 'owner', 'finance', 'ops', 'auditor', 'support', 'sos')
   adminPaymentDetail(@Param('trip_payment_id') tripPaymentId: string) {
     return this.payments.adminPaymentDetail(tripPaymentId);
   }
 
   @Post('admin/payments/:trip_payment_id/refund')
   @UseGuards(JwtAccessGuard, RolesGuard)
-  @Roles('admin', 'sos')
+  @Roles('admin', 'owner', 'finance', 'sos')
   adminRefund(
     @Param('trip_payment_id') tripPaymentId: string,
     @Body() dto: AdminRefundDto,
@@ -113,7 +113,7 @@ export class PaymentsController {
 
   @Patch('admin/payments/:trip_payment_id/flag')
   @UseGuards(JwtAccessGuard, RolesGuard)
-  @Roles('admin', 'sos')
+  @Roles('admin', 'owner', 'ops', 'finance', 'sos')
   adminFlagPayment(
     @Param('trip_payment_id') tripPaymentId: string,
     @Body() dto: AdminPaymentFlagDto,
@@ -124,7 +124,7 @@ export class PaymentsController {
 
   @Get('admin/finance/refunds')
   @UseGuards(JwtAccessGuard, RolesGuard)
-  @Roles('admin', 'sos')
+  @Roles('admin', 'owner', 'finance', 'sos')
   adminRefunds(@Query() query: AdminRefundsFilterDto) {
     return this.payments.adminFinanceRefunds(query);
   }
