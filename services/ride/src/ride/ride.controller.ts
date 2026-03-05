@@ -44,6 +44,9 @@ import {
   BonusRevokeDto,
   FraudCaseFilterDto,
   FraudCaseActionDto,
+  FraudManualReviewDto,
+  FraudBlockEntityDto,
+  FraudFreezePaymentsDto,
   CreateHoldDto,
   AdminSettingsFilterDto,
   SystemSettingPutDto,
@@ -349,6 +352,42 @@ export class RideController {
   @Roles('admin', 'sos')
   adminFraudDismiss(@Param('id') id: string, @Body() dto: FraudCaseActionDto) {
     return this.rideService.dismissFraudCase(id, dto.notes ?? '');
+  }
+
+  @Post('admin/fraud/cases/:id/manual-review')
+  @Roles('admin', 'sos')
+  adminFraudManualReview(@Req() req: AuthReq, @Param('id') id: string, @Body() dto: FraudManualReviewDto) {
+    return this.rideService.manualReviewFraudCase(id, req.user.sub, dto.notes);
+  }
+
+  @Post('admin/fraud/cases/:id/block-user')
+  @Roles('admin', 'sos')
+  adminFraudBlockUser(@Req() req: AuthReq, @Param('id') id: string, @Body() dto: FraudBlockEntityDto) {
+    return this.rideService.blockUserFromFraudCase(id, req.user.sub, dto.entity_id, dto.note ?? '');
+  }
+
+  @Post('admin/fraud/cases/:id/block-driver')
+  @Roles('admin', 'sos')
+  adminFraudBlockDriver(@Req() req: AuthReq, @Param('id') id: string, @Body() dto: FraudBlockEntityDto) {
+    return this.rideService.blockDriverFromFraudCase(id, req.user.sub, dto.entity_id, dto.note ?? '');
+  }
+
+  @Post('admin/fraud/cases/:id/freeze-payments')
+  @Roles('admin', 'sos')
+  adminFraudFreezePayments(@Req() req: AuthReq, @Param('id') id: string, @Body() dto: FraudFreezePaymentsDto) {
+    return this.rideService.freezePaymentsFromFraudCase(id, req.user.sub, dto);
+  }
+
+  @Get('admin/fraud/rules')
+  @Roles('admin', 'sos')
+  adminFraudRules() {
+    return this.rideService.getConfig('fraud_rules');
+  }
+
+  @Put('admin/fraud/rules')
+  @Roles('admin', 'sos')
+  adminPutFraudRules(@Body() dto: ConfigPutDto) {
+    return this.rideService.putConfig('fraud_rules', dto.value_json);
   }
 
   @Get('admin/fraud/users/:user_id/risk')

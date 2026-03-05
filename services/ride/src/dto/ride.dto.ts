@@ -220,3 +220,18 @@ export class CreateHoldDto {
   @IsOptional() @IsDateString() ends_at?: string;
   @IsOptional() notes?: unknown;
 }
+
+export class FraudManualReviewDto {
+  @IsString() notes!: string;
+}
+
+export class FraudBlockEntityDto {
+  @IsString() entity_id!: string;
+  @IsOptional() @IsString() note?: string;
+}
+
+export class FraudFreezePaymentsDto {
+  @IsOptional() @IsString() payment_id?: string;
+  @IsOptional() @IsString() trip_id?: string;
+  @IsOptional() @IsString() note?: string;
+}

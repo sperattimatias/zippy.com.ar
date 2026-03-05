@@ -1588,6 +1588,82 @@ export class RideService implements OnModuleInit {
   async userFraudRisk(userId: string) {
     return this.fraud.userRisk(userId);
   }
+
+  async manualReviewFraudCase(id: string, actorUserId: string, notes: string) {
+    const nextNotes = notes?.trim() || 'manual review';
+    const assigned = await this.assignFraudCase(id, actorUserId);
+    return this.prisma.fraudCase.update({
+      where: { id },
+      data: {
+        status: 'IN_REVIEW' as any,
+        assigned_to_user_id: actorUserId,
+        summary: `${assigned.summary ?? ''}
+manual_review: ${nextNotes}`.trim(),
+      },
+    });
+  }
+
+  async blockUserFromFraudCase(id: string, actorUserId: string, userId: string, note: string) {
+    const hold = await this.fraud.createHoldIfAbsent(
+      userId,
+      HoldType.ACCOUNT_BLOCK,
+      note || `Blocked by fraud case ${id}`,
+      undefined,
+      actorUserId,
+      { case_id: id, action: 'block_user' },
+    );
+    await this.assignFraudCase(id, actorUserId);
+    return { ok: true, hold };
+  }
+
+  async blockDriverFromFraudCase(id: string, actorUserId: string, driverId: string, note: string) {
+    const hold = await this.fraud.createHoldIfAbsent(
+      driverId,
+      HoldType.ACCOUNT_BLOCK,
+      note || `Driver blocked by fraud case ${id}`,
+      undefined,
+      actorUserId,
+      { case_id: id, action: 'block_driver' },
+    );
+    await this.assignFraudCase(id, actorUserId);
+    return { ok: true, hold };
+  }
+
+  async freezePaymentsFromFraudCase(
+    id: string,
+    actorUserId: string,
+    dto: { payment_id?: string; trip_id?: string; note?: string },
+  ) {
+    const fraudCase = await this.getFraudCase(id);
+    const payload = {
+      action: 'freeze_payments',
+      case_id: id,
+      payment_id: dto.payment_id ?? null,
+      trip_id: dto.trip_id ?? null,
+      note: dto.note ?? null,
+      actor_user_id: actorUserId,
+      at: new Date().toISOString(),
+    };
+
+    await this.fraud.applySignal({
+      user_id: fraudCase?.fraud_case?.primary_user_id ?? undefined,
+      trip_id: dto.trip_id ?? undefined,
+      payment_id: dto.payment_id ?? undefined,
+      type: 'MANUAL_REVIEW_TRIGGER' as any,
+      severity: 'HIGH' as any,
+      score_delta: 0,
+      payload,
+    });
+
+    await this.assignFraudCase(id, actorUserId);
+
+    return {
+      ok: true,
+      delegated: false,
+      message: 'payment freeze flag recorded for manual review',
+      payload,
+    };
+  }
   async createFraudHold(
     actorUserId: string,
     dto: { user_id: string; hold_type: any; reason: string; ends_at?: string; notes?: unknown },
