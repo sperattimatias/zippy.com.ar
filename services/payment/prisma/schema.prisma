@@ -97,6 +97,7 @@ model TripPayment {
   created_at             DateTime         @default(now())
   updated_at             DateTime         @updatedAt
   refunds                TripRefund[]
+  admin_flag             PaymentAdminFlag?
 
   @@index([driver_user_id, created_at])
 }
@@ -116,6 +117,18 @@ model TripRefund {
   tripPayment      TripPayment  @relation(fields: [trip_payment_id], references: [id], onDelete: Cascade)
 
   @@index([trip_payment_id, created_at])
+}
+
+
+model PaymentAdminFlag {
+  trip_payment_id      String   @id
+  duplicate_flag       Boolean  @default(false)
+  not_settled_flag     Boolean  @default(false)
+  note                 String?
+  updated_by           String?
+  updated_at           DateTime @updatedAt
+
+  tripPayment          TripPayment @relation(fields: [trip_payment_id], references: [id], onDelete: Cascade)
 }
 
 model LedgerEntry {
