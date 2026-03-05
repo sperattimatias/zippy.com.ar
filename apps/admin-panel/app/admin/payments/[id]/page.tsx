@@ -2,8 +2,10 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { AdminCard, ErrorState, LoadingState, Toast } from '../../../../components/admin/ui';
 import { can } from '../../../../lib/admin-rbac';
+import { AdminCard, ErrorState, LoadingState, Toast } from '../../../../components/admin/ui';
+import { ConfirmDialog } from '../../../../components/forms/confirm-dialog';
+import { FormField } from '../../../../components/forms/form-field';
 
 type PaymentDetail = {
   payment_id: string;
@@ -13,10 +15,8 @@ type PaymentDetail = {
   status: string;
   settlement_status: string;
   method: string;
-  created_at: string;
-  updated_at: string;
   breakdown: { amount_total: number; fee_platform: number; driver_net: number; refunded_amount: number };
-  references: { mp_payment_id?: string | null; mp_preference_id?: string | null; currency: string; commission_bps_applied: number };
+  references: { mp_payment_id?: string | null; mp_preference_id?: string | null };
   status_history: Array<{ status: string; at: string }>;
   gateway_logs: Array<{ refund_id: string; status: string; mp_refund_id?: string | null; created_at: string }>;
   flags: { duplicate: boolean; not_settled: boolean; note?: string | null };
@@ -29,19 +29,32 @@ export default function AdminPaymentDetailPage({ params }: { params: { id: strin
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<ToastState>(null);
+  const [roles, setRoles] = useState<string[] | undefined>(undefined);
 
+  const [refundOpen, setRefundOpen] = useState(false);
+  const [refundLoading, setRefundLoading] = useState(false);
   const [refundAmount, setRefundAmount] = useState('');
   const [refundReason, setRefundReason] = useState('');
+  const [refundError, setRefundError] = useState<Record<string, string>>({});
+
   const [flagNote, setFlagNote] = useState('');
-  const [roles, setRoles] = useState<string[]>([]);
 
   const load = async () => {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/admin/payments/${params.id}`, { cache: 'no-store' });
-      if (!res.ok) throw new Error('No se pudo cargar el pago');
-      setDetail(await res.json());
+      const [detailRes, meRes] = await Promise.all([
+        fetch(`/api/admin/payments/${params.id}`, { cache: 'no-store' }),
+        fetch('/api/auth/me', { cache: 'no-store' }),
+      ]);
+      if (!detailRes.ok) throw new Error('No se pudo cargar el pago');
+      const json = (await detailRes.json()) as PaymentDetail;
+      setDetail(json);
+      setFlagNote(json.flags.note ?? '');
+      if (meRes.ok) {
+        const me = (await meRes.json()) as { roles?: string[] };
+        setRoles(me.roles ?? []);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Error inesperado');
     } finally {
@@ -51,21 +64,22 @@ export default function AdminPaymentDetailPage({ params }: { params: { id: strin
 
   useEffect(() => {
     void load();
-    fetch('/api/auth/me', { cache: 'no-store' })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((m) => setRoles(m?.roles ?? []))
-      .catch(() => undefined);
   }, [params.id]);
 
   const createRefund = async () => {
-    if (!refundReason.trim()) return setToast({ tone: 'error', message: 'El motivo del reembolso es obligatorio' });
-    const payload: { reason: string; amount?: number } = { reason: refundReason.trim() };
+    const nextErrors: Record<string, string> = {};
+    if (!refundReason.trim()) nextErrors.reason = 'El motivo es obligatorio';
     if (refundAmount.trim()) {
       const amount = Number(refundAmount);
-      if (!Number.isFinite(amount) || amount <= 0) return setToast({ tone: 'error', message: 'Monto inválido' });
-      payload.amount = amount;
+      if (!Number.isFinite(amount) || amount <= 0) nextErrors.amount = 'Monto inválido';
     }
+    setRefundError(nextErrors);
+    if (Object.keys(nextErrors).length > 0) return;
 
+    const payload: { reason: string; amount?: number } = { reason: refundReason.trim() };
+    if (refundAmount.trim()) payload.amount = Number(refundAmount);
+
+    setRefundLoading(true);
     try {
       const res = await fetch(`/api/admin/payments/${params.id}/refund`, {
         method: 'POST',
@@ -76,9 +90,12 @@ export default function AdminPaymentDetailPage({ params }: { params: { id: strin
       setToast({ tone: 'success', message: 'Reembolso creado correctamente' });
       setRefundAmount('');
       setRefundReason('');
+      setRefundOpen(false);
       await load();
     } catch (e) {
       setToast({ tone: 'error', message: e instanceof Error ? e.message : 'Error inesperado' });
+    } finally {
+      setRefundLoading(false);
     }
   };
 
@@ -146,11 +163,13 @@ export default function AdminPaymentDetailPage({ params }: { params: { id: strin
 
           <AdminCard title="Acciones" action={<Link className="text-xs text-cyan-300 underline" href={`/admin/audit?entityType=payment&entityId=${params.id}`}>Ver auditoría</Link>}>
             <div className="space-y-3 text-sm">
-              <div className="grid gap-2 md:grid-cols-3">
-                <input className="rounded bg-slate-950 p-2" placeholder="Monto (vacío = total)" value={refundAmount} onChange={(e) => setRefundAmount(e.target.value)} />
-                <input className="rounded bg-slate-950 p-2 md:col-span-2" placeholder="Motivo reembolso" value={refundReason} onChange={(e) => setRefundReason(e.target.value)} />
-              </div>
-              <button className="rounded bg-rose-700 px-3 py-2 text-white disabled:opacity-50" disabled={!can(roles, 'payments.refund')} onClick={() => void createRefund()}>Crear reembolso</button>
+              <button
+                className="rounded bg-rose-700 px-3 py-2 text-white disabled:opacity-50"
+                disabled={!can(roles, 'payments.refund')}
+                onClick={() => setRefundOpen(true)}
+              >
+                Crear reembolso
+              </button>
 
               <div className="grid gap-2 md:grid-cols-3">
                 <input className="rounded bg-slate-950 p-2 md:col-span-2" placeholder="Nota de auditoría (opcional)" value={flagNote} onChange={(e) => setFlagNote(e.target.value)} />
@@ -163,6 +182,25 @@ export default function AdminPaymentDetailPage({ params }: { params: { id: strin
           </AdminCard>
         </>
       )}
+
+      <ConfirmDialog
+        open={refundOpen}
+        title="Crear reembolso"
+        description="Completá motivo y opcionalmente un monto parcial"
+        confirmLabel="Confirmar reembolso"
+        loading={refundLoading}
+        onClose={() => setRefundOpen(false)}
+        onConfirm={() => void createRefund()}
+      >
+        <div className="grid gap-3">
+          <FormField label="Monto (opcional)" description="Vacío = reembolso total" error={refundError.amount}>
+            <input className="w-full rounded bg-slate-950 p-2 text-sm" value={refundAmount} onChange={(e) => { setRefundAmount(e.target.value); setRefundError((prev) => ({ ...prev, amount: '' })); }} />
+          </FormField>
+          <FormField label="Motivo" error={refundError.reason}>
+            <textarea className="min-h-[90px] w-full rounded bg-slate-950 p-2 text-sm" value={refundReason} onChange={(e) => { setRefundReason(e.target.value); setRefundError((prev) => ({ ...prev, reason: '' })); }} />
+          </FormField>
+        </div>
+      </ConfirmDialog>
 
       {toast && <Toast tone={toast.tone} message={toast.message} onClose={() => setToast(null)} />}
     </div>

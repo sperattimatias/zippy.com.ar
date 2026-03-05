@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { AdminCard, ErrorState, LoadingState, Toast } from '../../../../components/admin/ui';
+import { ReasonDialog } from '../../../../components/forms/reason-dialog';
 
 type TripDetail = {
   id: string;
@@ -28,17 +29,10 @@ function RouteMap({ locations }: { locations: Array<{ lat: number; lng: number }
   const width = 700;
   const height = 240;
   const bounds = useMemo(() => {
-    if (locations.length === 0) {
-      return { minLat: -34.61, maxLat: -34.59, minLng: -58.42, maxLng: -58.38 };
-    }
+    if (locations.length === 0) return { minLat: -34.61, maxLat: -34.59, minLng: -58.42, maxLng: -58.38 };
     const lats = locations.map((location) => location.lat);
     const lngs = locations.map((location) => location.lng);
-    return {
-      minLat: Math.min(...lats) - 0.005,
-      maxLat: Math.max(...lats) + 0.005,
-      minLng: Math.min(...lngs) - 0.005,
-      maxLng: Math.max(...lngs) + 0.005,
-    };
+    return { minLat: Math.min(...lats) - 0.005, maxLat: Math.max(...lats) + 0.005, minLng: Math.min(...lngs) - 0.005, maxLng: Math.max(...lngs) + 0.005 };
   }, [locations]);
 
   const toPoint = (lat: number, lng: number) => {
@@ -70,9 +64,10 @@ export default function AdminTripDetailPage({ params }: { params: { id: string }
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<ToastState>(null);
 
-  const [cancelReason, setCancelReason] = useState('');
   const [reassignDriverId, setReassignDriverId] = useState('');
   const [incidentNote, setIncidentNote] = useState('');
+  const [cancelOpen, setCancelOpen] = useState(false);
+  const [cancelLoading, setCancelLoading] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -103,26 +98,22 @@ export default function AdminTripDetailPage({ params }: { params: { id: string }
     return data;
   };
 
-  const onCancel = async () => {
-    if (!cancelReason.trim()) {
-      setToast({ tone: 'error', message: 'Ingresá motivo de cancelación.' });
-      return;
-    }
+  const onCancel = async (reason: string) => {
+    setCancelLoading(true);
     try {
-      await postAction('cancel', { reason: cancelReason });
+      await postAction('cancel', { reason });
       setToast({ tone: 'success', message: 'Viaje cancelado.' });
-      setCancelReason('');
+      setCancelOpen(false);
       await load();
     } catch (actionError) {
       setToast({ tone: 'error', message: actionError instanceof Error ? actionError.message : 'Error cancelando' });
+    } finally {
+      setCancelLoading(false);
     }
   };
 
   const onReassign = async () => {
-    if (!reassignDriverId.trim()) {
-      setToast({ tone: 'error', message: 'Ingresá driverId.' });
-      return;
-    }
+    if (!reassignDriverId.trim()) return setToast({ tone: 'error', message: 'Ingresá driverId.' });
     try {
       await postAction('reassign', { driverId: reassignDriverId });
       setToast({ tone: 'success', message: 'Driver reasignado.' });
@@ -144,10 +135,7 @@ export default function AdminTripDetailPage({ params }: { params: { id: string }
   };
 
   const onIncident = async () => {
-    if (!incidentNote.trim()) {
-      setToast({ tone: 'error', message: 'Ingresá descripción de incidente.' });
-      return;
-    }
+    if (!incidentNote.trim()) return setToast({ tone: 'error', message: 'Ingresá una nota de incidente.' });
     try {
       await postAction('incident', { note: incidentNote });
       setToast({ tone: 'success', message: 'Incidente registrado.' });
@@ -160,57 +148,74 @@ export default function AdminTripDetailPage({ params }: { params: { id: string }
 
   return (
     <div className="space-y-6">
-      {loading && <LoadingState message="Cargando detalle..." />}
+      {loading && <LoadingState message="Cargando viaje..." />}
       {error && <ErrorState message={error} retry={() => void load()} />}
 
       {!loading && trip && (
         <>
-          <AdminCard title={`Trip ${trip.id}`}>
-            <div className="grid gap-2 md:grid-cols-2 text-sm">
+          <AdminCard title={`Trip ${trip.id}`} action={<Link className="text-xs text-cyan-300 underline" href={`/admin/audit?entityType=trip&entityId=${trip.id}`}>Ver auditoría</Link>}>
+            <div className="grid gap-2 text-sm md:grid-cols-2">
               <p><span className="text-slate-400">Estado:</span> {trip.status}</p>
-              <p><span className="text-slate-400">Rider:</span> {trip.passenger_user_id}</p>
+              <p><span className="text-slate-400">Passenger:</span> {trip.passenger_user_id}</p>
               <p><span className="text-slate-400">Driver:</span> {trip.driver_user_id ?? '-'}</p>
-              <p><span className="text-slate-400">Costo:</span> {trip.price_final ?? trip.price_base}</p>
               <p><span className="text-slate-400">Creado:</span> {new Date(trip.created_at).toLocaleString()}</p>
-              <p><span className="text-slate-400">Completado:</span> {trip.completed_at ? new Date(trip.completed_at).toLocaleString() : '-'}</p>
               <p><span className="text-slate-400">Origen:</span> {trip.origin_address}</p>
               <p><span className="text-slate-400">Destino:</span> {trip.dest_address}</p>
+              <p><span className="text-slate-400">Base:</span> {trip.price_base}</p>
+              <p><span className="text-slate-400">Final:</span> {trip.price_final ?? '-'}</p>
             </div>
           </AdminCard>
 
-          <AdminCard title="Acciones" action={<Link className="text-xs text-cyan-300 underline" href={`/admin/audit?entityType=trip&entityId=${params.id}`}>Ver auditoría</Link>}>
-            <div className="space-y-3 text-sm">
-              <div className="flex flex-wrap gap-2 items-center">
-                <input className="rounded bg-slate-950 p-2" placeholder="Motivo cancelación" value={cancelReason} onChange={(e) => setCancelReason(e.target.value)} />
-                <button className="rounded bg-rose-600 px-3 py-2 text-white" onClick={() => void onCancel()}>Cancelar viaje</button>
-              </div>
-              <div className="flex flex-wrap gap-2 items-center">
-                <input className="rounded bg-slate-950 p-2" placeholder="driverId" value={reassignDriverId} onChange={(e) => setReassignDriverId(e.target.value)} />
-                <button className="rounded bg-slate-700 px-3 py-2" onClick={() => void onReassign()}>Reasignar driver</button>
-              </div>
-              <div className="flex flex-wrap gap-2 items-center">
-                <button className="rounded bg-slate-700 px-3 py-2" onClick={() => void onRetryMatching()}>Reintentar matching</button>
-              </div>
-              <div className="flex flex-wrap gap-2 items-center">
-                <input className="rounded bg-slate-950 p-2 min-w-[300px]" placeholder="Nota de incidente" value={incidentNote} onChange={(e) => setIncidentNote(e.target.value)} />
-                <button className="rounded bg-amber-600 px-3 py-2 text-white" onClick={() => void onIncident()}>Marcar incidente</button>
-              </div>
+          <AdminCard title="Ruta GPS">
+            <RouteMap locations={trip.locations.map((location) => ({ lat: location.lat, lng: location.lng }))} />
+          </AdminCard>
+
+          <AdminCard title="Eventos">
+            <div className="max-h-80 overflow-auto text-sm">
+              <table className="w-full text-left">
+                <thead className="text-xs uppercase text-slate-400"><tr><th className="p-2">Fecha</th><th className="p-2">Tipo</th><th className="p-2">Payload</th></tr></thead>
+                <tbody>
+                  {trip.events.map((event) => (
+                    <tr key={event.id} className="border-t border-slate-800 align-top">
+                      <td className="p-2 whitespace-nowrap">{new Date(event.created_at).toLocaleString()}</td>
+                      <td className="p-2 font-medium">{event.type}</td>
+                      <td className="p-2"><pre className="max-w-[560px] overflow-auto rounded bg-slate-950 p-2 text-xs text-slate-300">{JSON.stringify(event.payload_json ?? {}, null, 2)}</pre></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </AdminCard>
 
-          <AdminCard title="Ruta">
-            <RouteMap locations={trip.locations} />
-          </AdminCard>
-
-          <AdminCard title="Timeline de eventos">
-            <ul className="space-y-1 text-sm">
-              {trip.events.map((event) => (
-                <li key={event.id}>{new Date(event.created_at).toLocaleString()} — {event.type}</li>
-              ))}
-            </ul>
+          <AdminCard title="Acciones sensibles">
+            <div className="grid gap-3 md:grid-cols-2">
+              <button className="rounded bg-rose-700 px-3 py-2 text-sm text-white" onClick={() => setCancelOpen(true)}>
+                Cancelar viaje
+              </button>
+              <button className="rounded bg-amber-600 px-3 py-2 text-sm text-white" onClick={() => void onRetryMatching()}>
+                Retry matching
+              </button>
+              <input className="rounded bg-slate-950 p-2 text-sm" placeholder="Driver ID para reasignar" value={reassignDriverId} onChange={(e) => setReassignDriverId(e.target.value)} />
+              <button className="rounded bg-indigo-600 px-3 py-2 text-sm text-white" onClick={() => void onReassign()}>
+                Reasignar
+              </button>
+              <textarea className="rounded bg-slate-950 p-2 text-sm md:col-span-2" placeholder="Nota de incidente" value={incidentNote} onChange={(e) => setIncidentNote(e.target.value)} />
+              <button className="rounded bg-slate-700 px-3 py-2 text-sm text-white md:col-span-2" onClick={() => void onIncident()}>
+                Registrar incidente
+              </button>
+            </div>
           </AdminCard>
         </>
       )}
+
+      <ReasonDialog
+        open={cancelOpen}
+        title="Cancelar viaje"
+        description="Esta acción impacta al pasajero y al conductor. Confirmá con un motivo claro."
+        loading={cancelLoading}
+        onClose={() => setCancelOpen(false)}
+        onConfirm={(reason) => void onCancel(reason)}
+      />
 
       {toast && <Toast tone={toast.tone} message={toast.message} onClose={() => setToast(null)} />}
     </div>
