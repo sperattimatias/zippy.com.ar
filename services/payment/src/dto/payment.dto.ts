@@ -1,5 +1,14 @@
 import { LedgerActor, PaymentStatus } from '@prisma/client';
-import { IsDateString, IsEnum, IsInt, IsOptional, IsPositive, IsString } from 'class-validator';
+import {
+  IsDateString,
+  IsEnum,
+  IsIn,
+  IsInt,
+  IsOptional,
+  IsPositive,
+  IsString,
+  Min,
+} from 'class-validator';
 
 export class CreatePreferenceDto {
   @IsString() trip_id!: string;
@@ -12,6 +21,23 @@ export class AdminFinanceTripsFilterDto {
   @IsOptional() @IsDateString() to?: string;
 }
 
+export class AdminPaymentsQueryDto {
+  @IsOptional() @IsEnum(PaymentStatus) status?: PaymentStatus;
+  @IsOptional() @IsDateString() from?: string;
+  @IsOptional() @IsDateString() to?: string;
+  @IsOptional() @IsString() method?: string;
+  @IsOptional() @IsString() trip_id?: string;
+  @IsOptional() @IsString() driver_id?: string;
+  @IsOptional() @IsString() rider_id?: string;
+  @IsOptional() @IsString() page?: string;
+  @IsOptional() @IsString() page_size?: string;
+}
+
+export class AdminPaymentFlagDto {
+  @IsIn(['duplicate', 'not_settled']) type!: 'duplicate' | 'not_settled';
+  @IsOptional() @IsString() note?: string;
+}
+
 export class AdminLedgerFilterDto {
   @IsOptional() @IsEnum(LedgerActor) actor_type?: LedgerActor;
 }
@@ -21,9 +47,11 @@ export class ReconciliationDto {
 }
 
 export class AdminRefundDto {
+  @IsOptional()
   @IsInt()
   @IsPositive()
-  amount!: number;
+  @Min(1)
+  amount?: number;
 
   @IsString()
   reason!: string;

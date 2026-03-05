@@ -431,6 +431,18 @@ model AppConfig {
   updated_at DateTime @updatedAt
 }
 
+
+model SystemSetting {
+  key          String   @id
+  category     String
+  value        String
+  is_encrypted Boolean  @default(false)
+  updated_at   DateTime @updatedAt
+  updated_by   String?
+
+  @@map("system_settings")
+}
+
 model PremiumZone {
   id                 String          @id @default(cuid())
   name               String
