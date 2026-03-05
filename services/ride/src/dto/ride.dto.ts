@@ -282,6 +282,12 @@ export class AdminAuditEntityParamsDto {
 }
 
 
+
+export class AdminReportsQueryDto {
+  @IsOptional() @IsDateString() from?: string;
+  @IsOptional() @IsDateString() to?: string;
+}
+
 export class IncentiveCampaignCreateDto {
   @IsString() name!: string;
   @IsOptional() @IsInt() target_trips?: number;

@@ -11,6 +11,7 @@ import {
   Req,
   UseGuards,
   Optional,
+  Header,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { JwtAccessGuard } from '../common/jwt-access.guard';
@@ -59,6 +60,7 @@ import {
   AdminPricingDto,
   AdminPricingProfileDto,
   IncentiveCampaignCreateDto,
+  AdminReportsQueryDto,
 } from '../dto/ride.dto';
 import { MetricsService } from '../metrics/metrics.service';
 import { SettingsService } from '../settings/settings.service';
@@ -455,6 +457,20 @@ export class RideController {
   @Roles('admin', 'owner', 'ops', 'finance', 'sos')
   adminIncentiveDetail(@Param('id') id: string) {
     return this.rideService.getIncentiveCampaign(id);
+  }
+
+  @Get('admin/reports/overview')
+  @Roles('admin', 'owner', 'ops', 'finance', 'sos')
+  adminReportsOverview(@Query() query: AdminReportsQueryDto) {
+    return this.rideService.adminReportsOverview(query);
+  }
+
+  @Get('admin/reports/export.csv')
+  @Roles('admin', 'owner', 'ops', 'finance', 'sos')
+  @Header('Content-Type', 'text/csv; charset=utf-8')
+  @Header('Content-Disposition', 'attachment; filename=reports-overview.csv')
+  adminReportsExportCsv(@Query() query: AdminReportsQueryDto) {
+    return this.rideService.adminReportsExportCsv(query);
   }
 
   @Get('admin/settings')

@@ -22,6 +22,7 @@ const navItems = [
   { href: '/admin/incentives', label: 'Incentives' },
   { href: '/admin/notifications/templates', label: 'Notifications · Templates' },
   { href: '/admin/notifications/settings', label: 'Notifications · Settings' },
+  { href: '/admin/reports/overview', label: 'Reports · Overview' },
   { href: '/admin/support/tickets', label: 'Support · Tickets' },
   { href: '/admin/audit', label: 'Audit', permission: 'audit.view' as const },
   { href: '/admin/settings/pricing', label: 'Settings · Pricing', permission: 'settings.edit' as const },

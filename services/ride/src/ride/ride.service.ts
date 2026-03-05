@@ -1752,6 +1752,87 @@ export class RideService implements OnModuleInit {
     };
   }
 
+
+  private resolveReportRange(input?: { from?: string; to?: string }) {
+    const to = input?.to ? new Date(input.to) : new Date();
+    const from = input?.from ? new Date(input.from) : new Date(to.getTime() - 6 * 24 * 60 * 60 * 1000);
+    const safeFrom = Number.isNaN(from.getTime()) ? new Date(to.getTime() - 6 * 24 * 60 * 60 * 1000) : from;
+    const safeTo = Number.isNaN(to.getTime()) ? new Date() : to;
+    return safeFrom <= safeTo ? { from: safeFrom, to: safeTo } : { from: safeTo, to: safeFrom };
+  }
+
+  async adminReportsOverview(query: { from?: string; to?: string }) {
+    const range = this.resolveReportRange(query);
+    const msPerDay = 24 * 60 * 60 * 1000;
+    const days = Math.max(1, Math.ceil((range.to.getTime() - range.from.getTime() + 1) / msPerDay));
+
+    const [totalRides, completedRides, cancelledRides, revenueAgg, activeDriverRows, activeRiderRows, commissionPolicy] =
+      await Promise.all([
+        this.prisma.trip.count({ where: { created_at: { gte: range.from, lte: range.to } } }),
+        this.prisma.trip.count({ where: { status: TripStatus.COMPLETED, created_at: { gte: range.from, lte: range.to } } }),
+        this.prisma.trip.count({
+          where: {
+            status: { in: [TripStatus.CANCELLED_BY_DRIVER, TripStatus.CANCELLED_BY_PASSENGER] },
+            created_at: { gte: range.from, lte: range.to },
+          },
+        }),
+        this.prisma.trip.aggregate({
+          _sum: { price_final: true },
+          where: { status: TripStatus.COMPLETED, created_at: { gte: range.from, lte: range.to } },
+        }),
+        this.prisma.trip.groupBy({
+          by: ['driver_user_id'],
+          where: { driver_user_id: { not: null }, created_at: { gte: range.from, lte: range.to } },
+        }),
+        this.prisma.trip.groupBy({
+          by: ['passenger_user_id'],
+          where: { created_at: { gte: range.from, lte: range.to } },
+        }),
+        this.prisma.commissionPolicy.findUnique({ where: { key: 'default_commission_bps' } }),
+      ]);
+
+    const defaultCommissionBps = Number(commissionPolicy?.value_json ?? 1000);
+    const takeRate = Number(((defaultCommissionBps / 10000) * 100).toFixed(2));
+    const revenue = Number(revenueAgg._sum.price_final ?? 0);
+
+    return {
+      from: range.from.toISOString(),
+      to: range.to.toISOString(),
+      kpis: {
+        rides_per_day: Number((completedRides / days).toFixed(2)),
+        cancel_rate: Number((totalRides > 0 ? (cancelledRides / totalRides) * 100 : 0).toFixed(2)),
+        revenue,
+        take_rate: takeRate,
+        active_drivers: activeDriverRows.length,
+        active_riders: activeRiderRows.length,
+      },
+      totals: {
+        rides_total: totalRides,
+        rides_completed: completedRides,
+        rides_cancelled: cancelledRides,
+      },
+    };
+  }
+
+  async adminReportsExportCsv(query: { from?: string; to?: string }) {
+    const overview = await this.adminReportsOverview(query);
+    const csvRows = [
+      ['from', overview.from],
+      ['to', overview.to],
+      ['rides_per_day', String(overview.kpis.rides_per_day)],
+      ['cancel_rate_percent', String(overview.kpis.cancel_rate)],
+      ['revenue', String(overview.kpis.revenue)],
+      ['take_rate_percent', String(overview.kpis.take_rate)],
+      ['active_drivers', String(overview.kpis.active_drivers)],
+      ['active_riders', String(overview.kpis.active_riders)],
+      ['rides_total', String(overview.totals.rides_total)],
+      ['rides_completed', String(overview.totals.rides_completed)],
+      ['rides_cancelled', String(overview.totals.rides_cancelled)],
+    ];
+    const escape = (value: string) => `"${value.replace(/"/g, '""')}"`;
+    return csvRows.map(([k, v]) => `${escape(k)},${escape(v)}`).join('\n');
+  }
+
   async getAdminPricing() {
     return this.getActivePricing();
   }
