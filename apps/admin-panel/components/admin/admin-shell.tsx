@@ -16,6 +16,7 @@ const navItems = [
   { href: '/admin/users', label: 'Users' },
   { href: '/admin/fraud', label: 'Fraud' },
   { href: '/admin/zones', label: 'Zones' },
+  { href: '/admin/payments', label: 'Payments' },
   { href: '/admin/settings/integrations', label: 'Settings · Integrations' },
 ];
 
