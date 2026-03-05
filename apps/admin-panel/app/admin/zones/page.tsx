@@ -84,8 +84,9 @@ function PolygonEditor({ points, onChange }: { points: LatLngPoint[]; onChange: 
 
   return (
     <div className="space-y-2">
-      <p className="text-xs text-slate-400">Mapa simplificado: click para agregar puntos, arrastrá para mover.</p>
-      <svg className="w-full rounded-lg border border-slate-700 bg-slate-950" viewBox={`0 0 ${width} ${height}`} onClick={onCanvasClick}>
+      <p className="text-xs text-slate-400">Editor de polígono: click para agregar puntos, arrastrá para mover.</p>
+      <div className="h-[340px] w-full overflow-hidden rounded-lg border border-slate-700 bg-slate-950">
+      <svg className="h-full w-full" viewBox={`0 0 ${width} ${height}`} onClick={onCanvasClick}>
         <rect width={width} height={height} fill="#020617" />
         <g opacity={0.18}>
           {Array.from({ length: 8 }).map((_, i) => (
@@ -118,12 +119,13 @@ function PolygonEditor({ points, onChange }: { points: LatLngPoint[]; onChange: 
           );
         })}
       </svg>
+      </div>
       <div className="flex gap-2">
         <button className="rounded bg-slate-800 px-3 py-1.5 text-xs hover:bg-slate-700" onClick={() => onChange(FIRMAT_BASE_POLYGON)}>
-          Cargar polígono base Firmat
+          Firmat preset
         </button>
         <button className="rounded bg-slate-800 px-3 py-1.5 text-xs hover:bg-slate-700" onClick={() => onChange([])}>
-          Limpiar
+          Reset
         </button>
         <button
           className="rounded bg-slate-800 px-3 py-1.5 text-xs hover:bg-slate-700"
@@ -368,7 +370,11 @@ function ZonesManager({ kind }: { kind: ZoneKind }) {
         </div>
 
         <div className="mt-4">
-          <PolygonEditor points={points} onChange={setPoints} />
+          {loading ? (
+            <div className="h-[340px] animate-pulse rounded-lg border border-slate-700 bg-slate-900/70" />
+          ) : (
+            <PolygonEditor points={points} onChange={setPoints} />
+          )}
         </div>
 
         <div className="mt-4 flex flex-wrap gap-2">

@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
-import { AdminCard, ErrorState, LoadingState, Toast } from '../../../../components/admin/ui';
+import { AdminCard, EmptyState, ErrorState, LoadingState, Toast } from '../../../../components/admin/ui';
 import { ReasonDialog } from '../../../../components/forms/reason-dialog';
 
 type TripDetail = {
@@ -26,6 +26,10 @@ type TripDetail = {
 type ToastState = { tone: 'success' | 'error'; message: string } | null;
 
 function RouteMap({ locations }: { locations: Array<{ lat: number; lng: number }> }) {
+  if (locations.length === 0) {
+    return <EmptyState message="No hay coordenadas disponibles" />;
+  }
+
   const width = 700;
   const height = 240;
   const bounds = useMemo(() => {
@@ -47,14 +51,26 @@ function RouteMap({ locations }: { locations: Array<{ lat: number; lng: number }
   });
 
   return (
-    <svg className="w-full rounded border border-slate-700 bg-slate-950" viewBox={`0 0 ${width} ${height}`}>
-      <rect width={width} height={height} fill="#020617" />
-      {path.length > 1 && <polyline points={path.join(' ')} fill="none" stroke="#22d3ee" strokeWidth={2} />}
-      {locations.map((location, index) => {
-        const point = toPoint(location.lat, location.lng);
-        return <circle key={`${location.lat}-${location.lng}-${index}`} cx={point.x} cy={point.y} r={3} fill="#f8fafc" />;
-      })}
-    </svg>
+    <div className="h-[300px] w-full overflow-hidden rounded-lg border border-slate-700 bg-slate-950">
+      <svg className="h-full w-full" viewBox={`0 0 ${width} ${height}`}>
+        <rect width={width} height={height} fill="#020617" />
+        {path.length > 1 && <polyline points={path.join(' ')} fill="none" stroke="#22d3ee" strokeWidth={2} />}
+        {locations.map((location, index) => {
+          const point = toPoint(location.lat, location.lng);
+          const isStart = index === 0;
+          const isEnd = index === locations.length - 1;
+          return (
+            <circle
+              key={`${location.lat}-${location.lng}-${index}`}
+              cx={point.x}
+              cy={point.y}
+              r={isStart || isEnd ? 5 : 3}
+              fill={isStart ? '#22c55e' : isEnd ? '#f97316' : '#f8fafc'}
+            />
+          );
+        })}
+      </svg>
+    </div>
   );
 }
 
@@ -148,7 +164,12 @@ export default function AdminTripDetailPage({ params }: { params: { id: string }
 
   return (
     <div className="space-y-6">
-      {loading && <LoadingState message="Cargando viaje..." />}
+      {loading && (
+        <>
+          <LoadingState message="Cargando viaje..." />
+          <div className="h-[300px] animate-pulse rounded-lg border border-slate-700 bg-slate-900/70" />
+        </>
+      )}
       {error && <ErrorState message={error} retry={() => void load()} />}
 
       {!loading && trip && (
@@ -167,6 +188,7 @@ export default function AdminTripDetailPage({ params }: { params: { id: string }
           </AdminCard>
 
           <AdminCard title="Ruta GPS">
+            <p className="mb-2 text-xs text-slate-400">Inicio (pickup) en verde y fin (dropoff) en naranja.</p>
             <RouteMap locations={trip.locations.map((location) => ({ lat: location.lat, lng: location.lng }))} />
           </AdminCard>
 
