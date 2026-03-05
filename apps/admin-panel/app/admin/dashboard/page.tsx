@@ -1,9 +1,22 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useEffect, useState } from 'react';
+import { Badge } from '../../../components/ui/badge';
+import { Button } from '../../../components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../../components/ui/card';
+import { Separator } from '../../../components/ui/separator';
+import { Skeleton } from '../../../components/ui/skeleton';
 
 type MePayload = { email: string; roles: string[] };
+
+const quickLinks = [
+  { href: '/admin/trips', label: 'Trips' },
+  { href: '/admin/drivers', label: 'Drivers' },
+  { href: '/admin/payments', label: 'Payments' },
+  { href: '/admin/fraud', label: 'Fraud' },
+  { href: '/admin/zones', label: 'Zones' },
+];
 
 export default function DashboardPage() {
   const [me, setMe] = useState<MePayload | null>(null);
@@ -11,28 +24,68 @@ export default function DashboardPage() {
   useEffect(() => {
     fetch('/api/auth/me', { cache: 'no-store' })
       .then((res) => res.json())
-      .then((data) => setMe({ email: data.email, roles: data.roles ?? [] }));
+      .then((data) => setMe({ email: data.email, roles: data.roles ?? [] }))
+      .catch(() => undefined);
   }, []);
 
   return (
-    <main className="mx-auto max-w-5xl space-y-4 p-6">
-      <h1 className="text-3xl font-bold">Admin Dashboard</h1>
-      <p className="text-slate-300">Logged in as {me?.email ?? '...'} roles: {(me?.roles ?? []).join(', ')}</p>
-      <div className="flex gap-4 text-cyan-400">
-        <Link href="/admin/trips">Trips</Link>
-        <Link href="/admin/geozones">GeoZones</Link>
-        <Link href="/admin/safety-alerts">Safety Alerts</Link>
-        <Link href="/admin/scores">Scores</Link>
-        <Link href="/admin/merit/config">Merit Config</Link>
-        <Link href="/admin/premium-zones">Premium Zones</Link>
-        <Link href="/admin/levels">Levels</Link>
-        <Link href="/admin/performance">Performance</Link>
-        <Link href="/admin/bonuses">Bonuses</Link>
-        <Link href="/admin/policies">Policies</Link>
-        <Link href="/admin/fraud/cases">Fraud Cases</Link>
-        <Link href="/admin/fraud/config">Fraud Config</Link>
-      </div>
+    <div className="space-y-6">
+      <Card>
+        <CardHeader className="pb-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="space-y-1">
+              <CardTitle className="text-2xl tracking-tight">Admin Dashboard</CardTitle>
+              <CardDescription>Centro operativo para monitorear y accionar sobre la plataforma.</CardDescription>
+            </div>
+            <Badge variant="secondary" className="text-xs">
+              {(me?.roles ?? ['admin']).join(', ')}
+            </Badge>
+          </div>
+        </CardHeader>
+      </Card>
 
-    </main>
+      <Card>
+        <CardHeader>
+          <CardTitle>Sesión actual</CardTitle>
+          <CardDescription>Información de autenticación y roles activos.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {!me ? (
+            <div className="space-y-2">
+              <Skeleton className="h-4 w-72" />
+              <Skeleton className="h-4 w-96" />
+            </div>
+          ) : (
+            <div className="space-y-2 text-sm text-slate-300">
+              <p>
+                <span className="text-slate-400">Email:</span> {me.email}
+              </p>
+              <p>
+                <span className="text-slate-400">Roles:</span> {me.roles.join(', ') || 'sin roles'}
+              </p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Accesos rápidos</CardTitle>
+          <CardDescription>Navegación a secciones críticas.</CardDescription>
+        </CardHeader>
+        <Separator />
+        <CardContent className="pt-4">
+          <div className="grid gap-2 md:grid-cols-3 lg:grid-cols-5">
+            {quickLinks.map((link) => (
+              <Link key={link.href} href={link.href}>
+                <Button variant="outline" className="w-full justify-start">
+                  {link.label}
+                </Button>
+              </Link>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
   );
 }
