@@ -55,6 +55,7 @@ import {
   SafetyAlertUpdateDto,
   TripRequestDto,
   VerifyOtpDto,
+  AdminTripsQueryDto,
 } from '../dto/ride.dto';
 
 @Injectable()
@@ -1607,8 +1608,63 @@ export class RideService implements OnModuleInit {
     return this.fraud.releaseHold(id, actorUserId);
   }
 
-  async listTripsRecent() {
-    return this.prisma.trip.findMany({ orderBy: { created_at: 'desc' }, take: 100 });
+  async listTripsRecent(query: AdminTripsQueryDto = {}) {
+    const page = Math.max(1, Number(query.page ?? 1));
+    const pageSize = Math.min(100, Math.max(1, Number(query.page_size ?? 20)));
+
+    const where: Prisma.TripWhereInput = {
+      ...(query.status ? { status: query.status as TripStatus } : {}),
+      ...(query.driver_id ? { driver_user_id: query.driver_id } : {}),
+      ...(query.rider_id ? { passenger_user_id: query.rider_id } : {}),
+      ...(query.search
+        ? {
+            OR: [
+              { id: { contains: query.search, mode: 'insensitive' } },
+              { origin_address: { contains: query.search, mode: 'insensitive' } },
+              { dest_address: { contains: query.search, mode: 'insensitive' } },
+            ],
+          }
+        : {}),
+      ...(query.from || query.to
+        ? {
+            created_at: {
+              ...(query.from ? { gte: new Date(query.from) } : {}),
+              ...(query.to ? { lte: new Date(query.to) } : {}),
+            },
+          }
+        : {}),
+    };
+
+    const [total, trips] = await this.prisma.$transaction([
+      this.prisma.trip.count({ where }),
+      this.prisma.trip.findMany({
+        where,
+        orderBy: { created_at: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+    ]);
+
+    const paymentRows = await this.prisma.externalTripPayment.findMany({
+      where: { trip_id: { in: trips.map((trip) => trip.id) } },
+      select: { trip_id: true, status: true },
+    });
+    const paymentMap = new Map(paymentRows.map((payment) => [payment.trip_id, payment.status]));
+
+    const items = trips.map((trip) => ({
+      ...trip,
+      rider_user_id: trip.passenger_user_id,
+      total: trip.price_final ?? trip.price_base,
+      payment_method: paymentMap.get(trip.id) ?? 'cash',
+    }));
+
+    return {
+      items,
+      page,
+      page_size: pageSize,
+      total,
+      total_pages: Math.max(1, Math.ceil(total / pageSize)),
+    };
   }
   async tripDetail(id: string) {
     const trip = await this.prisma.trip.findUnique({
@@ -1624,4 +1680,108 @@ export class RideService implements OnModuleInit {
     if (!trip) throw new NotFoundException('Trip not found');
     return trip;
   }
+  async adminCancelTrip(id: string, adminUserId: string, reason: string) {
+    const trip = await this.prisma.trip.findUnique({ where: { id } });
+    if (!trip) throw new NotFoundException('Trip not found');
+
+    const cancelled = await this.prisma.trip.update({
+      where: { id },
+      data: {
+        status: 'CANCELLED_BY_PASSENGER',
+        cancelled_at: new Date(),
+        cancelled_by_user_id: adminUserId,
+        cancel_reason: CancelReason.OTHER,
+      },
+    });
+
+    await this.prisma.tripEvent.create({
+      data: {
+        trip_id: id,
+        actor_user_id: adminUserId,
+        type: 'admin.trip.cancelled',
+        payload_json: { reason },
+      },
+    });
+
+    return { ok: true, trip: cancelled };
+  }
+
+  async adminReassignTrip(id: string, adminUserId: string, driverId: string) {
+    const trip = await this.prisma.trip.findUnique({ where: { id } });
+    if (!trip) throw new NotFoundException('Trip not found');
+
+    const updated = await this.prisma.trip.update({
+      where: { id },
+      data: {
+        driver_user_id: driverId,
+        status: TripStatus.MATCHED,
+        matched_at: new Date(),
+      },
+    });
+
+    await this.prisma.tripEvent.create({
+      data: {
+        trip_id: id,
+        actor_user_id: adminUserId,
+        type: 'admin.trip.reassigned',
+        payload_json: { driver_id: driverId },
+      },
+    });
+
+    return { ok: true, trip: updated };
+  }
+
+  async adminRetryMatching(id: string, adminUserId: string) {
+    const trip = await this.prisma.trip.findUnique({ where: { id } });
+    if (!trip) throw new NotFoundException('Trip not found');
+
+    const updated = await this.prisma.trip.update({
+      where: { id },
+      data: {
+        status: TripStatus.BIDDING,
+        driver_user_id: null,
+        matched_at: null,
+        bidding_expires_at: new Date(Date.now() + 2 * 60 * 1000),
+      },
+    });
+
+    await this.prisma.tripEvent.create({
+      data: {
+        trip_id: id,
+        actor_user_id: adminUserId,
+        type: 'admin.trip.retry_matching',
+        payload_json: {},
+      },
+    });
+
+    return { ok: true, trip: updated };
+  }
+
+  async adminMarkIncident(id: string, adminUserId: string, note: string) {
+    const trip = await this.prisma.trip.findUnique({ where: { id } });
+    if (!trip) throw new NotFoundException('Trip not found');
+
+    const alert = await this.prisma.safetyAlert.create({
+      data: {
+        trip_id: id,
+        type: SafetyAlertType.MANUAL_SOS_TRIGGER,
+        status: SafetyAlertStatus.OPEN,
+        severity: 3,
+        message: `Admin incident: ${note}`,
+        payload_json: { note, created_by: adminUserId },
+      },
+    });
+
+    await this.prisma.tripEvent.create({
+      data: {
+        trip_id: id,
+        actor_user_id: adminUserId,
+        type: 'admin.trip.incident',
+        payload_json: { note, alert_id: alert.id },
+      },
+    });
+
+    return { ok: true, alert };
+  }
+
 }
