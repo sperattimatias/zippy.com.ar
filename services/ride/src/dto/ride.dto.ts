@@ -140,6 +140,17 @@ export class AdjustScoreDto {
   @IsOptional() @IsString() notes?: string;
 }
 
+
+export class AdminSettingsFilterDto {
+  @IsOptional() @IsString() category?: string;
+}
+
+export class SystemSettingPutDto {
+  @IsString() value!: string;
+  @IsOptional() @IsString() category?: string;
+  @IsOptional() @IsBoolean() encrypted?: boolean;
+}
+
 export class AdminLevelFilterDto {
   @IsOptional() @IsEnum(ActorType) actor_type?: ActorType;
   @IsOptional() @IsEnum(LevelTier) tier?: LevelTier;
