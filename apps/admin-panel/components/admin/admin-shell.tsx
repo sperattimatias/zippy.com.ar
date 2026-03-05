@@ -15,7 +15,7 @@ const navItems = [
   { href: '/admin/drivers', label: 'Drivers' },
   { href: '/admin/fraud', label: 'Fraud' },
   { href: '/admin/zones', label: 'Zones' },
-  { href: '/admin/settings', label: 'Settings' },
+  { href: '/admin/settings/integrations', label: 'Settings · Integrations' },
 ];
 
 export function AdminShell({ children }: { children: ReactNode }) {
