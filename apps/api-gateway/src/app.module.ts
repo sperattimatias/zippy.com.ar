@@ -104,6 +104,10 @@ const adminBonusesRoutes: RouteInfo[] = [
 const adminPoliciesRoutes: RouteInfo[] = [
   { path: 'api/admin/policies/:key', method: RequestMethod.ALL },
 ];
+const adminSettingsRoutes: RouteInfo[] = [
+  { path: 'api/admin/settings', method: RequestMethod.ALL },
+  { path: 'api/admin/settings/*', method: RequestMethod.ALL },
+];
 const driverCommissionRoutes: RouteInfo[] = [
   { path: 'api/drivers/commission/current', method: RequestMethod.ALL },
 ];
@@ -264,6 +268,7 @@ export class AppModule implements NestModule {
         ...adminMonthlyPerformanceRoutes,
         ...adminBonusesRoutes,
         ...adminPoliciesRoutes,
+        ...adminSettingsRoutes,
       );
 
     consumer
@@ -372,6 +377,7 @@ export class AppModule implements NestModule {
       ],
       [adminBonusesRoutes, '^/api/admin/bonuses', '/admin/bonuses'],
       [adminPoliciesRoutes, '^/api/admin/policies', '/admin/policies'],
+      [adminSettingsRoutes, '^/api/admin/settings', '/admin/settings'],
       [driverCommissionRoutes, '^/api/drivers/commission/current', '/drivers/commission/current'],
     ];
 
