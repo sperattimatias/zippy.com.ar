@@ -55,6 +55,10 @@ const adminDriverRoutes: RouteInfo[] = [
   { path: 'api/admin/drivers', method: RequestMethod.ALL },
   { path: 'api/admin/drivers/*', method: RequestMethod.ALL },
 ];
+const adminKycDriverRoutes: RouteInfo[] = [
+  { path: 'api/admin/kyc/drivers', method: RequestMethod.ALL },
+  { path: 'api/admin/kyc/drivers/*', method: RequestMethod.ALL },
+];
 const adminTripsRoutes: RouteInfo[] = [
   { path: 'api/admin/trips', method: RequestMethod.ALL },
   { path: 'api/admin/trips/*', method: RequestMethod.ALL },
@@ -78,6 +82,13 @@ const adminUserScoreRoutes: RouteInfo[] = [
 ];
 const adminRestrictionsRoutes: RouteInfo[] = [
   { path: 'api/admin/restrictions/:id/lift', method: RequestMethod.ALL },
+];
+const adminUsersRoutes: RouteInfo[] = [
+  { path: 'api/admin/users', method: RequestMethod.ALL },
+  { path: 'api/admin/users/:id', method: RequestMethod.ALL },
+  { path: 'api/admin/users/:id/status', method: RequestMethod.ALL },
+  { path: 'api/admin/users/:id/payment-limit', method: RequestMethod.ALL },
+  { path: 'api/admin/users/:id/notes', method: RequestMethod.ALL },
 ];
 const adminConfigRoutes: RouteInfo[] = [
   { path: 'api/admin/config/:key', method: RequestMethod.ALL },
@@ -103,6 +114,38 @@ const adminBonusesRoutes: RouteInfo[] = [
 ];
 const adminPoliciesRoutes: RouteInfo[] = [
   { path: 'api/admin/policies/:key', method: RequestMethod.ALL },
+];
+const adminSettingsRoutes: RouteInfo[] = [
+  { path: 'api/admin/settings', method: RequestMethod.ALL },
+  { path: 'api/admin/settings/*', method: RequestMethod.ALL },
+];
+const adminPricingRoutes: RouteInfo[] = [
+  { path: 'api/admin/pricing', method: RequestMethod.ALL },
+  { path: 'api/admin/pricing/*', method: RequestMethod.ALL },
+];
+const adminIncentivesRoutes: RouteInfo[] = [
+  { path: 'api/admin/incentives', method: RequestMethod.ALL },
+  { path: 'api/admin/incentives/*', method: RequestMethod.ALL },
+];
+const adminAuditRoutes: RouteInfo[] = [
+  { path: 'api/admin/audit', method: RequestMethod.ALL },
+  { path: 'api/admin/audit/*', method: RequestMethod.ALL },
+];
+const adminReportsRoutes: RouteInfo[] = [
+  { path: 'api/admin/reports', method: RequestMethod.ALL },
+  { path: 'api/admin/reports/*', method: RequestMethod.ALL },
+];
+const adminPaymentsRoutes: RouteInfo[] = [
+  { path: 'api/admin/payments', method: RequestMethod.ALL },
+  { path: 'api/admin/payments/*', method: RequestMethod.ALL },
+];
+const adminSupportRoutes: RouteInfo[] = [
+  { path: 'api/admin/support/tickets', method: RequestMethod.ALL },
+  { path: 'api/admin/support/tickets/*', method: RequestMethod.ALL },
+];
+const adminNotificationsRoutes: RouteInfo[] = [
+  { path: 'api/admin/notifications', method: RequestMethod.ALL },
+  { path: 'api/admin/notifications/*', method: RequestMethod.ALL },
 ];
 const driverCommissionRoutes: RouteInfo[] = [
   { path: 'api/drivers/commission/current', method: RequestMethod.ALL },
@@ -186,6 +229,8 @@ const createServiceProxy = (
         RIDE_SERVICE_URL: Joi.string().uri().required(),
         DRIVER_SERVICE_URL: Joi.string().uri().required(),
         PAYMENT_SERVICE_URL: Joi.string().uri().required(),
+        SUPPORT_SERVICE_URL: Joi.string().uri().required(),
+        NOTIFICATIONS_SERVICE_URL: Joi.string().uri().required(),
         REDIS_URL: Joi.string().uri().required(),
 
         JWT_ACCESS_SECRET: Joi.string().min(32).required(),
@@ -251,12 +296,14 @@ export class AppModule implements NestModule {
       .apply(JwtClaimsMiddleware, RequireAdminOrSosMiddleware)
       .forRoutes(
         ...adminDriverRoutes,
+        ...adminKycDriverRoutes,
         ...adminTripsRoutes,
         ...adminGeoZonesRoutes,
         ...adminSafetyAlertsRoutes,
         ...adminScoresRoutes,
         ...adminUserScoreRoutes,
         ...adminRestrictionsRoutes,
+        ...adminUsersRoutes,
         ...adminConfigRoutes,
         ...adminPremiumZoneRoutes,
         ...adminFraudRoutes,
@@ -264,6 +311,14 @@ export class AppModule implements NestModule {
         ...adminMonthlyPerformanceRoutes,
         ...adminBonusesRoutes,
         ...adminPoliciesRoutes,
+        ...adminSettingsRoutes,
+        ...adminPricingRoutes,
+        ...adminIncentivesRoutes,
+        ...adminAuditRoutes,
+        ...adminPaymentsRoutes,
+        ...adminSupportRoutes,
+        ...adminNotificationsRoutes,
+        ...adminReportsRoutes,
       );
 
     consumer
@@ -304,12 +359,59 @@ export class AppModule implements NestModule {
     consumer
       .apply(
         createServiceProxy(
+          {
+            target: process.env.AUTH_SERVICE_URL,
+            changeOrigin: true,
+            xfwd: true,
+            pathRewrite: { '^/api/admin/users': '/auth/admin/users' },
+          },
+          timeoutMs,
+          connectTimeoutMs,
+        ),
+      )
+      .forRoutes(...adminUsersRoutes);
+
+    consumer
+      .apply(
+        createServiceProxy(
           { target: process.env.DRIVER_SERVICE_URL, changeOrigin: true, xfwd: true },
           timeoutMs,
           connectTimeoutMs,
         ),
       )
       .forRoutes(...driverRoutes);
+
+
+
+    consumer
+      .apply(
+        createServiceProxy(
+          {
+            target: process.env.SUPPORT_SERVICE_URL,
+            changeOrigin: true,
+            xfwd: true,
+            pathRewrite: { '^/api/admin/support/tickets': '/admin/support/tickets' },
+          },
+          timeoutMs,
+          connectTimeoutMs,
+        ),
+      )
+      .forRoutes(...adminSupportRoutes);
+
+    consumer
+      .apply(
+        createServiceProxy(
+          {
+            target: process.env.NOTIFICATIONS_SERVICE_URL,
+            changeOrigin: true,
+            xfwd: true,
+            pathRewrite: { '^/api/admin/notifications': '/admin/notifications' },
+          },
+          timeoutMs,
+          connectTimeoutMs,
+        ),
+      )
+      .forRoutes(...adminNotificationsRoutes);
 
     consumer
       .apply(
@@ -325,6 +427,21 @@ export class AppModule implements NestModule {
         ),
       )
       .forRoutes(...adminDriverRoutes);
+
+    consumer
+      .apply(
+        createServiceProxy(
+          {
+            target: process.env.DRIVER_SERVICE_URL,
+            changeOrigin: true,
+            xfwd: true,
+            pathRewrite: { '^/api/admin/kyc/drivers': '/admin/kyc/drivers' },
+          },
+          timeoutMs,
+          connectTimeoutMs,
+        ),
+      )
+      .forRoutes(...adminKycDriverRoutes);
 
     consumer
       .apply(
@@ -372,6 +489,12 @@ export class AppModule implements NestModule {
       ],
       [adminBonusesRoutes, '^/api/admin/bonuses', '/admin/bonuses'],
       [adminPoliciesRoutes, '^/api/admin/policies', '/admin/policies'],
+      [adminSettingsRoutes, '^/api/admin/settings', '/admin/settings'],
+      [adminPricingRoutes, '^/api/admin/pricing', '/admin/pricing'],
+      [adminIncentivesRoutes, '^/api/admin/incentives', '/admin/incentives'],
+      [adminAuditRoutes, '^/api/admin/audit', '/admin/audit'],
+      [adminReportsRoutes, '^/api/admin/reports', '/admin/reports'],
+      [adminPaymentsRoutes, '^/api/admin/payments', '/admin/payments'],
       [driverCommissionRoutes, '^/api/drivers/commission/current', '/drivers/commission/current'],
     ];
 

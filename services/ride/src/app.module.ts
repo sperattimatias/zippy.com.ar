@@ -25,6 +25,7 @@ import { RedisModule } from './infra/redis/redis.module';
 import { MetricsController } from './metrics/metrics.controller';
 import { MetricsService } from './metrics/metrics.service';
 import { RateLimitService } from './ride/rate-limit.service';
+import { SettingsService } from './settings/settings.service';
 
 @Module({
   imports: [
@@ -48,6 +49,7 @@ import { RateLimitService } from './ride/rate-limit.service';
         MAX_STREAM_RETRIES: Joi.number().integer().min(1).default(5),
         JWT_ACCESS_SECRET: Joi.string().min(32).required(),
         WS_CORS_ORIGINS: Joi.string().optional(),
+        SETTINGS_MASTER_KEY: Joi.string().required(),
       }),
     }),
     JwtModule.register({}),
@@ -73,6 +75,7 @@ import { RateLimitService } from './ride/rate-limit.service';
     FraudService,
     MetricsService,
     RateLimitService,
+    SettingsService,
   ],
 })
 export class AppModule {}
