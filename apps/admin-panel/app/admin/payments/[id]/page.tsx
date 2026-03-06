@@ -1,11 +1,24 @@
 'use client';
 
+import { zodResolver } from '@hookform/resolvers/zod';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { can } from '../../../../lib/admin-rbac';
-import { AdminCard, ErrorState, LoadingState, Toast } from '../../../../components/admin/ui';
+import { PageHeader } from '../../../../components/page/PageHeader';
+import { useForm } from 'react-hook-form';
+import { z } from 'zod';
+import { StatusBadge } from '../../../../components/common/StatusBadge';
+import { EventTimeline } from '../../../../components/common/EventTimeline';
+import { SectionCard } from '../../../../components/common/SectionCard';
+import { ErrorState } from '../../../../components/states/ErrorState';
+import { LoadingState } from '../../../../components/states/LoadingState';
 import { ConfirmDialog } from '../../../../components/forms/confirm-dialog';
-import { FormField } from '../../../../components/forms/form-field';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '../../../../components/forms/form';
+import { Input } from '../../../../components/ui/input';
+import { Button } from '../../../../components/ui/button';
+import { CopyText } from '../../../../components/common/CopyText';
+import { toast } from '../../../../lib/toast';
+import { formatDateTime, formatMoney } from '../../../../lib/format';
+import { can } from '../../../../lib/admin-rbac';
 
 type PaymentDetail = {
   payment_id: string;
@@ -22,22 +35,33 @@ type PaymentDetail = {
   flags: { duplicate: boolean; not_settled: boolean; note?: string | null };
 };
 
-type ToastState = { tone: 'success' | 'error'; message: string } | null;
+const refundSchema = z.object({
+  amount: z.string().optional(),
+  reason: z.string().trim().min(1, 'El motivo es obligatorio'),
+}).superRefine((data, ctx) => {
+  if (!data.amount?.trim()) return;
+  const parsed = Number(data.amount);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['amount'], message: 'Monto inválido' });
+  }
+});
+
+type RefundForm = z.infer<typeof refundSchema>;
 
 export default function AdminPaymentDetailPage({ params }: { params: { id: string } }) {
   const [detail, setDetail] = useState<PaymentDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [toast, setToast] = useState<ToastState>(null);
   const [roles, setRoles] = useState<string[] | undefined>(undefined);
 
   const [refundOpen, setRefundOpen] = useState(false);
   const [refundLoading, setRefundLoading] = useState(false);
-  const [refundAmount, setRefundAmount] = useState('');
-  const [refundReason, setRefundReason] = useState('');
-  const [refundError, setRefundError] = useState<Record<string, string>>({});
-
   const [flagNote, setFlagNote] = useState('');
+
+  const refundForm = useForm<RefundForm>({
+    resolver: zodResolver(refundSchema),
+    defaultValues: { amount: '', reason: '' },
+  });
 
   const load = async () => {
     setLoading(true);
@@ -66,18 +90,9 @@ export default function AdminPaymentDetailPage({ params }: { params: { id: strin
     void load();
   }, [params.id]);
 
-  const createRefund = async () => {
-    const nextErrors: Record<string, string> = {};
-    if (!refundReason.trim()) nextErrors.reason = 'El motivo es obligatorio';
-    if (refundAmount.trim()) {
-      const amount = Number(refundAmount);
-      if (!Number.isFinite(amount) || amount <= 0) nextErrors.amount = 'Monto inválido';
-    }
-    setRefundError(nextErrors);
-    if (Object.keys(nextErrors).length > 0) return;
-
-    const payload: { reason: string; amount?: number } = { reason: refundReason.trim() };
-    if (refundAmount.trim()) payload.amount = Number(refundAmount);
+  const createRefund = async (values: RefundForm) => {
+    const payload: { reason: string; amount?: number } = { reason: values.reason.trim() };
+    if (values.amount?.trim()) payload.amount = Number(values.amount);
 
     setRefundLoading(true);
     try {
@@ -87,13 +102,12 @@ export default function AdminPaymentDetailPage({ params }: { params: { id: strin
         body: JSON.stringify(payload),
       });
       if (!res.ok) throw new Error('No se pudo crear el reembolso');
-      setToast({ tone: 'success', message: 'Reembolso creado correctamente' });
-      setRefundAmount('');
-      setRefundReason('');
+      toast.success('Reembolso creado correctamente');
+      refundForm.reset({ amount: '', reason: '' });
       setRefundOpen(false);
       await load();
     } catch (e) {
-      setToast({ tone: 'error', message: e instanceof Error ? e.message : 'Error inesperado' });
+      toast.error(e instanceof Error ? e.message : 'Error inesperado');
     } finally {
       setRefundLoading(false);
     }
@@ -107,102 +121,128 @@ export default function AdminPaymentDetailPage({ params }: { params: { id: strin
         body: JSON.stringify({ type, note: flagNote.trim() || undefined }),
       });
       if (!res.ok) throw new Error('No se pudo actualizar flag');
-      setToast({ tone: 'success', message: 'Flag actualizado' });
+      toast.success('Flag actualizado');
       await load();
     } catch (e) {
-      setToast({ tone: 'error', message: e instanceof Error ? e.message : 'Error inesperado' });
+      toast.error(e instanceof Error ? e.message : 'Error inesperado');
     }
   };
 
+  const paymentTimeline = [
+    ...(detail?.status_history ?? []).map((entry) => ({
+      id: `status-${entry.status}-${entry.at}`,
+      title: `Cambio de estado: ${entry.status}`,
+      timestamp: formatDateTime(entry.at),
+      sortAt: entry.at,
+      status: entry.status,
+      description: undefined,
+    })),
+    ...(detail?.gateway_logs ?? []).map((log) => ({
+      id: `gateway-${log.refund_id}`,
+      title: `Reembolso de gateway ${log.refund_id}`,
+      timestamp: formatDateTime(log.created_at),
+      sortAt: log.created_at,
+      description: `mp=${log.mp_refund_id ?? '-'} · status=${log.status}`,
+      status: log.status,
+    })),
+  ]
+    .sort((a, b) => +new Date(b.sortAt) - +new Date(a.sortAt))
+    .map((item) => ({ id: item.id, title: item.title, timestamp: item.timestamp, description: item.description, status: item.status }));
+
   return (
     <div className="space-y-6">
+      <PageHeader title="Detalle del pago" subtitle="Resumen del pago, historial y acciones de reembolso." />
       {loading && <LoadingState message="Cargando pago..." />}
       {error && <ErrorState message={error} retry={() => void load()} />}
 
       {!loading && detail && (
         <>
-          <AdminCard title={`Pago ${detail.payment_id}`}>
-            <div className="grid gap-2 text-sm md:grid-cols-2">
-              <p><span className="text-slate-400">Trip:</span> {detail.trip_id}</p>
-              <p><span className="text-slate-400">Status:</span> {detail.status}</p>
-              <p><span className="text-slate-400">Settlement:</span> {detail.settlement_status}</p>
+          <SectionCard title={`Pago ${detail.payment_id}`}>
+            <div className="grid gap-x-6 gap-y-3 text-sm md:grid-cols-2">
+              <p><span className="text-slate-400">ID de pago:</span> <CopyText value={detail.payment_id} /></p>
+              <p><span className="text-slate-400">Viaje:</span> <Link className="text-cyan-400" href={`/admin/trips/${detail.trip_id}`}><CopyText value={detail.trip_id} /></Link></p>
+              <p><span className="text-slate-400">Estado:</span> <StatusBadge status={detail.status} /></p>
+              <p><span className="text-slate-400">Liquidación:</span> <StatusBadge status={detail.settlement_status} /></p>
               <p><span className="text-slate-400">Método:</span> {detail.method}</p>
-              <p><span className="text-slate-400">Rider:</span> {detail.rider_id}</p>
-              <p><span className="text-slate-400">Driver:</span> {detail.driver_id}</p>
+              <p><span className="text-slate-400">Pasajero:</span> <CopyText value={detail.rider_id} /></p>
+              <p><span className="text-slate-400">Conductor:</span> <CopyText value={detail.driver_id} /></p>
             </div>
-          </AdminCard>
+          </SectionCard>
 
-          <AdminCard title="Breakdown y referencias">
-            <div className="grid gap-2 text-sm md:grid-cols-2">
-              <p>Amount total: {detail.breakdown.amount_total}</p>
-              <p>Fee platform: {detail.breakdown.fee_platform}</p>
-              <p>Driver net: {detail.breakdown.driver_net}</p>
-              <p>Refunded amount: {detail.breakdown.refunded_amount}</p>
-              <p>MP payment id: {detail.references.mp_payment_id ?? '-'}</p>
-              <p>MP preference id: {detail.references.mp_preference_id ?? '-'}</p>
+          <SectionCard title="Desglose y referencias">
+            <div className="grid gap-x-6 gap-y-3 text-sm md:grid-cols-2">
+              <p><span className="text-slate-400">Monto total:</span> {formatMoney(detail.breakdown.amount_total)}</p>
+              <p><span className="text-slate-400">Comisión plataforma:</span> {formatMoney(detail.breakdown.fee_platform)}</p>
+              <p><span className="text-slate-400">Neto conductor:</span> {formatMoney(detail.breakdown.driver_net)}</p>
+              <p>Monto reembolsado: {formatMoney(detail.breakdown.refunded_amount)}</p>
+              <p>ID de pago MP: <CopyText value={detail.references.mp_payment_id ?? undefined} /></p>
+              <p>ID de preferencia MP: <CopyText value={detail.references.mp_preference_id ?? undefined} /></p>
             </div>
-          </AdminCard>
+          </SectionCard>
 
-          <AdminCard title="Historial y logs gateway">
+          <SectionCard title="Timeline del pago" description="Evolución de estados y eventos de gateway en orden cronológico.">
+            <EventTimeline
+              items={paymentTimeline}
+              emptyTitle="Sin eventos de pago"
+              emptyDescription="No hay historial ni logs para mostrar en este pago."
+            />
+          </SectionCard>
+
+          <SectionCard title="Alertas y acciones">
             <div className="space-y-3 text-sm">
-              <div>
-                <h3 className="mb-2 font-semibold">Historial de estados</h3>
-                <ul className="space-y-1 text-slate-300">
-                  {detail.status_history.map((h, idx) => <li key={`${h.status}-${idx}`}>{h.status} · {new Date(h.at).toLocaleString()}</li>)}
-                </ul>
-              </div>
-              <div>
-                <h3 className="mb-2 font-semibold">Logs</h3>
-                <ul className="space-y-1 text-slate-300">
-                  {detail.gateway_logs.length === 0 && <li>Sin logs de gateway</li>}
-                  {detail.gateway_logs.map((l) => <li key={l.refund_id}>{l.status} · refund={l.refund_id} · mp={l.mp_refund_id ?? '-'} · {new Date(l.created_at).toLocaleString()}</li>)}
-                </ul>
+              <Input value={flagNote} onChange={(e) => setFlagNote(e.target.value)} placeholder="Nota interna para alertas" />
+              <div className="flex flex-wrap gap-2">
+                <Button variant="secondary" onClick={() => void toggleFlag('duplicate')}>Actualizar alerta de duplicado</Button>
+                <Button variant="secondary" onClick={() => void toggleFlag('not_settled')}>Actualizar alerta de no liquidado</Button>
+                <Button variant="destructive" onClick={() => { setRefundOpen(true); refundForm.reset({ amount: '', reason: '' }); }} disabled={!can(roles, 'payments.refund')}>
+                  Crear reembolso
+                </Button>
               </div>
             </div>
-          </AdminCard>
-
-          <AdminCard title="Acciones" action={<Link className="text-xs text-cyan-300 underline" href={`/admin/audit?entityType=payment&entityId=${params.id}`}>Ver auditoría</Link>}>
-            <div className="space-y-3 text-sm">
-              <button
-                className="rounded bg-rose-700 px-3 py-2 text-white disabled:opacity-50"
-                disabled={!can(roles, 'payments.refund')}
-                onClick={() => setRefundOpen(true)}
-              >
-                Crear reembolso
-              </button>
-
-              <div className="grid gap-2 md:grid-cols-3">
-                <input className="rounded bg-slate-950 p-2 md:col-span-2" placeholder="Nota de auditoría (opcional)" value={flagNote} onChange={(e) => setFlagNote(e.target.value)} />
-                <div className="flex gap-2">
-                  <button className="rounded bg-amber-600 px-3 py-2 text-white" onClick={() => void toggleFlag('duplicate')}>{detail.flags.duplicate ? 'Quitar' : 'Marcar'} duplicado</button>
-                  <button className="rounded bg-indigo-600 px-3 py-2 text-white" onClick={() => void toggleFlag('not_settled')}>{detail.flags.not_settled ? 'Quitar' : 'Marcar'} no acreditado</button>
-                </div>
-              </div>
-            </div>
-          </AdminCard>
+          </SectionCard>
         </>
       )}
 
       <ConfirmDialog
         open={refundOpen}
         title="Crear reembolso"
-        description="Completá motivo y opcionalmente un monto parcial"
+        description="Genera un refund en gateway y registra auditoría."
         confirmLabel="Confirmar reembolso"
         loading={refundLoading}
         onClose={() => setRefundOpen(false)}
-        onConfirm={() => void createRefund()}
+        onConfirm={refundForm.handleSubmit(async (values) => createRefund(values))}
       >
-        <div className="grid gap-3">
-          <FormField label="Monto (opcional)" description="Vacío = reembolso total" error={refundError.amount}>
-            <input className="w-full rounded bg-slate-950 p-2 text-sm" value={refundAmount} onChange={(e) => { setRefundAmount(e.target.value); setRefundError((prev) => ({ ...prev, amount: '' })); }} />
-          </FormField>
-          <FormField label="Motivo" error={refundError.reason}>
-            <textarea className="min-h-[90px] w-full rounded bg-slate-950 p-2 text-sm" value={refundReason} onChange={(e) => { setRefundReason(e.target.value); setRefundError((prev) => ({ ...prev, reason: '' })); }} />
-          </FormField>
-        </div>
+        <Form {...refundForm}>
+          <form className="space-y-3" onSubmit={refundForm.handleSubmit(async (values) => createRefund(values))}>
+            <FormField
+              control={refundForm.control}
+              name="amount"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Monto (opcional)</FormLabel>
+                  <FormControl>
+                    <Input {...field} placeholder="Vacío = reembolso total" />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={refundForm.control}
+              name="reason"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Motivo</FormLabel>
+                  <FormControl>
+                    <Input {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </form>
+        </Form>
       </ConfirmDialog>
-
-      {toast && <Toast tone={toast.tone} message={toast.message} onClose={() => setToast(null)} />}
     </div>
   );
 }

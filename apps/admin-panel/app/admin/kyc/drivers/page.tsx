@@ -2,7 +2,11 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
-import { AdminCard, EmptyState, ErrorState, LoadingState } from '../../../../components/admin/ui';
+import { PageHeader } from '../../../../components/page/PageHeader';
+import { SectionCard } from '../../../../components/common/SectionCard';
+import { EmptyState } from '../../../../components/states/EmptyState';
+import { ErrorState } from '../../../../components/states/ErrorState';
+import { LoadingState } from '../../../../components/states/LoadingState';
 
 type KycRow = {
   id: string;
@@ -57,20 +61,20 @@ export default function KycDriversPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">KYC · Drivers</h1>
+      <PageHeader title="KYC de conductores" subtitle="Revisá documentación y tomá decisiones de validación." />
 
-      <AdminCard title="Filtros">
+      <SectionCard title="Filtros">
         <div className="grid gap-2 md:grid-cols-4">
           <select className="rounded bg-slate-950 p-2" value={status} onChange={(e) => { setPage(1); setStatus(e.target.value); }}>
             <option value="">Todos los estados</option>
             {['PENDING_DOCS', 'IN_REVIEW', 'APPROVED', 'REJECTED', 'SUSPENDED'].map((s) => <option key={s} value={s}>{s}</option>)}
           </select>
-          <input className="rounded bg-slate-950 p-2" placeholder="Buscar por driver/user" value={search} onChange={(e) => { setPage(1); setSearch(e.target.value); }} />
-          <input className="rounded bg-slate-950 p-2" placeholder="Expira en días" value={expiresInDays} onChange={(e) => { setPage(1); setExpiresInDays(e.target.value); }} />
+          <input className="rounded bg-slate-950 p-2" placeholder="Buscar por ID de conductor o usuario" value={search} onChange={(e) => { setPage(1); setSearch(e.target.value); }} />
+          <input className="rounded bg-slate-950 p-2" placeholder="Vence en (días)" value={expiresInDays} onChange={(e) => { setPage(1); setExpiresInDays(e.target.value); }} />
         </div>
-      </AdminCard>
+      </SectionCard>
 
-      <AdminCard title="Conductores KYC">
+      <SectionCard title="Listado de conductores">
         {loading && <LoadingState message="Cargando KYC..." />}
         {error && <ErrorState message={error} retry={() => void load()} />}
         {!loading && !error && rows.length === 0 && <EmptyState message="No hay conductores para los filtros seleccionados." />}
@@ -80,8 +84,8 @@ export default function KycDriversPage() {
             <table className="w-full min-w-[1100px] text-left text-sm">
               <thead className="bg-slate-900 text-xs uppercase text-slate-400">
                 <tr>
-                  <th className="p-2">Driver</th>
-                  <th className="p-2">KYC Status</th>
+                  <th className="p-2">Conductor</th>
+                  <th className="p-2">Estado KYC</th>
                   <th className="p-2">Faltantes</th>
                   <th className="p-2">Vencimientos próximos</th>
                   <th className="p-2">Creado</th>
@@ -114,7 +118,7 @@ export default function KycDriversPage() {
           <span className="text-sm">Página {page} / {totalPages}</span>
           <button className="rounded bg-slate-800 px-3 py-1 text-sm disabled:opacity-40" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>Siguiente</button>
         </div>
-      </AdminCard>
+      </SectionCard>
     </div>
   );
 }

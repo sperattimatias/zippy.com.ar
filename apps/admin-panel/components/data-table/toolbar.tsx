@@ -1,59 +1,127 @@
-import { Input } from '../ui/input';
+import type { Table } from '@tanstack/react-table';
 import { Button } from '../ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '../ui/dropdown-menu';
+import { Input } from '../ui/input';
+import { Download, RefreshCw, Settings2 } from 'lucide-react';
 
-type ColumnToggle = { id: string; label: string; visible: boolean; canHide?: boolean };
+type FacetedFilter = {
+  key: string;
+  label: string;
+  value: string;
+  options: Array<{ label: string; value: string }>;
+  onChange: (value: string) => void;
+};
 
-export function DataTableToolbar({
+export function DataTableToolbar<TData>({
+  table,
   search,
   onSearchChange,
   searchPlaceholder,
-  filters,
-  columns,
-  onToggleColumn,
+  facetedFilters,
+  onRefresh,
   onExport,
+  enablePinning = false,
 }: {
+  table: Table<TData>;
   search: string;
   onSearchChange: (value: string) => void;
   searchPlaceholder?: string;
-  filters?: React.ReactNode;
-  columns: ColumnToggle[];
-  onToggleColumn: (id: string) => void;
+  facetedFilters?: FacetedFilter[];
+  onRefresh?: () => void;
   onExport?: () => void;
+  enablePinning?: boolean;
 }) {
   return (
     <div className="space-y-3">
-      <div className="grid gap-2 md:grid-cols-[1fr_auto_auto] md:items-center">
+      <div className="grid gap-2 md:grid-cols-[1fr_auto_auto_auto] md:items-center">
         <Input
           value={search}
           onChange={(e) => onSearchChange(e.target.value)}
           placeholder={searchPlaceholder ?? 'Buscar...'}
         />
-        <details className="relative">
-          <summary className="list-none">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
             <Button type="button" variant="outline" size="sm">
+              <Settings2 className="mr-2 h-4 w-4" />
               Columnas
             </Button>
-          </summary>
-          <div className="absolute right-0 z-20 mt-2 min-w-[180px] space-y-1 rounded-md border border-slate-700 bg-slate-900 p-2">
-            {columns.filter((c) => c.canHide !== false).map((column) => (
-              <label key={column.id} className="flex items-center gap-2 text-sm text-slate-300">
-                <input
-                  type="checkbox"
-                  checked={column.visible}
-                  onChange={() => onToggleColumn(column.id)}
-                />
-                {column.label}
-              </label>
-            ))}
-          </div>
-        </details>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent>
+            {table
+              .getAllLeafColumns()
+              .filter((column) => column.getCanHide())
+              .map((column) => (
+                <DropdownMenuItem key={column.id} onClick={() => column.toggleVisibility()}>
+                  <input type="checkbox" className="mr-2" checked={column.getIsVisible()} readOnly />
+                  {String(column.columnDef.meta ?? column.id)}
+                </DropdownMenuItem>
+              ))}
+            {enablePinning ? (
+              <>
+                <DropdownMenuSeparator />
+                {table
+                  .getAllLeafColumns()
+                  .filter((column) => column.id !== 'select')
+                  .map((column) => (
+                    <div key={`${column.id}-pin`} className="px-2 py-1.5 text-xs text-slate-300">
+                      <p className="mb-1 font-medium">{String(column.columnDef.meta ?? column.id)}</p>
+                      <div className="flex gap-1">
+                        <Button size="sm" variant="ghost" onClick={() => column.pin('left')}>
+                          Izquierda
+                        </Button>
+                        <Button size="sm" variant="ghost" onClick={() => column.pin('right')}>
+                          Derecha
+                        </Button>
+                        <Button size="sm" variant="ghost" onClick={() => column.pin(false)}>
+                          Limpiar
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+              </>
+            ) : null}
+          </DropdownMenuContent>
+        </DropdownMenu>
+        {onRefresh ? (
+          <Button type="button" variant="outline" size="sm" onClick={onRefresh}>
+            <RefreshCw className="mr-2 h-4 w-4" />
+            Refrescar
+          </Button>
+        ) : null}
         {onExport ? (
           <Button type="button" variant="secondary" size="sm" onClick={onExport}>
-            Export
+            <Download className="mr-2 h-4 w-4" />
+            Exportar
           </Button>
         ) : null}
       </div>
-      {filters ? <div className="grid gap-2 md:grid-cols-4">{filters}</div> : null}
+      {facetedFilters?.length ? (
+        <div className="grid gap-2 md:grid-cols-4">
+          {facetedFilters.map((filter) => (
+            <label key={filter.key} className="space-y-1 text-xs text-slate-400">
+              <span>{filter.label}</span>
+              <select
+                value={filter.value}
+                onChange={(event) => filter.onChange(event.target.value)}
+                className="flex h-9 w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-1 text-sm text-slate-100"
+              >
+                <option value="">Todos</option>
+                {filter.options.map((option) => (
+                  <option key={`${filter.key}-${option.value}`} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }

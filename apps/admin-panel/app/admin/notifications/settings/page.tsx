@@ -1,20 +1,22 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { AdminCard, EmptyState, ErrorState, LoadingState, Toast } from '../../../../components/admin/ui';
+import { SectionCard } from '../../../../components/common/SectionCard';
+import { EmptyState } from '../../../../components/states/EmptyState';
+import { ErrorState } from '../../../../components/states/ErrorState';
+import { LoadingState } from '../../../../components/states/LoadingState';
+import { toast } from '../../../../lib/toast';
 
 type Setting = { event_key: string; enabled: boolean };
 type LogRow = { id: string; event_key: string; channel: string; recipient: string; status: string; error?: string | null; attempts: number; created_at: string };
 
-type ToastState = { tone: 'success' | 'error'; message: string } | null;
 
 export default function NotificationSettingsPage() {
   const [settings, setSettings] = useState<Setting[]>([]);
   const [logs, setLogs] = useState<LogRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [toast, setToast] = useState<ToastState>(null);
-
+  
   const load = async () => {
     setLoading(true); setError(null);
     try {
@@ -39,16 +41,16 @@ export default function NotificationSettingsPage() {
       body: JSON.stringify({ enabled: !enabled }),
     });
     if (!res.ok) {
-      setToast({ tone: 'error', message: 'No se pudo actualizar toggle' });
+      toast.error('No se pudo actualizar toggle');
       return;
     }
-    setToast({ tone: 'success', message: 'Toggle actualizado' });
+    toast.success('Toggle actualizado');
     await load();
   };
 
   return (
     <div className="space-y-6">
-      <AdminCard title="Settings por evento">
+      <SectionCard title="Settings por evento">
         {loading && <LoadingState />}
         {error && <ErrorState message={error} retry={() => void load()} />}
         {!loading && !error && settings.length === 0 && <EmptyState message="Sin eventos configurados" />}
@@ -64,19 +66,18 @@ export default function NotificationSettingsPage() {
             ))}
           </div>
         )}
-      </AdminCard>
+      </SectionCard>
 
-      <AdminCard title="Últimos envíos y fallos">
+      <SectionCard title="Últimos envíos y fallos">
         {!loading && !error && logs.length === 0 && <EmptyState message="Sin logs" />}
         {!loading && !error && logs.length > 0 && (
           <div className="overflow-x-auto">
-            <table className="min-w-full text-sm"><thead><tr className="text-left text-slate-400"><th className="p-2">Fecha</th><th className="p-2">Evento</th><th className="p-2">Canal</th><th className="p-2">Destinatario</th><th className="p-2">Status</th><th className="p-2">Intentos</th><th className="p-2">Error</th></tr></thead><tbody>
+            <table className="min-w-full text-sm"><thead><tr className="text-left text-slate-400"><th className="p-2">Fecha</th><th className="p-2">Evento</th><th className="p-2">Canal</th><th className="p-2">Destinatario</th><th className="p-2">Estado</th><th className="p-2">Intentos</th><th className="p-2">Error</th></tr></thead><tbody>
               {logs.map((log) => <tr key={log.id} className="border-t border-slate-800"><td className="p-2">{new Date(log.created_at).toLocaleString()}</td><td className="p-2">{log.event_key}</td><td className="p-2">{log.channel}</td><td className="p-2">{log.recipient}</td><td className="p-2">{log.status}</td><td className="p-2">{log.attempts}</td><td className="p-2">{log.error ?? '-'}</td></tr>)}
             </tbody></table>
           </div>
         )}
-      </AdminCard>
-      {toast && <Toast tone={toast.tone} message={toast.message} onClose={() => setToast(null)} />}
+      </SectionCard>
     </div>
   );
 }

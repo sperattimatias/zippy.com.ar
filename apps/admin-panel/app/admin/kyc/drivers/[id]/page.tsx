@@ -1,7 +1,11 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { AdminCard, ErrorState, LoadingState, Toast } from '../../../../../components/admin/ui';
+import { StatusBadge } from '../../../../../components/common/StatusBadge';
+import { SectionCard } from '../../../../../components/common/SectionCard';
+import { ErrorState } from '../../../../../components/states/ErrorState';
+import { LoadingState } from '../../../../../components/states/LoadingState';
+import { toast } from '../../../../../lib/toast';
 
 type DriverDocument = {
   id: string;
@@ -27,8 +31,7 @@ export default function DriverKycDetailPage({ params }: { params: { id: string }
   const [detail, setDetail] = useState<KycDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [toast, setToast] = useState<{ tone: 'success' | 'error'; message: string } | null>(null);
-
+  
   const [reason, setReason] = useState('');
   const [expiresAt, setExpiresAt] = useState('');
 
@@ -56,10 +59,10 @@ export default function DriverKycDetailPage({ params }: { params: { id: string }
         body: JSON.stringify({ status, reason: reason || undefined, expires_at: expiresAt || undefined }),
       });
       if (!res.ok) throw new Error('No se pudo actualizar documento');
-      setToast({ tone: 'success', message: 'Documento actualizado' });
+      toast.success('Documento actualizado');
       await load();
     } catch (e) {
-      setToast({ tone: 'error', message: e instanceof Error ? e.message : 'Error inesperado' });
+      toast.error(e instanceof Error ? e.message : 'Error inesperado');
     }
   };
 
@@ -67,10 +70,10 @@ export default function DriverKycDetailPage({ params }: { params: { id: string }
     try {
       const res = await fetch(`/api/admin/drivers/${params.id}/kyc/reset`, { method: 'PATCH' });
       if (!res.ok) throw new Error('No se pudo resetear KYC');
-      setToast({ tone: 'success', message: 'KYC reseteado' });
+      toast.success('KYC reseteado');
       await load();
     } catch (e) {
-      setToast({ tone: 'error', message: e instanceof Error ? e.message : 'Error inesperado' });
+      toast.error(e instanceof Error ? e.message : 'Error inesperado');
     }
   };
 
@@ -80,24 +83,24 @@ export default function DriverKycDetailPage({ params }: { params: { id: string }
 
   return (
     <div className="space-y-6">
-      <AdminCard title={`KYC Driver ${detail.id}`}>
+      <SectionCard title={`KYC Driver ${detail.id}`}>
         <div className="grid gap-2 text-sm md:grid-cols-2">
           <p><span className="text-slate-400">User:</span> {detail.user_id}</p>
-          <p><span className="text-slate-400">Estado KYC:</span> {detail.status}</p>
+          <p><span className="text-slate-400">Estado KYC:</span> <StatusBadge status={detail.status} /></p>
           <p className="md:col-span-2"><span className="text-slate-400">Faltantes:</span> {detail.missing_documents.length ? detail.missing_documents.join(', ') : 'Sin faltantes'}</p>
           <p className="md:col-span-2"><span className="text-slate-400">Observaciones:</span> {detail.notes ?? '-'}</p>
         </div>
-      </AdminCard>
+      </SectionCard>
 
-      <AdminCard title="Acciones generales">
+      <SectionCard title="Acciones generales">
         <div className="flex flex-wrap gap-2">
           <input className="rounded bg-slate-950 p-2" placeholder="Motivo / observación" value={reason} onChange={(e) => setReason(e.target.value)} />
           <input type="date" className="rounded bg-slate-950 p-2" value={expiresAt} onChange={(e) => setExpiresAt(e.target.value)} />
           <button className="rounded bg-amber-700 px-3 py-2" onClick={() => void resetKyc()}>Reset verificación</button>
         </div>
-      </AdminCard>
+      </SectionCard>
 
-      <AdminCard title="Documentos">
+      <SectionCard title="Documentos">
         <div className="space-y-3">
           {detail.documents.map((doc) => (
             <div key={doc.id} className="rounded border border-slate-800 p-3 text-sm">
@@ -120,9 +123,7 @@ export default function DriverKycDetailPage({ params }: { params: { id: string }
           ))}
           {detail.documents.length === 0 && <p className="text-sm text-slate-400">Sin documentos cargados.</p>}
         </div>
-      </AdminCard>
-
-      {toast && <Toast tone={toast.tone} message={toast.message} onClose={() => setToast(null)} />}
+      </SectionCard>
     </div>
   );
 }

@@ -49,7 +49,7 @@ export default function AdminScoreDetailPage({ params, searchParams }: { params:
       <section className="rounded-xl border border-slate-800 p-4">
         <h1 className="text-2xl font-bold">Score {data?.score.user_id}</h1>
         <p>Actor: {actorType}</p>
-        <p>Score: {data?.score.score} | Status: {data?.score.status}</p>
+        <p>Puntaje: {data?.score.score} | Estado: {data?.score.status}</p>
         <div className="mt-3 flex flex-wrap gap-3 text-sm">
           <button className="rounded bg-rose-700 px-3 py-2" onClick={() => blockHours(24)}>Bloquear 24h</button>
           <button className="rounded bg-rose-800 px-3 py-2" onClick={() => blockHours(24 * 7)}>Bloquear 7d</button>

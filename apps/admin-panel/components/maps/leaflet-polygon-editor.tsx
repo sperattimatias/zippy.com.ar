@@ -1,0 +1,87 @@
+'use client';
+
+import { useEffect } from 'react';
+import { Marker as LeafletMarker, Polygon as LeafletPolygon, useMap, useMapEvents } from 'react-leaflet';
+import L from 'leaflet';
+import type { LatLngPoint } from '../../lib/zones';
+import { Map } from '../map/Map';
+import { Button } from '../ui/button';
+
+const vertexIcon = L.divIcon({
+  className: '',
+  html: '<div style="width:12px;height:12px;background:#22d3ee;border:2px solid #0f172a;border-radius:9999px"></div>',
+  iconSize: [12, 12],
+  iconAnchor: [6, 6],
+});
+
+function FitBounds({ points }: { points: Array<[number, number]> }) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (points.length === 0) return;
+    map.fitBounds(points as [number, number][], { padding: [24, 24] });
+  }, [map, points]);
+
+  return null;
+}
+
+function ClickToAdd({ onAdd }: { onAdd: (point: LatLngPoint) => void }) {
+  useMapEvents({
+    click: (event: any) => {
+      onAdd({ lat: event.latlng.lat, lng: event.latlng.lng });
+    },
+  });
+  return null;
+}
+
+export function LeafletPolygonEditor({ points, onChange }: { points: LatLngPoint[]; onChange: (next: LatLngPoint[]) => void }) {
+  const Marker = LeafletMarker as any;
+  const Polygon = LeafletPolygon as any;
+  const polygon = points.map((point) => [point.lat, point.lng] as [number, number]);
+  const center = (polygon[0] ?? [-33.4592, -61.4832]) as [number, number];
+
+  const addPoint = () => {
+    const last = points[points.length - 1] ?? { lat: -33.4592, lng: -61.4832 };
+    onChange([...points, { lat: last.lat + 0.002, lng: last.lng + 0.002 }]);
+  };
+
+  return (
+    <div className="space-y-2">
+      <p className="text-xs text-slate-400">Click en el mapa para agregar puntos. Arrastrá cada punto para editar el polígono.</p>
+      <div className="h-[340px] overflow-hidden rounded-lg border border-slate-700">
+        <Map center={center} className="h-full w-full">
+          <ClickToAdd onAdd={(point) => onChange([...points, point])} />
+          {polygon.length > 0 && <FitBounds points={polygon} />}
+          {polygon.length >= 3 ? <Polygon positions={polygon} pathOptions={{ color: '#06b6d4', fillColor: '#0891b2', fillOpacity: 0.2 }} /> : null}
+          {points.map((point, index) => (
+            <Marker
+              key={`${point.lat}-${point.lng}-${index}`}
+              position={[point.lat, point.lng]}
+              icon={vertexIcon}
+              draggable
+              eventHandlers={{
+                dragend: (event: any) => {
+                  const latlng = event.target.getLatLng();
+                  const next = [...points];
+                  next[index] = { lat: latlng.lat, lng: latlng.lng };
+                  onChange(next);
+                },
+              }}
+            />
+          ))}
+        </Map>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <Button type="button" size="sm" variant="outline" onClick={addPoint}>Agregar punto</Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={() => onChange(points.length > 0 ? points.slice(0, points.length - 1) : points)}
+        >
+          Eliminar último
+        </Button>
+      </div>
+    </div>
+  );
+}
