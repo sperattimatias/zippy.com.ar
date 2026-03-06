@@ -2,7 +2,11 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
-import { AdminCard, EmptyState, ErrorState, LoadingState } from '../../../components/admin/ui';
+import { PageHeader } from '../../../components/page/PageHeader';
+import { SectionCard } from '../../../components/common/SectionCard';
+import { EmptyState } from '../../../components/states/EmptyState';
+import { ErrorState } from '../../../components/states/ErrorState';
+import { LoadingState } from '../../../components/states/LoadingState';
 
 type UserRow = {
   id: string;
@@ -58,9 +62,9 @@ export default function AdminUsersPage() {
 
   return (
     <div className="space-y-6">
-      <section><h1 className="text-2xl font-bold">Users / Riders</h1></section>
+      <PageHeader title="Gestión de usuarios" subtitle="Administrá usuarios y revisá su actividad." />
 
-      <AdminCard title="Filtros">
+      <SectionCard title="Filtros">
         <div className="grid gap-2 md:grid-cols-4">
           <select className="rounded bg-slate-950 p-2" value={status} onChange={(e) => { setPage(1); setStatus(e.target.value); }}>
             <option value="">Todos</option>
@@ -68,14 +72,14 @@ export default function AdminUsersPage() {
             <option value="blocked">blocked</option>
           </select>
           <input type="date" className="rounded bg-slate-950 p-2" value={from} onChange={(e) => { setPage(1); setFrom(e.target.value); }} />
-          <input className="rounded bg-slate-950 p-2" placeholder="Search" value={search} onChange={(e) => { setPage(1); setSearch(e.target.value); }} />
+          <input className="rounded bg-slate-950 p-2" placeholder="Buscar por usuario, email o teléfono" value={search} onChange={(e) => { setPage(1); setSearch(e.target.value); }} />
         </div>
-      </AdminCard>
+      </SectionCard>
 
-      <AdminCard title="Listado de usuarios">
+      <SectionCard title="Listado de usuarios">
         {loading && <LoadingState message="Cargando usuarios..." />}
         {error && <ErrorState message={error} retry={() => void load()} />}
-        {!loading && !error && rows.length === 0 && <EmptyState message="No hay usuarios para los filtros." />}
+        {!loading && !error && rows.length === 0 && <EmptyState title="No hay resultados" description="Probá ajustar los filtros o crear un nuevo registro." />}
 
         {!loading && !error && rows.length > 0 && (
           <div className="overflow-x-auto">
@@ -106,7 +110,7 @@ export default function AdminUsersPage() {
           <span className="text-sm">Página {page} / {totalPages}</span>
           <button className="rounded bg-slate-800 px-3 py-1 text-sm disabled:opacity-40" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>Siguiente</button>
         </div>
-      </AdminCard>
+      </SectionCard>
     </div>
   );
 }

@@ -1,13 +1,20 @@
 'use client';
 
+import type { ColumnDef } from '@tanstack/react-table';
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
-import { PageHeader } from '../../../components/admin/page-header';
-import { SectionCard } from '../../../components/admin/section-card';
-import { DataTable, type ColumnDef } from '../../../components/data-table/DataTable';
-import { DataTableToolbar } from '../../../components/data-table/toolbar';
+import { useEffect, useState } from 'react';
+import { PageHeader } from '../../../components/page/PageHeader';
+import { SectionCard } from '../../../components/common/SectionCard';
+import { DataTable } from '../../../components/data-table/DataTable';
 import { useDebouncedValue, useQueryState } from '../../../components/data-table/query-state';
+import { DataTableToolbar } from '../../../components/data-table/toolbar';
 import { Badge } from '../../../components/ui/badge';
+
+const statusTone: Record<string, 'success' | 'danger' | 'outline'> = {
+  active: 'success',
+  suspended: 'danger',
+  blocked: 'danger',
+};
 
 type DriverRow = {
   id: string;
@@ -20,29 +27,24 @@ type DriverRow = {
 
 type DriversResponse = {
   items: DriverRow[];
-  page: number;
   total_pages: number;
 };
 
-const statusTone: Record<string, 'success' | 'danger' | 'outline'> = {
-  active: 'success',
-  suspended: 'danger',
-  blocked: 'danger',
-};
-
 const columnsBase: ColumnDef<DriverRow>[] = [
-  { id: 'id', header: 'Driver ID', sortable: true, cell: (row) => <span className="font-mono text-xs">{row.id}</span>, sortValue: (row) => row.id },
-  { id: 'user', header: 'User', sortable: true, cell: (row) => row.user_id, sortValue: (row) => row.user_id },
-  { id: 'status', header: 'Estado', sortable: true, cell: (row) => <Badge variant={statusTone[row.status] ?? 'outline'}>{row.status}</Badge>, sortValue: (row) => row.status },
-  { id: 'docs', header: 'Docs', sortable: true, cell: (row) => row.docs_count, sortValue: (row) => row.docs_count },
-  { id: 'notes', header: 'Notas', cell: (row) => row.notes ?? '-' },
-  { id: 'created', header: 'Creado', sortable: true, cell: (row) => new Date(row.created_at).toLocaleString(), sortValue: (row) => row.created_at },
+  { accessorKey: 'id', header: 'Driver ID', meta: 'Driver ID', cell: ({ row }) => <span className="font-mono text-xs">{row.original.id}</span> },
+  { accessorKey: 'user_id', header: 'User', meta: 'User' },
+  { accessorKey: 'status', header: 'Estado', meta: 'Estado', cell: ({ row }) => <Badge variant={statusTone[row.original.status] ?? 'outline'}>{row.original.status}</Badge> },
+  { accessorKey: 'docs_count', header: 'Docs', meta: 'Docs' },
+  { accessorKey: 'notes', header: 'Notas', meta: 'Notas', cell: ({ row }) => row.original.notes ?? '-' },
+  { accessorKey: 'created_at', header: 'Creado', meta: 'Creado', cell: ({ row }) => new Date(row.original.created_at).toLocaleString('es-AR') },
   {
     id: 'actions',
     header: 'Acciones',
-    hideable: false,
-    cell: (row) => (
-      <Link href={`/admin/drivers/${row.id}`} className="text-cyan-400 hover:underline">
+    meta: 'Acciones',
+    enableHiding: false,
+    enableSorting: false,
+    cell: ({ row }) => (
+      <Link href={`/admin/drivers/${row.original.id}`} className="text-cyan-400 hover:underline">
         Detalle
       </Link>
     ),
@@ -58,7 +60,7 @@ export default function DriversPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [totalPages, setTotalPages] = useState(1);
-  const [visibleColumns, setVisibleColumns] = useState<Record<string, boolean>>({});
+  const [refreshTick, setRefreshTick] = useState(0);
 
   useEffect(() => {
     setSearchInput(state.search);
@@ -80,59 +82,45 @@ export default function DriversPage() {
       })
       .catch((loadError) => setError(loadError instanceof Error ? loadError.message : 'Error inesperado'))
       .finally(() => setLoading(false));
-  }, [queryString]);
-
-  const columns = useMemo(() => {
-    if (Object.keys(visibleColumns).length === 0) return columnsBase;
-    return columnsBase.filter((column) => column.hideable === false || visibleColumns[column.id] !== false);
-  }, [visibleColumns]);
+  }, [queryString, refreshTick]);
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Drivers" subtitle="Gestión de conductores, estado operativo y validaciones KYC." />
+      <PageHeader title="Gestión de conductores" subtitle="Gestión de conductores, estado operativo y validaciones KYC." />
 
-      <SectionCard title="Listado" description="Patrón estándar de tabla con filtros en URL, orden y selección de filas.">
+      <SectionCard title="Listado" description="Tabla TanStack con filtros URL y export de dataset actual.">
         <DataTable
           data={rows}
-          columns={columns}
-          getRowId={(row) => row.id}
+          columns={columnsBase}
           loading={loading}
           error={error}
-          onRetry={() => patch({ page: state.page })}
-          emptyTitle="No hay conductores"
-          emptyDescription="Probá ajustar filtros o limpiar búsqueda."
+          onRetry={() => setRefreshTick((value) => value + 1)}
+          emptyTitle="No hay resultados"
+          emptyDescription="Probá ajustar los filtros o crear un nuevo registro."
           page={Number(state.page || '1')}
           totalPages={totalPages}
           onPageChange={(page) => patch({ page: String(page) })}
-          toolbar={
+          toolbar={(table) => (
             <DataTableToolbar
+              table={table}
               search={searchInput}
               onSearchChange={setSearchInput}
               searchPlaceholder="Buscar nombre/phone/document"
-              filters={
-                <>
-                  <select
-                    className="flex h-9 w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-1 text-sm text-slate-100"
-                    value={state.status}
-                    onChange={(event) => patch({ status: event.target.value, page: '1' })}
-                  >
-                    <option value="">Todos</option>
-                    <option value="active">active</option>
-                    <option value="suspended">suspended</option>
-                    <option value="blocked">blocked</option>
-                    <option value="pending-kyc">pending-kyc</option>
-                  </select>
-                </>
-              }
-              columns={columnsBase.map((column) => ({
-                id: column.id,
-                label: column.header,
-                visible: visibleColumns[column.id] !== false,
-                canHide: column.hideable !== false,
-              }))}
-              onToggleColumn={(id) =>
-                setVisibleColumns((current) => ({ ...current, [id]: current[id] === false }))
-              }
+              facetedFilters={[
+                {
+                  key: 'status',
+                  label: 'Estado',
+                  value: state.status,
+                  options: [
+                    { label: 'active', value: 'active' },
+                    { label: 'suspended', value: 'suspended' },
+                    { label: 'blocked', value: 'blocked' },
+                    { label: 'pending-kyc', value: 'pending-kyc' },
+                  ],
+                  onChange: (value) => patch({ status: value, page: '1' }),
+                },
+              ]}
+              onRefresh={() => setRefreshTick((value) => value + 1)}
               onExport={() => {
                 const headers = ['id', 'user_id', 'status', 'docs_count', 'notes', 'created_at'];
                 const csv = [headers.join(',')].concat(
@@ -156,7 +144,7 @@ export default function DriversPage() {
                 URL.revokeObjectURL(url);
               }}
             />
-          }
+          )}
         />
       </SectionCard>
     </div>
