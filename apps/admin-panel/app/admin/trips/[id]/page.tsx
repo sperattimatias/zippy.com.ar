@@ -6,6 +6,14 @@ import { useEffect, useMemo, useState } from 'react';
 import { AdminCard, EmptyState, ErrorState, LoadingState } from '../../../../components/admin/ui';
 import { toast } from '../../../../components/ui/sonner';
 import { ReasonDialog } from '../../../../components/forms/reason-dialog';
+import { Button } from '../../../../components/ui/button';
+import { Input } from '../../../../components/ui/input';
+import { Textarea } from '../../../../components/ui/textarea';
+
+const TripRouteMap = dynamic(
+  () => import('../../../../components/maps/trip-route-map').then((mod) => mod.TripRouteMap),
+  { ssr: false, loading: () => <div className="h-[340px] animate-pulse rounded-lg border border-slate-700 bg-slate-900/70" /> },
+);
 
 const TripRouteMap = dynamic(
   () => import('../../../../components/maps/trip-route-map').then((mod) => mod.TripRouteMap),
@@ -200,20 +208,20 @@ export default function AdminTripDetailPage({ params }: { params: { id: string }
 
           <AdminCard title="Acciones sensibles">
             <div className="grid gap-3 md:grid-cols-2">
-              <button className="rounded bg-rose-700 px-3 py-2 text-sm text-white" onClick={() => setCancelOpen(true)}>
+              <Button variant="destructive" onClick={() => setCancelOpen(true)}>
                 Cancelar viaje
-              </button>
-              <button className="rounded bg-amber-600 px-3 py-2 text-sm text-white" onClick={() => void onRetryMatching()}>
+              </Button>
+              <Button className="bg-amber-600 text-white hover:bg-amber-500" onClick={() => void onRetryMatching()}>
                 Retry matching
-              </button>
-              <input className="rounded bg-slate-950 p-2 text-sm" placeholder="Driver ID para reasignar" value={reassignDriverId} onChange={(e) => setReassignDriverId(e.target.value)} />
-              <button className="rounded bg-indigo-600 px-3 py-2 text-sm text-white" onClick={() => void onReassign()}>
+              </Button>
+              <Input placeholder="Driver ID para reasignar" value={reassignDriverId} onChange={(e) => setReassignDriverId(e.target.value)} />
+              <Button className="bg-indigo-600 text-white hover:bg-indigo-500" onClick={() => void onReassign()}>
                 Reasignar
-              </button>
-              <textarea className="rounded bg-slate-950 p-2 text-sm md:col-span-2" placeholder="Nota de incidente" value={incidentNote} onChange={(e) => setIncidentNote(e.target.value)} />
-              <button className="rounded bg-slate-700 px-3 py-2 text-sm text-white md:col-span-2" onClick={() => void onIncident()}>
+              </Button>
+              <Textarea className="md:col-span-2" placeholder="Nota de incidente" value={incidentNote} onChange={(e) => setIncidentNote(e.target.value)} />
+              <Button variant="secondary" className="md:col-span-2" onClick={() => void onIncident()}>
                 Registrar incidente
-              </button>
+              </Button>
             </div>
           </AdminCard>
         </>

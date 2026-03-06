@@ -1,3 +1,4 @@
+// DEPRECATED: do not use in new code. Prefer `SecretInput` directly.
 'use client';
 
 import { SecretInput } from './secret-input';
