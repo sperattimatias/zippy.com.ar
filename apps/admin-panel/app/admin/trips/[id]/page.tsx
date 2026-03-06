@@ -170,7 +170,6 @@ export default function AdminTripDetailPage({ params }: { params: { id: string }
               ? undefined
               : JSON.stringify(event.payload_json).slice(0, 220),
           status: trip?.status,
-          icon: <span className="text-xs">●</span>,
         })),
     [trip?.events, trip?.status],
   );

@@ -136,7 +136,6 @@ export default function AdminPaymentDetailPage({ params }: { params: { id: strin
       timestamp: formatDateTime(entry.at),
       sortAt: entry.at,
       status: entry.status,
-      icon: <span className="text-xs">●</span>,
     })),
     ...(detail?.gateway_logs ?? []).map((log) => ({
       id: `gateway-${log.refund_id}`,
@@ -145,7 +144,6 @@ export default function AdminPaymentDetailPage({ params }: { params: { id: strin
       sortAt: log.created_at,
       description: `mp=${log.mp_refund_id ?? '-'} · status=${log.status}`,
       status: log.status,
-      icon: <span className="text-xs">↺</span>,
     })),
   ]
     .sort((a, b) => +new Date(b.sortAt) - +new Date(a.sortAt))

@@ -12,6 +12,7 @@ import { LoadingState } from '../../../components/states/LoadingState';
 import { Badge } from '../../../components/ui/badge';
 import { Button } from '../../../components/ui/button';
 import { formatDateTime, formatMoney } from '../../../lib/format';
+import { RefreshCw, ArrowUpRight } from 'lucide-react';
 
 type MePayload = { email: string; roles: string[] };
 
@@ -242,6 +243,7 @@ export default function DashboardPage() {
           <div className="flex items-center gap-2">
             <Badge variant="outline">Actualizado: {updatedAt ? formatDateTime(updatedAt) : '-'}</Badge>
             <Button variant="secondary" onClick={() => void loadDashboard()}>
+              <RefreshCw className="mr-2 h-4 w-4" />
               Actualizar
             </Button>
           </div>
@@ -320,6 +322,7 @@ export default function DashboardPage() {
               {quickLinks.map((link) => (
                 <Link key={link.href} href={link.href}>
                   <Button variant="outline" className="w-full justify-start">
+                    <ArrowUpRight className="mr-2 h-4 w-4" />
                     {link.label}
                   </Button>
                 </Link>

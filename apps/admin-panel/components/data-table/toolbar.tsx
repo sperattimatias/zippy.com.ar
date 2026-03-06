@@ -8,6 +8,7 @@ import {
   DropdownMenuTrigger,
 } from '../ui/dropdown-menu';
 import { Input } from '../ui/input';
+import { Download, RefreshCw, Settings2 } from 'lucide-react';
 
 type FacetedFilter = {
   key: string;
@@ -47,6 +48,7 @@ export function DataTableToolbar<TData>({
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button type="button" variant="outline" size="sm">
+              <Settings2 className="mr-2 h-4 w-4" />
               Columnas
             </Button>
           </DropdownMenuTrigger>
@@ -88,11 +90,13 @@ export function DataTableToolbar<TData>({
         </DropdownMenu>
         {onRefresh ? (
           <Button type="button" variant="outline" size="sm" onClick={onRefresh}>
+            <RefreshCw className="mr-2 h-4 w-4" />
             Refrescar
           </Button>
         ) : null}
         {onExport ? (
           <Button type="button" variant="secondary" size="sm" onClick={onExport}>
+            <Download className="mr-2 h-4 w-4" />
             Export
           </Button>
         ) : null}

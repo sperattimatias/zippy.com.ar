@@ -11,6 +11,7 @@ import { EmptyState } from '../../../../components/states/EmptyState';
 import { ErrorState } from '../../../../components/states/ErrorState';
 import { LoadingState } from '../../../../components/states/LoadingState';
 import { formatDateTime } from '../../../../lib/format';
+import { RefreshCw } from 'lucide-react';
 
 type Point = { lat: number; lng: number };
 
@@ -187,6 +188,7 @@ export default function AdminOperationsLivePage() {
           <div className="flex items-center gap-2">
             <Badge variant="outline">Refresh automático: 15s</Badge>
             <Button variant="secondary" onClick={() => void load()}>
+              <RefreshCw className="mr-2 h-4 w-4" />
               Actualizar ahora
             </Button>
           </div>
@@ -201,7 +203,7 @@ export default function AdminOperationsLivePage() {
             <EmptyState
               title="Sin posiciones disponibles"
               description="No hay coordenadas activas para mostrar en este momento."
-              action={<Button onClick={() => void load()}>Reintentar</Button>}
+              action={<Button onClick={() => void load()}><RefreshCw className="mr-2 h-4 w-4" />Reintentar</Button>}
             />
           ) : null}
           {!loading && !error && hasPositions ? (

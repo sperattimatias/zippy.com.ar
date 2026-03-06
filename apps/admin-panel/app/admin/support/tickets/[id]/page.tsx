@@ -112,7 +112,6 @@ export default function SupportTicketDetailPage({ params }: { params: { id: stri
           timestamp: formatDateTime(detail.created_at),
           description: detail.description,
           status: detail.status,
-          icon: <span className="text-xs">🎫</span>,
           sortAt: detail.created_at,
         },
         ...detail.notes.map((item) => ({
@@ -121,7 +120,6 @@ export default function SupportTicketDetailPage({ params }: { params: { id: stri
           timestamp: formatDateTime(item.created_at),
           description: item.note,
           status: detail.status,
-          icon: <span className="text-xs">✎</span>,
           sortAt: item.created_at,
         })),
       ]
