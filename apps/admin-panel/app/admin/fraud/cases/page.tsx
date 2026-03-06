@@ -2,7 +2,11 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
-import { AdminCard, EmptyState, ErrorState, LoadingState } from '../../../../components/admin/ui';
+import { PageHeader } from '../../../../components/page/PageHeader';
+import { SectionCard } from '../../../../components/common/SectionCard';
+import { EmptyState } from '../../../../components/states/EmptyState';
+import { ErrorState } from '../../../../components/states/ErrorState';
+import { LoadingState } from '../../../../components/states/LoadingState';
 
 type FraudCase = {
   id: string;
@@ -53,9 +57,9 @@ export default function FraudCasesPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Fraud Cases</h1>
+      <PageHeader title="Fraud cases" subtitle="Casos activos, filtros y priorización." />
 
-      <AdminCard title="Filtros">
+      <SectionCard title="Filtros">
         <div className="grid gap-2 md:grid-cols-4">
           <select className="rounded bg-slate-950 p-2" value={status} onChange={(e) => setStatus(e.target.value)}>
             <option value="">Todos los estados</option>
@@ -67,9 +71,9 @@ export default function FraudCasesPage() {
           </select>
           <input className="rounded bg-slate-950 p-2 md:col-span-2" placeholder="Buscar por título o resumen" value={q} onChange={(e) => setQ(e.target.value)} />
         </div>
-      </AdminCard>
+      </SectionCard>
 
-      <AdminCard title="Casos">
+      <SectionCard title="Casos">
         {loading && <LoadingState message="Cargando casos..." />}
         {error && <ErrorState message={error} retry={() => void load()} />}
         {!loading && !error && rows.length === 0 && <EmptyState message="No hay casos para los filtros seleccionados." />}
@@ -110,7 +114,7 @@ export default function FraudCasesPage() {
             </table>
           </div>
         )}
-      </AdminCard>
+      </SectionCard>
     </div>
   );
 }
