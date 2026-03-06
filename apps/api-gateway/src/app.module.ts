@@ -63,6 +63,9 @@ const adminTripsRoutes: RouteInfo[] = [
   { path: 'api/admin/trips', method: RequestMethod.ALL },
   { path: 'api/admin/trips/*', method: RequestMethod.ALL },
 ];
+const adminDriversLiveRoutes: RouteInfo[] = [
+  { path: 'api/admin/drivers/live', method: RequestMethod.ALL },
+];
 const adminGeoZonesRoutes: RouteInfo[] = [
   { path: 'api/admin/geozones', method: RequestMethod.ALL },
   { path: 'api/admin/geozones/*', method: RequestMethod.ALL },
@@ -298,6 +301,7 @@ export class AppModule implements NestModule {
         ...adminDriverRoutes,
         ...adminKycDriverRoutes,
         ...adminTripsRoutes,
+        ...adminDriversLiveRoutes,
         ...adminGeoZonesRoutes,
         ...adminSafetyAlertsRoutes,
         ...adminScoresRoutes,
@@ -381,8 +385,6 @@ export class AppModule implements NestModule {
       )
       .forRoutes(...driverRoutes);
 
-
-
     consumer
       .apply(
         createServiceProxy(
@@ -412,6 +414,22 @@ export class AppModule implements NestModule {
         ),
       )
       .forRoutes(...adminNotificationsRoutes);
+
+    // Keep this explicit route before adminDriverRoutes proxy to avoid wildcard shadowing.
+    consumer
+      .apply(
+        createServiceProxy(
+          {
+            target: process.env.RIDE_SERVICE_URL,
+            changeOrigin: true,
+            xfwd: true,
+            pathRewrite: { '^/api/admin/drivers/live': '/admin/drivers/live' },
+          },
+          timeoutMs,
+          connectTimeoutMs,
+        ),
+      )
+      .forRoutes(...adminDriversLiveRoutes);
 
     consumer
       .apply(

@@ -12,7 +12,9 @@ type NearbyQuery = {
 export class DriverGeoIndexService {
   private readonly logger = new Logger(DriverGeoIndexService.name);
 
-  constructor(@Optional() @Inject(REDIS_CLIENT) private readonly redisClient: RedisClient | null = null) {}
+  constructor(
+    @Optional() @Inject(REDIS_CLIENT) private readonly redisClient: RedisClient | null = null,
+  ) {}
 
   /**
    * Redis GEO driver index keys:
@@ -55,6 +57,26 @@ export class DriverGeoIndexService {
     } catch (error) {
       this.logger.warn(`Driver GEO lookup failed: ${(error as Error).message}`);
       throw error;
+    }
+  }
+
+  /**
+   * Returns driver IDs that still have alive TTL marker in Redis.
+   * If Redis is unavailable, returns null so callers can fallback to DB-only freshness.
+   */
+  async getAliveDriverIds(driverUserIds: string[]): Promise<Set<string> | null> {
+    const redis = this.redisClient;
+    if (!redis) return null;
+    if (!driverUserIds.length) return new Set<string>();
+
+    try {
+      const aliveKeys = driverUserIds.map((id) => `drivers:geo:alive:${id}`);
+      const aliveValues = (await redis.mget(aliveKeys)) as Array<string | null>;
+      const alive = driverUserIds.filter((_, idx) => aliveValues[idx] === '1');
+      return new Set(alive);
+    } catch (error) {
+      this.logger.warn(`Driver GEO alive lookup failed: ${(error as Error).message}`);
+      return null;
     }
   }
 }

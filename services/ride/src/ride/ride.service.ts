@@ -141,7 +141,13 @@ export class RideService implements OnModuleInit {
     });
   }
 
-  async listAdminAudit(filter: { from?: string; to?: string; action?: string; entityType?: string; adminId?: string }) {
+  async listAdminAudit(filter: {
+    from?: string;
+    to?: string;
+    action?: string;
+    entityType?: string;
+    adminId?: string;
+  }) {
     return this.prisma.adminAuditLog.findMany({
       where: {
         ...(filter.action ? { action: filter.action } : {}),
@@ -292,7 +298,10 @@ export class RideService implements OnModuleInit {
 
   private async getPricingProfileByKey(key: string) {
     const profiles = await this.getPricingProfiles();
-    return (profiles.find((profile) => profile.key === key) as Record<string, number> | undefined) ?? null;
+    return (
+      (profiles.find((profile) => profile.key === key) as Record<string, number> | undefined) ??
+      null
+    );
   }
 
   private async computeBasePrice(
@@ -303,7 +312,8 @@ export class RideService implements OnModuleInit {
     const pricing = await this.getActivePricing(input);
     const km = distanceKm ?? 5;
     const eta = etaMin ?? 10;
-    const subtotal = pricing.base_fare + km * pricing.per_km + eta * pricing.per_min + (pricing.night_fee ?? 0);
+    const subtotal =
+      pricing.base_fare + km * pricing.per_km + eta * pricing.per_min + (pricing.night_fee ?? 0);
     const surged = subtotal * Math.max(1, Number(pricing.surge ?? 1));
     return Math.round(Math.max(pricing.minimum, surged));
   }
@@ -547,6 +557,86 @@ export class RideService implements OnModuleInit {
     return { message: 'pong' };
   }
 
+  async getAdminLiveDrivers() {
+    const freshnessSeconds = Math.max(
+      5,
+      Number(process.env.DRIVER_PRESENCE_FRESHNESS_SECONDS ?? 60) || 60,
+    );
+    const freshnessMs = freshnessSeconds * 1000;
+    const now = Date.now();
+
+    const presencesRaw = await this.prisma.driverPresence.findMany({
+      where: {
+        is_online: true,
+        last_lat: { not: null },
+        last_lng: { not: null },
+      },
+      orderBy: { last_seen_at: 'desc' },
+    });
+    const presences = presencesRaw.filter(
+      (presence) =>
+        typeof presence.last_lat === 'number' &&
+        Number.isFinite(presence.last_lat) &&
+        typeof presence.last_lng === 'number' &&
+        Number.isFinite(presence.last_lng),
+    );
+
+    const driverIds = presences.map((presence) => presence.driver_user_id);
+    const [activeTrips, aliveFromRedis] = await Promise.all([
+      driverIds.length
+        ? this.prisma.trip.findMany({
+            where: {
+              driver_user_id: { in: driverIds },
+              status: {
+                in: [TripStatus.DRIVER_EN_ROUTE, TripStatus.OTP_PENDING, TripStatus.IN_PROGRESS],
+              },
+            },
+            select: { driver_user_id: true },
+          })
+        : Promise.resolve([]),
+      this.driverGeoIndex.getAliveDriverIds(driverIds),
+    ]);
+
+    const onTripIds = new Set(activeTrips.map((trip) => trip.driver_user_id).filter(Boolean));
+
+    const drivers = presences.map((presence) => {
+      const lastSeenAt = presence.last_seen_at;
+      const freshByTime = !!lastSeenAt && now - lastSeenAt.getTime() <= freshnessMs;
+      const isAliveInRedis = aliveFromRedis ? aliveFromRedis.has(presence.driver_user_id) : true;
+      const isFresh = freshByTime && isAliveInRedis;
+      const onTrip = onTripIds.has(presence.driver_user_id);
+      const operationalStatus = onTrip ? 'on_trip' : isFresh ? 'available' : 'stale';
+
+      return {
+        driverId: presence.driver_user_id,
+        lat: presence.last_lat,
+        lng: presence.last_lng,
+        lastSeenAt: lastSeenAt?.toISOString() ?? null,
+        isOnline: presence.is_online,
+        isFresh,
+        operationalStatus,
+        onTrip,
+      };
+    });
+
+    const freshDrivers = drivers.filter((driver) => driver.isFresh).length;
+    const staleDrivers = drivers.length - freshDrivers;
+    const onTripDrivers = drivers.filter((driver) => driver.onTrip).length;
+    const idleDrivers = drivers.filter((driver) => driver.operationalStatus === 'available').length;
+
+    return {
+      generatedAt: new Date(now).toISOString(),
+      drivers,
+      stats: {
+        onlineDrivers: drivers.length,
+        freshDrivers,
+        staleDrivers,
+        onTripDrivers,
+        idleDrivers,
+      },
+    };
+  }
+
   async requestTrip(
     passengerUserId: string,
     dto: TripRequestDto,
@@ -637,7 +727,9 @@ export class RideService implements OnModuleInit {
     });
 
     const matchingStart = this.nowMs();
-    const weightsCfg = await this.prisma.appConfig.findUnique({ where: { key: 'matching_weights' } });
+    const weightsCfg = await this.prisma.appConfig.findUnique({
+      where: { key: 'matching_weights' },
+    });
     /**
      * matching_weights extra optional keys:
      * - w_eta: ETA contribution weight (default 0.1)
@@ -672,7 +764,7 @@ export class RideService implements OnModuleInit {
     let geoUnavailable = false;
     try {
       const aggregated = new Set<string>();
-      for (const radiusMeters of (radiusSteps.length ? radiusSteps : [2000, 4000, 7000])) {
+      for (const radiusMeters of radiusSteps.length ? radiusSteps : [2000, 4000, 7000]) {
         const idsAtRadius = await this.driverGeoIndex.findNearby({
           lat: dto.origin_lat,
           lng: dto.origin_lng,
@@ -685,7 +777,9 @@ export class RideService implements OnModuleInit {
       redisCandidateIds = Array.from(aggregated);
     } catch (error) {
       geoUnavailable = true;
-      this.logger.warn(`driver geo index unavailable, falling back to DB presence: ${(error as Error).message}`);
+      this.logger.warn(
+        `driver geo index unavailable, falling back to DB presence: ${(error as Error).message}`,
+      );
     }
 
     const presences = await this.prisma.driverPresence.findMany({
@@ -720,7 +814,9 @@ export class RideService implements OnModuleInit {
       }),
     ]);
     const scoreMap = new Map(scores.map((sc) => [sc.user_id, sc]));
-    const reliabilityMap = new Map(reliabilitySignals.map((item) => [item.user_id, item._count._all]));
+    const reliabilityMap = new Map(
+      reliabilitySignals.map((item) => [item.user_id, item._count._all]),
+    );
     const matchingZone = activePremiumZones.find(
       (zone) =>
         Array.isArray(zone.polygon_json) &&
@@ -771,10 +867,7 @@ export class RideService implements OnModuleInit {
             ? 0.5
             : 0.2;
       const peakBonus = peakNow && driverScore >= 80 ? 0.3 : 0;
-      const premiumBonus =
-        matchingZone && driverScore >= matchingZone.min_driver_score
-          ? 0.5
-          : 0;
+      const premiumBonus = matchingZone && driverScore >= matchingZone.min_driver_score ? 0.5 : 0;
       const reliability = 1 - Math.min(1, (reliabilityMap.get(p.driver_user_id) ?? 0) / 10);
 
       const matchingScore =
@@ -825,7 +918,11 @@ export class RideService implements OnModuleInit {
     dto: CreateBidDto,
     headers?: { ip?: string; ua?: string; device?: string },
   ) {
-    const bidAllowed = await this.rateLimit.isAllowed(`rl:create_bid:${driverUserId}:${tripId}`, 3, 10);
+    const bidAllowed = await this.rateLimit.isAllowed(
+      `rl:create_bid:${driverUserId}:${tripId}`,
+      3,
+      10,
+    );
     if (!bidAllowed) throw new HttpException('Rate limit exceeded', 429);
 
     const trip = await this.prisma.trip.findUnique({ where: { id: tripId } });
@@ -1123,14 +1220,22 @@ export class RideService implements OnModuleInit {
   }
 
   async trackLocation(tripId: string, driverUserId: string, dto: LocationDto) {
-    const locationAllowed = await this.rateLimit.isAllowed(`rl:track_location:${driverUserId}:${tripId}`, 1, 2);
+    const locationAllowed = await this.rateLimit.isAllowed(
+      `rl:track_location:${driverUserId}:${tripId}`,
+      1,
+      2,
+    );
     if (!locationAllowed) throw new HttpException('Rate limit exceeded', 429);
 
     const trip = await this.getTripForDriver(tripId, driverUserId);
     const allowedStatuses: TripStatus[] = [TripStatus.DRIVER_EN_ROUTE, TripStatus.IN_PROGRESS];
     if (!allowedStatuses.includes(trip.status))
       throw new BadRequestException('Invalid status for location');
-    const throttleAllowed = await this.redisState.tryAcquireLocationThrottle(tripId, driverUserId, 2);
+    const throttleAllowed = await this.redisState.tryAcquireLocationThrottle(
+      tripId,
+      driverUserId,
+      2,
+    );
     if (!throttleAllowed) throw new BadRequestException('Rate limit: 1 update / 2s');
 
     const loc = await this.prisma.tripLocation.create({
@@ -1662,13 +1767,17 @@ export class RideService implements OnModuleInit {
     return this.merit.putConfig(key, value);
   }
 
-
   async listIncentiveCampaigns() {
-    const campaigns = await this.prisma.incentiveCampaign.findMany({ orderBy: { created_at: 'desc' } });
+    const campaigns = await this.prisma.incentiveCampaign.findMany({
+      orderBy: { created_at: 'desc' },
+    });
     const now = new Date();
     return campaigns.map((campaign) => ({
       ...campaign,
-      status: campaign.is_active && campaign.starts_at <= now && campaign.ends_at >= now ? 'active' : 'inactive',
+      status:
+        campaign.is_active && campaign.starts_at <= now && campaign.ends_at >= now
+          ? 'active'
+          : 'inactive',
     }));
   }
 
@@ -1730,7 +1839,10 @@ export class RideService implements OnModuleInit {
       if (!driverId || blockedSet.has(driverId)) continue;
       const current = byDriver.get(driverId) ?? { trips_completed: 0, hours_completed: 0 };
       current.trips_completed += 1;
-      const hours = trip.started_at && trip.completed_at ? (trip.completed_at.getTime() - trip.started_at.getTime()) / 3600000 : 0;
+      const hours =
+        trip.started_at && trip.completed_at
+          ? (trip.completed_at.getTime() - trip.started_at.getTime()) / 3600000
+          : 0;
       current.hours_completed += Math.max(0, hours);
       byDriver.set(driverId, current);
     }
@@ -1752,11 +1864,14 @@ export class RideService implements OnModuleInit {
     };
   }
 
-
   private resolveReportRange(input?: { from?: string; to?: string }) {
     const to = input?.to ? new Date(input.to) : new Date();
-    const from = input?.from ? new Date(input.from) : new Date(to.getTime() - 6 * 24 * 60 * 60 * 1000);
-    const safeFrom = Number.isNaN(from.getTime()) ? new Date(to.getTime() - 6 * 24 * 60 * 60 * 1000) : from;
+    const from = input?.from
+      ? new Date(input.from)
+      : new Date(to.getTime() - 6 * 24 * 60 * 60 * 1000);
+    const safeFrom = Number.isNaN(from.getTime())
+      ? new Date(to.getTime() - 6 * 24 * 60 * 60 * 1000)
+      : from;
     const safeTo = Number.isNaN(to.getTime()) ? new Date() : to;
     return safeFrom <= safeTo ? { from: safeFrom, to: safeTo } : { from: safeTo, to: safeFrom };
   }
@@ -1766,30 +1881,39 @@ export class RideService implements OnModuleInit {
     const msPerDay = 24 * 60 * 60 * 1000;
     const days = Math.max(1, Math.ceil((range.to.getTime() - range.from.getTime() + 1) / msPerDay));
 
-    const [totalRides, completedRides, cancelledRides, revenueAgg, activeDriverRows, activeRiderRows, commissionPolicy] =
-      await Promise.all([
-        this.prisma.trip.count({ where: { created_at: { gte: range.from, lte: range.to } } }),
-        this.prisma.trip.count({ where: { status: TripStatus.COMPLETED, created_at: { gte: range.from, lte: range.to } } }),
-        this.prisma.trip.count({
-          where: {
-            status: { in: [TripStatus.CANCELLED_BY_DRIVER, TripStatus.CANCELLED_BY_PASSENGER] },
-            created_at: { gte: range.from, lte: range.to },
-          },
-        }),
-        this.prisma.trip.aggregate({
-          _sum: { price_final: true },
-          where: { status: TripStatus.COMPLETED, created_at: { gte: range.from, lte: range.to } },
-        }),
-        this.prisma.trip.groupBy({
-          by: ['driver_user_id'],
-          where: { driver_user_id: { not: null }, created_at: { gte: range.from, lte: range.to } },
-        }),
-        this.prisma.trip.groupBy({
-          by: ['passenger_user_id'],
-          where: { created_at: { gte: range.from, lte: range.to } },
-        }),
-        this.prisma.commissionPolicy.findUnique({ where: { key: 'default_commission_bps' } }),
-      ]);
+    const [
+      totalRides,
+      completedRides,
+      cancelledRides,
+      revenueAgg,
+      activeDriverRows,
+      activeRiderRows,
+      commissionPolicy,
+    ] = await Promise.all([
+      this.prisma.trip.count({ where: { created_at: { gte: range.from, lte: range.to } } }),
+      this.prisma.trip.count({
+        where: { status: TripStatus.COMPLETED, created_at: { gte: range.from, lte: range.to } },
+      }),
+      this.prisma.trip.count({
+        where: {
+          status: { in: [TripStatus.CANCELLED_BY_DRIVER, TripStatus.CANCELLED_BY_PASSENGER] },
+          created_at: { gte: range.from, lte: range.to },
+        },
+      }),
+      this.prisma.trip.aggregate({
+        _sum: { price_final: true },
+        where: { status: TripStatus.COMPLETED, created_at: { gte: range.from, lte: range.to } },
+      }),
+      this.prisma.trip.groupBy({
+        by: ['driver_user_id'],
+        where: { driver_user_id: { not: null }, created_at: { gte: range.from, lte: range.to } },
+      }),
+      this.prisma.trip.groupBy({
+        by: ['passenger_user_id'],
+        where: { created_at: { gte: range.from, lte: range.to } },
+      }),
+      this.prisma.commissionPolicy.findUnique({ where: { key: 'default_commission_bps' } }),
+    ]);
 
     const defaultCommissionBps = Number(commissionPolicy?.value_json ?? 1000);
     const takeRate = Number(((defaultCommissionBps / 10000) * 100).toFixed(2));
@@ -1874,15 +1998,18 @@ export class RideService implements OnModuleInit {
     return next;
   }
 
-  async putAdminPricing(adminUserId: string, dto: {
-    base_fare: number;
-    per_km: number;
-    per_min: number;
-    minimum: number;
-    cancel_fee: number;
-    surge: number;
-    night_fee?: number;
-  }) {
+  async putAdminPricing(
+    adminUserId: string,
+    dto: {
+      base_fare: number;
+      per_km: number;
+      per_min: number;
+      minimum: number;
+      cancel_fee: number;
+      surge: number;
+      night_fee?: number;
+    },
+  ) {
     const payload = {
       base_fare: dto.base_fare,
       per_km: dto.per_km,
@@ -1974,7 +2101,9 @@ manual_review: ${nextNotes}`.trim(),
       },
     });
 
-    await this.logAdminAudit(actorUserId, 'fraud.manual_review', 'fraud_case', id, { notes: nextNotes });
+    await this.logAdminAudit(actorUserId, 'fraud.manual_review', 'fraud_case', id, {
+      notes: nextNotes,
+    });
     return updated;
   }
 
@@ -1988,7 +2117,10 @@ manual_review: ${nextNotes}`.trim(),
       { case_id: id, action: 'block_user' },
     );
     await this.assignFraudCase(id, actorUserId);
-    await this.logAdminAudit(actorUserId, 'fraud.block_user', 'user', userId, { case_id: id, note });
+    await this.logAdminAudit(actorUserId, 'fraud.block_user', 'user', userId, {
+      case_id: id,
+      note,
+    });
     return { ok: true, hold };
   }
 
@@ -2002,7 +2134,10 @@ manual_review: ${nextNotes}`.trim(),
       { case_id: id, action: 'block_driver' },
     );
     await this.assignFraudCase(id, actorUserId);
-    await this.logAdminAudit(actorUserId, 'fraud.block_driver', 'driver', driverId, { case_id: id, note });
+    await this.logAdminAudit(actorUserId, 'fraud.block_driver', 'driver', driverId, {
+      case_id: id,
+      note,
+    });
     return { ok: true, hold };
   }
 
@@ -2239,5 +2374,4 @@ manual_review: ${nextNotes}`.trim(),
 
     return { ok: true, alert };
   }
-
 }
