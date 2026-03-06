@@ -16,6 +16,7 @@ import { RefreshCw } from 'lucide-react';
 type Point = { lat: number; lng: number };
 
 type DriverRow = Record<string, unknown>;
+type LiveDriversPayload = { drivers?: DriverRow[]; stats?: Record<string, unknown> };
 type TripRow = Record<string, unknown> & { id?: string | number };
 
 type TripPath = {
@@ -27,8 +28,14 @@ const FIRMA_CENTER: [number, number] = [-33.4592, -61.4832];
 const REFRESH_MS = 15_000;
 
 const OperationsLiveMap = dynamic(
-  () => import('../../../../components/maps/operations-live-map').then((mod) => mod.OperationsLiveMap),
-  { ssr: false, loading: () => <div className="h-[560px] animate-pulse rounded-lg border border-slate-700 bg-slate-900/70" /> },
+  () =>
+    import('../../../../components/maps/operations-live-map').then((mod) => mod.OperationsLiveMap),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-[560px] animate-pulse rounded-lg border border-slate-700 bg-slate-900/70" />
+    ),
+  },
 );
 
 function asArray<T>(value: unknown): T[] {
@@ -80,7 +87,12 @@ function parseTripPoints(trip: Record<string, unknown>) {
 }
 
 function parseDriverPoint(driver: DriverRow) {
-  const nestedCandidates = [driver.last_location, driver.current_location, driver.position, driver.location];
+  const nestedCandidates = [
+    driver.last_location,
+    driver.current_location,
+    driver.position,
+    driver.location,
+  ];
   for (const candidate of nestedCandidates) {
     const point = parsePoint(candidate);
     if (point) return point;
@@ -116,7 +128,7 @@ export default function AdminOperationsLivePage() {
 
     try {
       const [driversRes, tripsRes, incidentsRes] = await Promise.all([
-        fetch('/api/admin/drivers?page_size=200', { cache: 'no-store' }),
+        fetch('/api/admin/drivers/live', { cache: 'no-store' }),
         fetch('/api/admin/trips?status=IN_PROGRESS&page_size=50', { cache: 'no-store' }),
         fetch('/api/admin/safety-alerts?status=OPEN', { cache: 'no-store' }),
       ]);
@@ -131,14 +143,14 @@ export default function AdminOperationsLivePage() {
         incidentsRes.json(),
       ]);
 
-      const drivers = extractItems(driversPayload) as DriverRow[];
+      const liveDriversPayload = asRecord(driversPayload) as LiveDriversPayload | null;
+      const drivers = Array.isArray(liveDriversPayload?.drivers)
+        ? (liveDriversPayload?.drivers as DriverRow[])
+        : (extractItems(driversPayload) as DriverRow[]);
       const trips = extractItems(tripsPayload) as TripRow[];
       const incidents = extractItems(incidentsPayload);
 
-      const onlineDrivers = drivers.filter((driver) => {
-        const status = String(driver.status ?? '').toUpperCase();
-        return status === 'ACTIVE' || status === 'ONLINE' || status === 'AVAILABLE' || status === 'ON_TRIP';
-      });
+      const onlineDrivers = drivers.filter((driver) => driver.isOnline !== false);
 
       const points = onlineDrivers.map(parseDriverPoint).filter(Boolean) as Point[];
       const paths = trips
@@ -154,7 +166,9 @@ export default function AdminOperationsLivePage() {
       setOpenIncidents(incidents.length);
       setLastUpdatedAt(new Date().toISOString());
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : 'No pudimos actualizar el mapa operativo.');
+      setError(
+        loadError instanceof Error ? loadError.message : 'No pudimos actualizar el mapa operativo.',
+      );
     } finally {
       setLoading(false);
     }
@@ -196,18 +210,30 @@ export default function AdminOperationsLivePage() {
       />
 
       <div className="grid gap-5 lg:grid-cols-[1fr_340px]">
-        <SectionCard title="Mapa operativo" description="Marcadores azules: conductores online. Trazas naranjas: viajes activos.">
+        <SectionCard
+          title="Mapa operativo"
+          description="Marcadores azules: conductores online. Trazas naranjas: viajes activos."
+        >
           {loading ? <LoadingState message="Cargando posiciones en tiempo real..." /> : null}
           {!loading && error ? <ErrorState message={error} retry={() => void load()} /> : null}
           {!loading && !error && !hasPositions ? (
             <EmptyState
               title="Sin posiciones disponibles"
               description="No hay coordenadas activas para mostrar en este momento."
-              action={<Button onClick={() => void load()}><RefreshCw className="mr-2 h-4 w-4" />Reintentar</Button>}
+              action={
+                <Button onClick={() => void load()}>
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                  Reintentar
+                </Button>
+              }
             />
           ) : null}
           {!loading && !error && hasPositions ? (
-            <OperationsLiveMap center={FIRMA_CENTER} driverPoints={driverPoints} tripPaths={tripPaths} />
+            <OperationsLiveMap
+              center={FIRMA_CENTER}
+              driverPoints={driverPoints}
+              tripPaths={tripPaths}
+            />
           ) : null}
         </SectionCard>
 
@@ -215,12 +241,27 @@ export default function AdminOperationsLivePage() {
           <SectionCard title="Métricas rápidas" description="Monitoreo operativo actual.">
             <div className="space-y-3">
               {metrics.map((metric) => (
-                <div key={metric.label} className="rounded-lg border border-slate-800 bg-slate-950 p-3">
+                <div
+                  key={metric.label}
+                  className="rounded-lg border border-slate-800 bg-slate-950 p-3"
+                >
                   <p className="text-xs uppercase tracking-wide text-slate-400">{metric.label}</p>
                   <div className="mt-2 flex items-center justify-between">
                     <p className="text-2xl font-semibold">{metric.value}</p>
-                    <Badge variant={metric.tone === 'success' ? 'success' : metric.tone === 'danger' ? 'danger' : 'outline'}>
-                      {metric.tone === 'success' ? 'OK' : metric.tone === 'danger' ? 'Atención' : 'Seguimiento'}
+                    <Badge
+                      variant={
+                        metric.tone === 'success'
+                          ? 'success'
+                          : metric.tone === 'danger'
+                            ? 'danger'
+                            : 'outline'
+                      }
+                    >
+                      {metric.tone === 'success'
+                        ? 'OK'
+                        : metric.tone === 'danger'
+                          ? 'Atención'
+                          : 'Seguimiento'}
                     </Badge>
                   </div>
                 </div>
@@ -234,13 +275,16 @@ export default function AdminOperationsLivePage() {
                 <span className="h-3 w-3 rounded-full bg-blue-500" /> Conductores online
               </li>
               <li className="flex items-center gap-2">
-                <span className="h-3 w-3 rounded-full bg-orange-500" /> Viajes activos (marker/polilínea)
+                <span className="h-3 w-3 rounded-full bg-orange-500" /> Viajes activos
+                (marker/polilínea)
               </li>
               <li className="flex items-center gap-2">
                 <span className="h-3 w-3 rounded-full bg-rose-500" /> Incidentes abiertos
               </li>
             </ul>
-            <p className="mt-4 text-xs text-slate-400">Última actualización: {lastUpdatedAt ? formatDateTime(lastUpdatedAt) : '-'}</p>
+            <p className="mt-4 text-xs text-slate-400">
+              Última actualización: {lastUpdatedAt ? formatDateTime(lastUpdatedAt) : '-'}
+            </p>
           </SectionCard>
         </div>
       </div>
