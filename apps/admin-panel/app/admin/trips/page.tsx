@@ -1,13 +1,17 @@
 'use client';
 
+import type { ColumnDef } from '@tanstack/react-table';
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { PageHeader } from '../../../components/admin/page-header';
 import { SectionCard } from '../../../components/admin/section-card';
-import { DataTable, type ColumnDef } from '../../../components/data-table/DataTable';
+import { DataTable } from '../../../components/data-table/DataTable';
 import { useDebouncedValue, useQueryState } from '../../../components/data-table/query-state';
 import { DataTableToolbar } from '../../../components/data-table/toolbar';
 import { Badge } from '../../../components/ui/badge';
+import { Input } from '../../../components/ui/input';
+
+const moneyFormatter = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' });
 
 type TripRow = {
   id: string;
@@ -24,28 +28,57 @@ type TripRow = {
 
 type TripsResponse = {
   items: TripRow[];
-  page: number;
-  page_size: number;
-  total: number;
   total_pages: number;
 };
 
 const columnsBase: ColumnDef<TripRow>[] = [
-  { id: 'id', header: 'Trip ID', sortable: true, cell: (row) => <span className="font-mono text-xs">{row.id}</span>, sortValue: (row) => row.id },
-  { id: 'status', header: 'Estado', sortable: true, cell: (row) => <Badge variant={row.status === 'COMPLETED' ? 'success' : 'outline'}>{row.status}</Badge>, sortValue: (row) => row.status },
-  { id: 'rider', header: 'Rider', cell: (row) => <span className="font-mono text-xs">{row.rider_user_id ?? row.passenger_user_id}</span> },
-  { id: 'driver', header: 'Driver', cell: (row) => <span className="font-mono text-xs">{row.driver_user_id ?? '-'}</span> },
-  { id: 'origin', header: 'Origen', cell: (row) => row.origin_address },
-  { id: 'dest', header: 'Destino', cell: (row) => row.dest_address },
-  { id: 'total', header: 'Total', sortable: true, cell: (row) => row.total, sortValue: (row) => row.total },
-  { id: 'payment', header: 'Pago', cell: (row) => row.payment_method || '-' },
-  { id: 'created', header: 'Creado', sortable: true, cell: (row) => new Date(row.created_at).toLocaleString(), sortValue: (row) => row.created_at },
+  {
+    accessorKey: 'id',
+    header: 'Trip ID',
+    meta: 'Trip ID',
+    cell: ({ row }) => <span className="font-mono text-xs">{row.original.id}</span>,
+  },
+  {
+    accessorKey: 'status',
+    header: 'Estado',
+    meta: 'Estado',
+    cell: ({ row }) => <Badge variant={row.original.status === 'COMPLETED' ? 'success' : 'outline'}>{row.original.status}</Badge>,
+  },
+  {
+    id: 'rider',
+    header: 'Rider',
+    meta: 'Rider',
+    cell: ({ row }) => <span className="font-mono text-xs">{row.original.rider_user_id ?? row.original.passenger_user_id}</span>,
+  },
+  {
+    id: 'driver',
+    header: 'Driver',
+    meta: 'Driver',
+    cell: ({ row }) => <span className="font-mono text-xs">{row.original.driver_user_id ?? '-'}</span>,
+  },
+  { accessorKey: 'origin_address', header: 'Origen', meta: 'Origen' },
+  { accessorKey: 'dest_address', header: 'Destino', meta: 'Destino' },
+  {
+    accessorKey: 'total',
+    header: 'Total',
+    meta: 'Total',
+    cell: ({ row }) => moneyFormatter.format(row.original.total ?? 0),
+  },
+  { accessorKey: 'payment_method', header: 'Pago', meta: 'Pago', cell: ({ row }) => row.original.payment_method || '-' },
+  {
+    accessorKey: 'created_at',
+    header: 'Creado',
+    meta: 'Creado',
+    cell: ({ row }) => new Date(row.original.created_at).toLocaleString('es-AR'),
+  },
   {
     id: 'actions',
     header: 'Acciones',
-    hideable: false,
-    cell: (row) => (
-      <Link href={`/admin/trips/${row.id}`} className="text-cyan-400 hover:underline">
+    meta: 'Acciones',
+    enableHiding: false,
+    enableSorting: false,
+    cell: ({ row }) => (
+      <Link href={`/admin/trips/${row.original.id}`} className="text-cyan-400 hover:underline">
         Detalle
       </Link>
     ),
@@ -71,7 +104,7 @@ export default function AdminTripsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [totalPages, setTotalPages] = useState(1);
-  const [visibleColumns, setVisibleColumns] = useState<Record<string, boolean>>({});
+  const [refreshTick, setRefreshTick] = useState(0);
 
   useEffect(() => setSearchInput(state.search), [state.search]);
   useEffect(() => patch({ search: debouncedSearch, page: '1' }), [debouncedSearch, patch]);
@@ -88,73 +121,81 @@ export default function AdminTripsPage() {
       })
       .catch((loadError) => setError(loadError instanceof Error ? loadError.message : 'Error inesperado'))
       .finally(() => setLoading(false));
-  }, [queryString]);
-
-  const columns = useMemo(() => {
-    if (Object.keys(visibleColumns).length === 0) return columnsBase;
-    return columnsBase.filter((column) => column.hideable === false || visibleColumns[column.id] !== false);
-  }, [visibleColumns]);
+  }, [queryString, refreshTick]);
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Trips / Rides" subtitle="Tabla de viajes con estado de filtros sincronizado en URL." />
-      <SectionCard title="Viajes" description="DataTable estándar con selección, orden y visibilidad de columnas.">
+      <PageHeader title="Trips / Rides" subtitle="Tabla de viajes con filtros sincronizados en URL." />
+      <SectionCard title="Viajes" description="DataTable con TanStack + shadcn/ui para ordenar, filtrar y exportar.">
         <DataTable
           data={rows}
-          columns={columns}
-          getRowId={(row) => row.id}
+          columns={columnsBase}
           loading={loading}
           error={error}
-          onRetry={() => patch({ page: state.page })}
+          onRetry={() => setRefreshTick((value) => value + 1)}
           emptyTitle="No hay viajes"
           emptyDescription="No hay resultados para este conjunto de filtros."
           page={Number(state.page || '1')}
           totalPages={totalPages}
           onPageChange={(page) => patch({ page: String(page) })}
-          toolbar={
-            <DataTableToolbar
-              search={searchInput}
-              onSearchChange={setSearchInput}
-              searchPlaceholder="Trip ID / texto"
-              filters={
-                <>
-                  <input className="flex h-9 w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-1 text-sm text-slate-100" placeholder="driver_id" value={state.driver_id} onChange={(e) => patch({ driver_id: e.target.value, page: '1' })} />
-                  <input className="flex h-9 w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-1 text-sm text-slate-100" placeholder="rider_id" value={state.rider_id} onChange={(e) => patch({ rider_id: e.target.value, page: '1' })} />
-                  <input className="flex h-9 w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-1 text-sm text-slate-100" placeholder="status" value={state.status} onChange={(e) => patch({ status: e.target.value, page: '1' })} />
-                  <input className="flex h-9 w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-1 text-sm text-slate-100" placeholder="zone" value={state.zone} onChange={(e) => patch({ zone: e.target.value, page: '1' })} />
-                  <input type="date" className="flex h-9 w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-1 text-sm text-slate-100" value={state.from} onChange={(e) => patch({ from: e.target.value, page: '1' })} />
-                  <input type="date" className="flex h-9 w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-1 text-sm text-slate-100" value={state.to} onChange={(e) => patch({ to: e.target.value, page: '1' })} />
-                </>
-              }
-              columns={columnsBase.map((column) => ({ id: column.id, label: column.header, visible: visibleColumns[column.id] !== false, canHide: column.hideable !== false }))}
-              onToggleColumn={(id) => setVisibleColumns((current) => ({ ...current, [id]: current[id] === false }))}
-              onExport={() => {
-                const headers = ['id', 'created_at', 'status', 'rider', 'driver', 'origin', 'dest', 'total', 'payment_method'];
-                const csvLines = [headers.join(',')].concat(
-                  rows.map((trip) =>
-                    [
-                      trip.id,
-                      new Date(trip.created_at).toISOString(),
-                      trip.status,
-                      trip.rider_user_id ?? trip.passenger_user_id,
-                      trip.driver_user_id ?? '',
-                      `"${(trip.origin_address ?? '').replace(/"/g, '""')}"`,
-                      `"${(trip.dest_address ?? '').replace(/"/g, '""')}"`,
-                      String(trip.total ?? ''),
-                      trip.payment_method ?? '',
-                    ].join(','),
-                  ),
-                );
-                const blob = new Blob([csvLines.join('\n')], { type: 'text/csv;charset=utf-8;' });
-                const url = URL.createObjectURL(blob);
-                const anchor = document.createElement('a');
-                anchor.href = url;
-                anchor.download = `trips-${new Date().toISOString().slice(0, 10)}.csv`;
-                anchor.click();
-                URL.revokeObjectURL(url);
-              }}
-            />
-          }
+          enablePinning
+          toolbar={(table) => (
+            <>
+              <DataTableToolbar
+                table={table}
+                search={searchInput}
+                onSearchChange={setSearchInput}
+                searchPlaceholder="Trip ID / texto"
+                facetedFilters={[
+                  {
+                    key: 'status',
+                    label: 'Estado',
+                    value: state.status,
+                    options: [
+                      { label: 'COMPLETED', value: 'COMPLETED' },
+                      { label: 'CANCELED', value: 'CANCELED' },
+                      { label: 'IN_PROGRESS', value: 'IN_PROGRESS' },
+                    ],
+                    onChange: (value) => patch({ status: value, page: '1' }),
+                  },
+                ]}
+                onRefresh={() => setRefreshTick((value) => value + 1)}
+                onExport={() => {
+                  const headers = ['id', 'created_at', 'status', 'rider', 'driver', 'origin', 'dest', 'total', 'payment_method'];
+                  const csvLines = [headers.join(',')].concat(
+                    rows.map((trip) =>
+                      [
+                        trip.id,
+                        new Date(trip.created_at).toISOString(),
+                        trip.status,
+                        trip.rider_user_id ?? trip.passenger_user_id,
+                        trip.driver_user_id ?? '',
+                        `"${(trip.origin_address ?? '').replace(/"/g, '""')}"`,
+                        `"${(trip.dest_address ?? '').replace(/"/g, '""')}"`,
+                        String(trip.total ?? ''),
+                        trip.payment_method ?? '',
+                      ].join(','),
+                    ),
+                  );
+                  const blob = new Blob([csvLines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+                  const url = URL.createObjectURL(blob);
+                  const anchor = document.createElement('a');
+                  anchor.href = url;
+                  anchor.download = `trips-${new Date().toISOString().slice(0, 10)}.csv`;
+                  anchor.click();
+                  URL.revokeObjectURL(url);
+                }}
+                enablePinning
+              />
+              <div className="mt-2 grid gap-2 md:grid-cols-4">
+                <Input placeholder="driver_id" value={state.driver_id} onChange={(e) => patch({ driver_id: e.target.value, page: '1' })} />
+                <Input placeholder="rider_id" value={state.rider_id} onChange={(e) => patch({ rider_id: e.target.value, page: '1' })} />
+                <Input placeholder="zone" value={state.zone} onChange={(e) => patch({ zone: e.target.value, page: '1' })} />
+                <Input type="date" value={state.from} onChange={(e) => patch({ from: e.target.value, page: '1' })} />
+                <Input type="date" value={state.to} onChange={(e) => patch({ to: e.target.value, page: '1' })} />
+              </div>
+            </>
+          )}
         />
       </SectionCard>
     </div>

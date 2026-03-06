@@ -1,23 +1,41 @@
 'use client';
 
+import {
+  type ColumnDef,
+  flexRender,
+  getCoreRowModel,
+  getSortedRowModel,
+  type SortingState,
+  useReactTable,
+  type VisibilityState,
+  type ColumnPinningState,
+} from '@tanstack/react-table';
 import { useMemo, useState } from 'react';
 import { EmptyState, ErrorState, LoadingSkeleton } from '../admin/states';
+import { Checkbox } from '../ui/checkbox';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 import { DataTablePagination } from './pagination';
 
-type ColumnDef<T> = {
-  id: string;
-  header: string;
-  sortable?: boolean;
-  hideable?: boolean;
-  className?: string;
-  cell: (row: T) => React.ReactNode;
-  sortValue?: (row: T) => string | number;
+type DataTableProps<TData> = {
+  data: TData[];
+  columns: ColumnDef<TData, unknown>[];
+  loading: boolean;
+  error: string | null;
+  onRetry?: () => void;
+  emptyTitle: string;
+  emptyDescription?: string;
+  page: number;
+  totalPages: number;
+  onPageChange: (page: number) => void;
+  toolbar?: (table: ReturnType<typeof useReactTable<TData>>) => React.ReactNode;
+  rowSelectionEnabled?: boolean;
+  initialVisibility?: VisibilityState;
+  enablePinning?: boolean;
 };
 
-export function DataTable<T>({
+export function DataTable<TData>({
   data,
   columns,
-  getRowId,
   loading,
   error,
   onRetry,
@@ -27,116 +45,104 @@ export function DataTable<T>({
   totalPages,
   onPageChange,
   toolbar,
-}: {
-  data: T[];
-  columns: ColumnDef<T>[];
-  getRowId: (row: T) => string;
-  loading: boolean;
-  error: string | null;
-  onRetry?: () => void;
-  emptyTitle: string;
-  emptyDescription?: string;
-  page: number;
-  totalPages: number;
-  onPageChange: (page: number) => void;
-  toolbar?: React.ReactNode;
-}) {
-  const [sortBy, setSortBy] = useState<{ id: string; desc: boolean } | null>(null);
-  const [selectedRows, setSelectedRows] = useState<Record<string, boolean>>({});
+  rowSelectionEnabled = true,
+  initialVisibility,
+  enablePinning = false,
+}: DataTableProps<TData>) {
+  const [sorting, setSorting] = useState<SortingState>([]);
+  const [rowSelection, setRowSelection] = useState({});
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(initialVisibility ?? {});
+  const [columnPinning, setColumnPinning] = useState<ColumnPinningState>({ left: [], right: [] });
 
-  const sortedData = useMemo(() => {
-    if (!sortBy) return data;
-    const column = columns.find((item) => item.id === sortBy.id);
-    if (!column || !column.sortable) return data;
-    const getValue = column.sortValue ?? ((row: T) => String(column.cell(row) ?? ''));
-    const sorted = [...data].sort((left, right) => {
-      const leftValue = getValue(left);
-      const rightValue = getValue(right);
-      if (leftValue < rightValue) return sortBy.desc ? 1 : -1;
-      if (leftValue > rightValue) return sortBy.desc ? -1 : 1;
-      return 0;
-    });
-    return sorted;
-  }, [columns, data, sortBy]);
+  const tableColumns = useMemo<ColumnDef<TData, unknown>[]>(() => {
+    if (!rowSelectionEnabled) return columns;
 
-  const allSelected = sortedData.length > 0 && sortedData.every((row) => selectedRows[getRowId(row)]);
+    return [
+      {
+        id: 'select',
+        enableSorting: false,
+        enableHiding: false,
+        header: ({ table }) => (
+          <Checkbox
+            checked={table.getIsAllRowsSelected()}
+            onChange={(event) => table.toggleAllRowsSelected(event.target.checked)}
+            aria-label="Seleccionar todo"
+          />
+        ),
+        cell: ({ row }) => (
+          <Checkbox
+            checked={row.getIsSelected()}
+            onChange={(event) => row.toggleSelected(event.target.checked)}
+            aria-label="Seleccionar fila"
+          />
+        ),
+      },
+      ...columns,
+    ];
+  }, [columns, rowSelectionEnabled]);
+
+  const table = useReactTable({
+    data,
+    columns: tableColumns,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    onSortingChange: setSorting,
+    onRowSelectionChange: setRowSelection,
+    onColumnVisibilityChange: setColumnVisibility,
+    ...(enablePinning ? { onColumnPinningChange: setColumnPinning } : {}),
+    state: {
+      sorting,
+      rowSelection,
+      columnVisibility,
+      ...(enablePinning ? { columnPinning } : {}),
+    },
+    enableRowSelection: rowSelectionEnabled,
+  });
 
   return (
     <div>
-      {toolbar}
+      {toolbar?.(table)}
       <div className="mt-4 rounded-lg border border-slate-800">
         {loading && <LoadingSkeleton rows={8} />}
         {!loading && error && <ErrorState message={error} retry={onRetry} />}
-        {!loading && !error && sortedData.length === 0 && (
+        {!loading && !error && table.getRowModel().rows.length === 0 && (
           <EmptyState title={emptyTitle} description={emptyDescription} />
         )}
-        {!loading && !error && sortedData.length > 0 && (
+
+        {!loading && !error && table.getRowModel().rows.length > 0 && (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1000px] text-left text-sm">
-              <thead className="bg-slate-900 text-xs uppercase text-slate-400">
-                <tr>
-                  <th className="p-3">
-                    <input
-                      type="checkbox"
-                      checked={allSelected}
-                      onChange={(event) => {
-                        if (event.target.checked) {
-                          setSelectedRows(Object.fromEntries(sortedData.map((row) => [getRowId(row), true])));
-                          return;
-                        }
-                        setSelectedRows({});
-                      }}
-                    />
-                  </th>
-                  {columns.map((column) => (
-                    <th key={column.id} className={`p-3 ${column.className ?? ''}`}>
-                      {column.sortable ? (
-                        <button
-                          type="button"
-                          className="inline-flex items-center gap-1 hover:text-slate-200"
-                          onClick={() =>
-                            setSortBy((current) =>
-                              current?.id === column.id ? { id: column.id, desc: !current.desc } : { id: column.id, desc: false },
-                            )
-                          }
-                        >
-                          {column.header}
-                          {sortBy?.id === column.id ? (sortBy.desc ? '↓' : '↑') : '↕'}
-                        </button>
-                      ) : (
-                        column.header
-                      )}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {sortedData.map((row) => (
-                  <tr key={getRowId(row)} className="border-t border-slate-800">
-                    <td className="p-3">
-                      <input
-                        type="checkbox"
-                        checked={!!selectedRows[getRowId(row)]}
-                        onChange={(event) =>
-                          setSelectedRows((current) => ({ ...current, [getRowId(row)]: event.target.checked }))
-                        }
-                      />
-                    </td>
-                    {columns.map((column) => (
-                      <td key={`${getRowId(row)}-${column.id}`} className={`p-3 ${column.className ?? ''}`}>
-                        {column.cell(row)}
-                      </td>
+            <Table className="min-w-[1000px]">
+              <TableHeader>
+                {table.getHeaderGroups().map((headerGroup) => (
+                  <TableRow key={headerGroup.id}>
+                    {headerGroup.headers.map((header) => (
+                      <TableHead key={header.id}>
+                        {header.isPlaceholder
+                          ? null
+                          : flexRender(header.column.columnDef.header, header.getContext())}
+                      </TableHead>
                     ))}
-                  </tr>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
+              </TableHeader>
+              <TableBody>
+                {table.getRowModel().rows.map((row) => (
+                  <TableRow key={row.id} data-state={row.getIsSelected() ? 'selected' : undefined}>
+                    {row.getVisibleCells().map((cell) => (
+                      <TableCell key={cell.id}>
+                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           </div>
         )}
       </div>
-      <DataTablePagination page={page} totalPages={totalPages} onPageChange={onPageChange} />
+      <DataTablePagination table={table} page={page} totalPages={totalPages} onPageChange={onPageChange} />
     </div>
   );
 }
 
-export type { ColumnDef };
+export type { ColumnDef, VisibilityState, ColumnPinningState };

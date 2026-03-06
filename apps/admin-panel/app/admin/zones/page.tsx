@@ -1,9 +1,10 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import type { MouseEvent } from 'react';
+import { useEffect, useState } from 'react';
+import dynamic from 'next/dynamic';
 import { useSearchParams } from 'next/navigation';
 import { AdminCard, EmptyState, ErrorState, LoadingState, Toast } from '../../../components/admin/ui';
+import { Button } from '../../../components/ui/button';
 import { FIRMAT_BASE_POLYGON, isValidLatLng, ZONE_TYPES } from '../../../lib/zones';
 import type { LatLngPoint } from '../../../lib/zones';
 
@@ -37,106 +38,10 @@ type ToastState = { tone: 'success' | 'error'; message: string } | null;
 
 const tabButton = 'rounded-lg px-3 py-2 text-sm font-medium transition';
 
-function PolygonEditor({ points, onChange }: { points: LatLngPoint[]; onChange: (next: LatLngPoint[]) => void }) {
-  const [selected, setSelected] = useState<number | null>(null);
-  const bounds = useMemo(() => {
-    const source = points.length > 0 ? points : FIRMAT_BASE_POLYGON;
-    const lats = source.map((p) => p.lat);
-    const lngs = source.map((p) => p.lng);
-    return {
-      minLat: Math.min(...lats) - 0.01,
-      maxLat: Math.max(...lats) + 0.01,
-      minLng: Math.min(...lngs) - 0.01,
-      maxLng: Math.max(...lngs) + 0.01,
-    };
-  }, [points]);
-
-  const width = 560;
-  const height = 320;
-
-  const toXY = (point: LatLngPoint) => ({
-    x: ((point.lng - bounds.minLng) / (bounds.maxLng - bounds.minLng || 1)) * width,
-    y: ((bounds.maxLat - point.lat) / (bounds.maxLat - bounds.minLat || 1)) * height,
-  });
-
-  const toLatLng = (x: number, y: number): LatLngPoint => ({
-    lng: bounds.minLng + (x / width) * (bounds.maxLng - bounds.minLng),
-    lat: bounds.maxLat - (y / height) * (bounds.maxLat - bounds.minLat),
-  });
-
-  const onCanvasClick = (event: MouseEvent<SVGSVGElement>) => {
-    const rect = event.currentTarget.getBoundingClientRect();
-    const x = event.clientX - rect.left;
-    const y = event.clientY - rect.top;
-    onChange([...points, toLatLng(x, y)]);
-  };
-
-  const movePoint = (event: MouseEvent<SVGCircleElement>, index: number) => {
-    if (selected !== index) return;
-    const rect = event.currentTarget.ownerSVGElement?.getBoundingClientRect();
-    if (!rect) return;
-    const x = Math.max(0, Math.min(width, event.clientX - rect.left));
-    const y = Math.max(0, Math.min(height, event.clientY - rect.top));
-    const next = [...points];
-    next[index] = toLatLng(x, y);
-    onChange(next);
-  };
-
-  return (
-    <div className="space-y-2">
-      <p className="text-xs text-slate-400">Editor de polígono: click para agregar puntos, arrastrá para mover.</p>
-      <div className="h-[340px] w-full overflow-hidden rounded-lg border border-slate-700 bg-slate-950">
-      <svg className="h-full w-full" viewBox={`0 0 ${width} ${height}`} onClick={onCanvasClick}>
-        <rect width={width} height={height} fill="#020617" />
-        <g opacity={0.18}>
-          {Array.from({ length: 8 }).map((_, i) => (
-            <line key={`h-${i}`} x1={0} x2={width} y1={(height / 8) * i} y2={(height / 8) * i} stroke="#64748b" />
-          ))}
-          {Array.from({ length: 12 }).map((_, i) => (
-            <line key={`v-${i}`} y1={0} y2={height} x1={(width / 12) * i} x2={(width / 12) * i} stroke="#64748b" />
-          ))}
-        </g>
-        {points.length > 2 && <polygon points={points.map((p) => `${toXY(p).x},${toXY(p).y}`).join(' ')} fill="#0891b233" stroke="#06b6d4" strokeWidth={2} />}
-        {points.map((point, index) => {
-          const { x, y } = toXY(point);
-          return (
-            <circle
-              key={`${point.lat}-${point.lng}-${index}`}
-              cx={x}
-              cy={y}
-              r={6}
-              fill={selected === index ? '#22d3ee' : '#f8fafc'}
-              stroke="#0f172a"
-              strokeWidth={2}
-              onMouseDown={(e) => {
-                e.stopPropagation();
-                setSelected(index);
-              }}
-              onMouseMove={(e) => movePoint(e, index)}
-              onMouseUp={() => setSelected(null)}
-              onMouseLeave={() => setSelected(null)}
-            />
-          );
-        })}
-      </svg>
-      </div>
-      <div className="flex gap-2">
-        <button className="rounded bg-slate-800 px-3 py-1.5 text-xs hover:bg-slate-700" onClick={() => onChange(FIRMAT_BASE_POLYGON)}>
-          Firmat preset
-        </button>
-        <button className="rounded bg-slate-800 px-3 py-1.5 text-xs hover:bg-slate-700" onClick={() => onChange([])}>
-          Reset
-        </button>
-        <button
-          className="rounded bg-slate-800 px-3 py-1.5 text-xs hover:bg-slate-700"
-          onClick={() => onChange(points.length > 0 ? points.slice(0, points.length - 1) : points)}
-        >
-          Deshacer punto
-        </button>
-      </div>
-    </div>
-  );
-}
+const LeafletPolygonEditor = dynamic(
+  () => import('../../../components/maps/leaflet-polygon-editor').then((mod) => mod.LeafletPolygonEditor),
+  { ssr: false, loading: () => <div className="h-[340px] animate-pulse rounded-lg border border-slate-700 bg-slate-900/70" /> },
+);
 
 function ZonesManager({ kind }: { kind: ZoneKind }) {
   const [rows, setRows] = useState<ZoneRow[]>([]);
@@ -328,7 +233,7 @@ function ZonesManager({ kind }: { kind: ZoneKind }) {
             <input type="number" step="0.1" className="rounded-md border border-slate-700 bg-slate-950 p-2 text-sm" placeholder="Surge" value={profileSurge} onChange={(e) => setProfileSurge(Number(e.target.value))} />
             <input type="number" className="rounded-md border border-slate-700 bg-slate-950 p-2 text-sm" placeholder="Night fee" value={profileNightFee} onChange={(e) => setProfileNightFee(Number(e.target.value))} />
           </div>
-          <button className="mt-2 rounded bg-slate-700 px-3 py-1.5 text-xs" onClick={() => void createPricingProfile()}>Guardar perfil</button>
+          <Button size="sm" variant="secondary" className="mt-2" onClick={() => void createPricingProfile()}>Guardar perfil</Button>
         </div>
 
         <div className="grid gap-3 md:grid-cols-2">
@@ -373,18 +278,27 @@ function ZonesManager({ kind }: { kind: ZoneKind }) {
           {loading ? (
             <div className="h-[340px] animate-pulse rounded-lg border border-slate-700 bg-slate-900/70" />
           ) : (
-            <PolygonEditor points={points} onChange={setPoints} />
+            <LeafletPolygonEditor points={points} onChange={setPoints} />
           )}
         </div>
 
+        <div className="mt-3 flex flex-wrap gap-2">
+          <Button size="sm" variant="secondary" onClick={() => setPoints(FIRMAT_BASE_POLYGON)}>
+            Firmat preset
+          </Button>
+          <Button size="sm" variant="secondary" onClick={() => setPoints([])}>
+            Reset
+          </Button>
+        </div>
+
         <div className="mt-4 flex flex-wrap gap-2">
-          <button className="rounded bg-cyan-600 px-4 py-2 text-sm font-medium text-white hover:bg-cyan-500" onClick={onSave}>
+          <Button onClick={onSave}>
             {editing ? 'Guardar cambios' : 'Crear zona'}
-          </button>
+          </Button>
           {editing && (
-            <button className="rounded bg-slate-800 px-4 py-2 text-sm hover:bg-slate-700" onClick={resetForm}>
+            <Button variant="secondary" onClick={resetForm}>
               Cancelar edición
-            </button>
+            </Button>
           )}
         </div>
       </AdminCard>
@@ -417,15 +331,15 @@ function ZonesManager({ kind }: { kind: ZoneKind }) {
                     <td className="p-2 text-slate-300">{row.pricing_profile_key ?? '-'}</td>
                     <td className="p-2">
                       <div className="flex flex-wrap gap-2">
-                        <button className="rounded bg-slate-800 px-2 py-1 text-xs hover:bg-slate-700" onClick={() => onEdit(row)}>
+                        <Button size="sm" variant="secondary" onClick={() => onEdit(row)}>
                           Editar
-                        </button>
-                        <button className="rounded bg-slate-800 px-2 py-1 text-xs hover:bg-slate-700" onClick={() => void onToggle(row)}>
+                        </Button>
+                        <Button size="sm" variant="secondary" onClick={() => void onToggle(row)}>
                           {row.is_active ? 'Desactivar' : 'Activar'}
-                        </button>
-                        <button className="rounded bg-rose-600 px-2 py-1 text-xs text-white hover:bg-rose-500" onClick={() => void onDelete(row)}>
+                        </Button>
+                        <Button size="sm" variant="destructive" onClick={() => void onDelete(row)}>
                           Borrar
-                        </button>
+                        </Button>
                       </div>
                     </td>
                   </tr>
@@ -457,12 +371,12 @@ export default function ZonesPage() {
       </section>
 
       <section className="flex gap-2 rounded-lg border border-slate-800 bg-slate-900/50 p-2">
-        <button className={`${tabButton} ${tab === 'geozones' ? 'bg-cyan-600 text-white' : 'text-slate-300 hover:bg-slate-800'}`} onClick={() => setTab('geozones')}>
+        <Button className={`${tabButton} ${tab === 'geozones' ? 'bg-cyan-600 text-white' : 'text-slate-300 hover:bg-slate-800'}`} variant="ghost" onClick={() => setTab('geozones')}>
           GeoZones
-        </button>
-        <button className={`${tabButton} ${tab === 'premium' ? 'bg-cyan-600 text-white' : 'text-slate-300 hover:bg-slate-800'}`} onClick={() => setTab('premium')}>
+        </Button>
+        <Button className={`${tabButton} ${tab === 'premium' ? 'bg-cyan-600 text-white' : 'text-slate-300 hover:bg-slate-800'}`} variant="ghost" onClick={() => setTab('premium')}>
           Premium Zones
-        </button>
+        </Button>
       </section>
 
       <ZonesManager kind={tab} />
