@@ -43,6 +43,39 @@ type DashboardSnapshot = {
   };
 };
 
+type ReportsOverview = {
+  kpis?: {
+    rides_per_day?: number;
+    cancel_rate?: number;
+    revenue?: number;
+    active_drivers?: number;
+  };
+  totals?: {
+    rides_total?: number;
+    rides_completed?: number;
+    rides_cancelled?: number;
+  };
+};
+
+type ListPayload = {
+  items?: Array<Record<string, unknown>>;
+};
+
+type DashboardSnapshot = {
+  ridesToday: number;
+  revenueToday: number;
+  activeDrivers: number;
+  cancelRate: number;
+  openTickets: number;
+  failedPayments: number;
+  openIncidents: number;
+  previous?: {
+    rides: number;
+    revenue: number;
+    cancelRate: number;
+  };
+};
+
 const quickLinks = [
   { href: '/admin/trips', label: 'Viajes' },
   { href: '/admin/drivers', label: 'Conductores' },
