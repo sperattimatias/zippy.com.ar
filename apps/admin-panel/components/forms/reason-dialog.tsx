@@ -1,8 +1,18 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { useEffect } from 'react';
+import { useForm } from 'react-hook-form';
+import { z } from 'zod';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from './form';
 import { ConfirmDialog } from './confirm-dialog';
-import { FormField } from './form-field';
+import { Textarea } from '../ui/textarea';
+
+const reasonSchema = z.object({
+  reason: z.string().trim().min(1, 'El motivo es obligatorio'),
+});
+
+type ReasonFormValues = z.infer<typeof reasonSchema>;
 
 export function ReasonDialog({
   open,
@@ -19,17 +29,18 @@ export function ReasonDialog({
   reasonLabel?: string;
   loading?: boolean;
   onClose: () => void;
-  onConfirm: (reason: string) => void;
+  onConfirm: (reason: string) => void | Promise<void>;
 }) {
-  const [reason, setReason] = useState('');
-  const [error, setError] = useState<string | undefined>();
+  const form = useForm<ReasonFormValues>({
+    resolver: zodResolver(reasonSchema),
+    defaultValues: { reason: '' },
+  });
 
   useEffect(() => {
     if (open) {
-      setReason('');
-      setError(undefined);
+      form.reset({ reason: '' });
     }
-  }, [open]);
+  }, [form, open]);
 
   return (
     <ConfirmDialog
@@ -38,24 +49,26 @@ export function ReasonDialog({
       description={description}
       loading={loading}
       onClose={onClose}
-      onConfirm={() => {
-        if (!reason.trim()) {
-          setError('El motivo es obligatorio');
-          return;
-        }
-        onConfirm(reason.trim());
-      }}
+      onConfirm={form.handleSubmit(async (values) => onConfirm(values.reason.trim()))}
+      destructive
     >
-      <FormField label={reasonLabel ?? 'Motivo'} error={error}>
-        <textarea
-          className="min-h-[90px] w-full rounded-md border border-slate-700 bg-slate-950 p-2 text-sm"
-          value={reason}
-          onChange={(e) => {
-            setReason(e.target.value);
-            if (error) setError(undefined);
-          }}
-        />
-      </FormField>
+      <Form {...form}>
+        <form onSubmit={form.handleSubmit(async (values) => onConfirm(values.reason.trim()))}>
+          <FormField
+            control={form.control}
+            name="reason"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{reasonLabel ?? 'Motivo'}</FormLabel>
+                <FormControl>
+                  <Textarea {...field} className="min-h-[90px]" />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </form>
+      </Form>
     </ConfirmDialog>
   );
 }

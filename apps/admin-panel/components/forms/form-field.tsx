@@ -1,3 +1,4 @@
+// DEPRECATED: do not use in new code. Prefer `components/forms/form.tsx` (RHF + Zod pattern).
 import type { ReactNode } from 'react';
 
 export function FormField({

@@ -1,21 +1,62 @@
-import type { HTMLAttributes, ReactNode } from 'react';
+'use client';
 
-export function DropdownMenu({ children }: { children: ReactNode }) {
-  return <div className="relative">{children}</div>;
-}
+import * as React from 'react';
+import * as DropdownMenuPrimitive from '@radix-ui/react-dropdown-menu';
+import { cn } from '../../lib/utils';
 
-export function DropdownMenuTrigger({ children }: { children: ReactNode; asChild?: boolean }) {
-  return <>{children}</>;
-}
+const DropdownMenu = DropdownMenuPrimitive.Root;
+const DropdownMenuTrigger = DropdownMenuPrimitive.Trigger;
+const DropdownMenuGroup = DropdownMenuPrimitive.Group;
+const DropdownMenuPortal = DropdownMenuPrimitive.Portal;
+const DropdownMenuSub = DropdownMenuPrimitive.Sub;
+const DropdownMenuRadioGroup = DropdownMenuPrimitive.RadioGroup;
 
-export function DropdownMenuContent({ children, className = '' }: { children: ReactNode; align?: 'start' | 'end'; className?: string }) {
-  return <div className={`absolute right-0 z-50 mt-2 min-w-[10rem] rounded-md border border-slate-700 bg-slate-900 p-1 ${className}`}>{children}</div>;
-}
+const DropdownMenuContent = React.forwardRef<
+  React.ElementRef<typeof DropdownMenuPrimitive.Content>,
+  React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Content>
+>(({ className, sideOffset = 4, ...props }, ref) => (
+  <DropdownMenuPrimitive.Portal>
+    <DropdownMenuPrimitive.Content
+      ref={ref}
+      sideOffset={sideOffset}
+      className={cn(
+        'z-50 min-w-[10rem] overflow-hidden rounded-md border border-slate-700 bg-slate-900 p-1 text-slate-100 shadow-md data-[state=open]:animate-in data-[state=closed]:animate-out',
+        className,
+      )}
+      {...props}
+    />
+  </DropdownMenuPrimitive.Portal>
+));
+DropdownMenuContent.displayName = DropdownMenuPrimitive.Content.displayName;
 
-export function DropdownMenuItem({ className = '', ...props }: HTMLAttributes<HTMLButtonElement>) {
-  return <button type="button" className={`flex w-full items-center rounded-sm px-2 py-1.5 text-left text-sm hover:bg-slate-800 ${className}`} {...props} />;
-}
+const DropdownMenuItem = React.forwardRef<
+  React.ElementRef<typeof DropdownMenuPrimitive.Item>,
+  React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Item>
+>(({ className, ...props }, ref) => (
+  <DropdownMenuPrimitive.Item
+    ref={ref}
+    className={cn('relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors focus:bg-slate-800', className)}
+    {...props}
+  />
+));
+DropdownMenuItem.displayName = DropdownMenuPrimitive.Item.displayName;
 
-export function DropdownMenuSeparator() {
-  return <div className="my-1 h-px bg-slate-800" />;
-}
+const DropdownMenuSeparator = React.forwardRef<
+  React.ElementRef<typeof DropdownMenuPrimitive.Separator>,
+  React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Separator>
+>(({ className, ...props }, ref) => (
+  <DropdownMenuPrimitive.Separator ref={ref} className={cn('-mx-1 my-1 h-px bg-slate-800', className)} {...props} />
+));
+DropdownMenuSeparator.displayName = DropdownMenuPrimitive.Separator.displayName;
+
+export {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuPortal,
+  DropdownMenuRadioGroup,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuTrigger,
+};

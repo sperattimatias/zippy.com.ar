@@ -121,7 +121,7 @@ export function AdminShell({ children, topbarActions }: { children: ReactNode; t
                         const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
                         return (
                           <Tooltip key={item.href}>
-                            <TooltipTrigger>
+                            <TooltipTrigger asChild>
                               <Link href={item.href}>
                                 <Button
                                   variant={isActive ? 'default' : 'ghost'}
