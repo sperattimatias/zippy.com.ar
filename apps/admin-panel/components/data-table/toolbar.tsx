@@ -97,7 +97,7 @@ export function DataTableToolbar<TData>({
         {onExport ? (
           <Button type="button" variant="secondary" size="sm" onClick={onExport}>
             <Download className="mr-2 h-4 w-4" />
-            Export
+            Exportar
           </Button>
         ) : null}
       </div>

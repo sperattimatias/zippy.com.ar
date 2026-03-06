@@ -125,7 +125,7 @@ export default function AdminTripsPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Gestión de viajes" subtitle="Consultá viajes, aplicá filtros y exportá resultados." />
+      <PageHeader title="Viajes" subtitle="Consultá viajes, aplicá filtros y exportá información." />
       <Card>
         <CardHeader>
           <CardTitle>Viajes</CardTitle>
@@ -139,7 +139,7 @@ export default function AdminTripsPage() {
           error={error}
           onRetry={() => setRefreshTick((value) => value + 1)}
           emptyTitle="No hay resultados"
-          emptyDescription="Probá ajustar los filtros o crear un nuevo registro."
+          emptyDescription="Probá ajustar los filtros para encontrar resultados."
           page={Number(state.page || '1')}
           totalPages={totalPages}
           onPageChange={(page) => patch({ page: String(page) })}

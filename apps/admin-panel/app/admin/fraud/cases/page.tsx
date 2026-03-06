@@ -57,9 +57,9 @@ export default function FraudCasesPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Fraud cases" subtitle="Casos activos, filtros y priorización." />
+      <PageHeader title="Casos de fraude" subtitle="Monitoreá alertas, priorizá casos y tomá decisiones operativas." />
 
-      <SectionCard title="Filtros">
+      <SectionCard title="Filtros de búsqueda">
         <div className="grid gap-2 md:grid-cols-4">
           <select className="rounded bg-slate-950 p-2" value={status} onChange={(e) => setStatus(e.target.value)}>
             <option value="">Todos los estados</option>
@@ -73,7 +73,7 @@ export default function FraudCasesPage() {
         </div>
       </SectionCard>
 
-      <SectionCard title="Casos">
+      <SectionCard title="Listado de casos">
         {loading && <LoadingState message="Cargando casos..." />}
         {error && <ErrorState message={error} retry={() => void load()} />}
         {!loading && !error && rows.length === 0 && <EmptyState message="No hay casos para los filtros seleccionados." />}

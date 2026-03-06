@@ -44,7 +44,7 @@ export default function ReportsOverviewPage() {
     try {
       const params = new URLSearchParams({ from, to });
       const res = await fetch(`/api/admin/reports/overview?${params.toString()}`, { cache: 'no-store' });
-      if (!res.ok) throw new Error('No se pudo cargar KPI overview');
+      if (!res.ok) throw new Error('No se pudo cargar el resumen de métricas');
       setData((await res.json()) as OverviewResponse);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Error inesperado');
@@ -65,7 +65,7 @@ export default function ReportsOverviewPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Panel de reportes" subtitle="Seguí métricas clave y exportá reportes." />
+      <PageHeader title="Panel de reportes" subtitle="Visualizá métricas clave del negocio y exportá resultados." />
       <SectionCard title="Filtros">
         <div className="grid gap-3 md:grid-cols-4">
           <label className="text-sm">
@@ -83,10 +83,10 @@ export default function ReportsOverviewPage() {
         </div>
       </SectionCard>
 
-      <SectionCard title="KPI overview">
+      <SectionCard title="Resumen de KPIs">
         {loading && <LoadingState />}
         {error && <ErrorState message={error} retry={() => void load()} />}
-        {!loading && !error && !data && <EmptyState title="No hay resultados" description="Probá ajustar los filtros o crear un nuevo registro." />}
+        {!loading && !error && !data && <EmptyState title="No hay resultados" description="Probá ajustar el rango de fechas para obtener resultados." />}
         {!loading && !error && data && (
           <div className="grid gap-3 md:grid-cols-3">
             <Kpi label="Rides / día" value={data.kpis.rides_per_day.toFixed(2)} />

@@ -82,8 +82,8 @@ export default function FraudCaseDetail({ params }: { params: { id: string } }) 
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Fraud case detail" subtitle="Señales, evidencia y resolución del caso." />
-      <SectionCard title={`Fraud Case ${fraudCase.id}`}>
+      <PageHeader title="Detalle del caso de fraude" subtitle="Revisá señales, evidencia y resolución en un solo lugar." />
+      <SectionCard title={`Caso de fraude ${fraudCase.id}`}>
         <div className="grid gap-2 text-sm md:grid-cols-2">
           <p><span className="text-slate-400">Title:</span> {fraudCase.title}</p>
           <p><span className="text-slate-400">Status:</span> <StatusBadge status={fraudCase.status} /></p>
@@ -107,11 +107,11 @@ export default function FraudCaseDetail({ params }: { params: { id: string } }) 
         </div>
       </SectionCard>
 
-      <SectionCard title="Acciones de Fraud Ops">
+      <SectionCard title="Acciones operativas de fraude">
         <div className="space-y-3 text-sm">
           <div className="grid gap-2 md:grid-cols-3">
-            <input className="rounded bg-slate-950 p-2" placeholder="Nota acción / manual review" value={notes} onChange={(e) => setNotes(e.target.value)} />
-            <input className="rounded bg-slate-950 p-2" placeholder="Asignar a agente (userId)" value={assignee} onChange={(e) => setAssignee(e.target.value)} />
+            <input className="rounded bg-slate-950 p-2" placeholder="Nota interna de la acción" value={notes} onChange={(e) => setNotes(e.target.value)} />
+            <input className="rounded bg-slate-950 p-2" placeholder="Asignar a agente (ID de usuario)" value={assignee} onChange={(e) => setAssignee(e.target.value)} />
             <button className="rounded bg-slate-700 px-3 py-2" onClick={() => void runAction('manual-review', { notes: notes || 'manual review' })}>Revisión manual</button>
           </div>
 
@@ -124,7 +124,7 @@ export default function FraudCaseDetail({ params }: { params: { id: string } }) 
           </div>
 
           <div className="grid gap-2 md:grid-cols-3">
-            <input className="rounded bg-slate-950 p-2" placeholder="paymentId (opcional)" value={freezePaymentId} onChange={(e) => setFreezePaymentId(e.target.value)} />
+            <input className="rounded bg-slate-950 p-2" placeholder="ID de pago (opcional)" value={freezePaymentId} onChange={(e) => setFreezePaymentId(e.target.value)} />
             <button className="rounded bg-indigo-700 px-3 py-2" onClick={() => void runAction('freeze-payments', { payment_id: freezePaymentId || undefined, trip_id: fraudCase.related_trip_id ?? undefined, note: notes || 'freeze payments' })}>Congelar pagos relacionados</button>
           </div>
         </div>

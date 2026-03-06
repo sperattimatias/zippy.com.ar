@@ -187,7 +187,7 @@ export default function AdminTripDetailPage({ params }: { params: { id: string }
 
       {!loading && trip && (
         <>
-          <SectionCard title={`Trip ${trip.id}`} action={<Link className="text-xs text-cyan-300 underline" href={`/admin/audit?entityType=trip&entityId=${trip.id}`}>Ver auditoría</Link>}>
+          <SectionCard title={`Viaje ${trip.id}`} action={<Link className="text-xs text-cyan-300 underline" href={`/admin/audit?entityType=trip&entityId=${trip.id}`}>Ver auditoría</Link>}>
             <div className="grid gap-2 text-sm md:grid-cols-2">
               <p><span className="text-slate-400">Estado:</span> <StatusBadge status={trip.status} /></p>
               <p><span className="text-slate-400">Passenger:</span> <CopyText value={trip.passenger_user_id} /></p>
@@ -225,7 +225,7 @@ export default function AdminTripDetailPage({ params }: { params: { id: string }
               <Button className="bg-amber-600 text-white hover:bg-amber-500" onClick={() => void onRetryMatching()}>
                 Reintentar matching
               </Button>
-              <Input placeholder="Driver ID para reasignar" value={reassignDriverId} onChange={(e) => setReassignDriverId(e.target.value)} />
+              <Input placeholder="ID del conductor para reasignar" value={reassignDriverId} onChange={(e) => setReassignDriverId(e.target.value)} />
               <Button className="bg-indigo-600 text-white hover:bg-indigo-500" onClick={() => void onReassign()}>
                 Reasignar
               </Button>

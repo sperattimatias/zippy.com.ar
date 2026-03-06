@@ -169,7 +169,7 @@ export default function AdminPaymentDetailPage({ params }: { params: { id: strin
             </div>
           </SectionCard>
 
-          <SectionCard title="Breakdown y referencias">
+          <SectionCard title="Desglose y referencias">
             <div className="grid gap-2 text-sm md:grid-cols-2">
               <p>Amount total: {formatMoney(detail.breakdown.amount_total)}</p>
               <p>Fee platform: {formatMoney(detail.breakdown.fee_platform)}</p>
@@ -180,7 +180,7 @@ export default function AdminPaymentDetailPage({ params }: { params: { id: strin
             </div>
           </SectionCard>
 
-          <SectionCard title="Timeline de pagos" description="Estados y eventos de gateway en orden cronológico.">
+          <SectionCard title="Timeline del pago" description="Evolución de estados y eventos de gateway en orden cronológico.">
             <EventTimeline
               items={paymentTimeline}
               emptyTitle="Sin eventos de pago"
@@ -188,12 +188,12 @@ export default function AdminPaymentDetailPage({ params }: { params: { id: strin
             />
           </SectionCard>
 
-          <SectionCard title="Flags y acciones">
+          <SectionCard title="Alertas y acciones">
             <div className="space-y-3 text-sm">
-              <Input value={flagNote} onChange={(e) => setFlagNote(e.target.value)} placeholder="Nota de auditoría para flags" />
+              <Input value={flagNote} onChange={(e) => setFlagNote(e.target.value)} placeholder="Nota interna para alertas" />
               <div className="flex flex-wrap gap-2">
-                <Button variant="secondary" onClick={() => void toggleFlag('duplicate')}>Actualizar flag duplicate</Button>
-                <Button variant="secondary" onClick={() => void toggleFlag('not_settled')}>Actualizar flag not_settled</Button>
+                <Button variant="secondary" onClick={() => void toggleFlag('duplicate')}>Actualizar alerta de duplicado</Button>
+                <Button variant="secondary" onClick={() => void toggleFlag('not_settled')}>Actualizar alerta de no liquidado</Button>
                 <Button variant="destructive" onClick={() => { setRefundOpen(true); refundForm.reset({ amount: '', reason: '' }); }} disabled={!can(roles, 'payments.refund')}>
                   Crear reembolso
                 </Button>

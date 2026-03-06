@@ -182,8 +182,8 @@ export default function AdminOperationsLivePage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Operaciones en vivo"
-        subtitle="Vista operativa en tiempo real de conductores, viajes e incidentes en Firmat."
+        title="Operación en tiempo real"
+        subtitle="Monitoreo en tiempo real de conductores, viajes e incidentes en Firmat."
         actions={
           <div className="flex items-center gap-2">
             <Badge variant="outline">Refresh automático: 15s</Badge>

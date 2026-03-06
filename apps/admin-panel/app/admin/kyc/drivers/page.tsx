@@ -61,7 +61,7 @@ export default function KycDriversPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="KYC · Drivers" subtitle="Revisión de conductores y decisiones KYC." />
+      <PageHeader title="KYC de conductores" subtitle="Revisá documentación y tomá decisiones de validación." />
 
       <SectionCard title="Filtros">
         <div className="grid gap-2 md:grid-cols-4">
@@ -69,12 +69,12 @@ export default function KycDriversPage() {
             <option value="">Todos los estados</option>
             {['PENDING_DOCS', 'IN_REVIEW', 'APPROVED', 'REJECTED', 'SUSPENDED'].map((s) => <option key={s} value={s}>{s}</option>)}
           </select>
-          <input className="rounded bg-slate-950 p-2" placeholder="Buscar por driver/user" value={search} onChange={(e) => { setPage(1); setSearch(e.target.value); }} />
-          <input className="rounded bg-slate-950 p-2" placeholder="Expira en días" value={expiresInDays} onChange={(e) => { setPage(1); setExpiresInDays(e.target.value); }} />
+          <input className="rounded bg-slate-950 p-2" placeholder="Buscar por ID de conductor o usuario" value={search} onChange={(e) => { setPage(1); setSearch(e.target.value); }} />
+          <input className="rounded bg-slate-950 p-2" placeholder="Vence en (días)" value={expiresInDays} onChange={(e) => { setPage(1); setExpiresInDays(e.target.value); }} />
         </div>
       </SectionCard>
 
-      <SectionCard title="Conductores KYC">
+      <SectionCard title="Listado de conductores">
         {loading && <LoadingState message="Cargando KYC..." />}
         {error && <ErrorState message={error} retry={() => void load()} />}
         {!loading && !error && rows.length === 0 && <EmptyState message="No hay conductores para los filtros seleccionados." />}

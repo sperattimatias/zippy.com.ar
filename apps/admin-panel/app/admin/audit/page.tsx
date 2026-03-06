@@ -53,16 +53,16 @@ export default function AdminAuditPage() {
 
   return (
     <div className="space-y-4">
-      <PageHeader title="Audit" subtitle="Eventos administrativos y trazabilidad." />
-      <SectionCard title="Auditoría admin">
+      <PageHeader title="Auditoría" subtitle="Trazabilidad completa de acciones administrativas." />
+      <SectionCard title="Filtros de auditoría">
         <div className="grid grid-cols-1 gap-2 md:grid-cols-5">
-          <input className="rounded bg-slate-950 p-2" placeholder="action" value={action} onChange={(e) => setAction(e.target.value)} />
-          <input className="rounded bg-slate-950 p-2" placeholder="entityType" value={entityType} onChange={(e) => setEntityType(e.target.value)} />
-          <input className="rounded bg-slate-950 p-2" placeholder="adminId" value={adminId} onChange={(e) => setAdminId(e.target.value)} />
+          <input className="rounded bg-slate-950 p-2" placeholder="Acción (ej. trip.cancel)" value={action} onChange={(e) => setAction(e.target.value)} />
+          <input className="rounded bg-slate-950 p-2" placeholder="Tipo de entidad (ej. trip, payment)" value={entityType} onChange={(e) => setEntityType(e.target.value)} />
+          <input className="rounded bg-slate-950 p-2" placeholder="ID de administrador" value={adminId} onChange={(e) => setAdminId(e.target.value)} />
           <input className="rounded bg-slate-950 p-2" type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
           <input className="rounded bg-slate-950 p-2" type="date" value={to} onChange={(e) => setTo(e.target.value)} />
         </div>
-        <button className="mt-3 rounded bg-cyan-600 px-3 py-2" onClick={() => void load()}>Filtrar</button>
+        <button className="mt-3 rounded bg-cyan-600 px-3 py-2" onClick={() => void load()}>Aplicar filtros</button>
       </SectionCard>
 
       <SectionCard title="Eventos">
@@ -74,7 +74,7 @@ export default function AdminAuditPage() {
             <table className="min-w-full text-sm">
               <thead>
                 <tr className="text-left text-slate-400">
-                  <th className="p-2">Fecha</th><th className="p-2">Admin</th><th className="p-2">Action</th><th className="p-2">Entidad</th><th className="p-2">Payload</th>
+                  <th className="p-2">Fecha</th><th className="p-2">Admin</th><th className="p-2">Acción</th><th className="p-2">Entidad</th><th className="p-2">Payload</th>
                 </tr>
               </thead>
               <tbody>

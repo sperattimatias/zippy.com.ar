@@ -89,7 +89,7 @@ export default function SupportTicketsPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Soporte · Tickets" subtitle="Gestioná tickets, prioridades y asignaciones." />
+      <PageHeader title="Soporte" subtitle="Gestioná tickets, prioridades y seguimiento del equipo." />
 
       <SectionCard title="Filtros">
         <div className="grid gap-2 md:grid-cols-4">
@@ -106,7 +106,7 @@ export default function SupportTicketsPage() {
             <option value="HIGH">HIGH</option>
             <option value="URGENT">URGENT</option>
           </select>
-          <input className="rounded bg-slate-950 p-2" placeholder="Buscar por id/user/trip/driver" value={search} onChange={(e) => { setPage(1); setSearch(e.target.value); }} />
+          <input className="rounded bg-slate-950 p-2" placeholder="Buscar por ID de ticket, usuario, viaje o conductor" value={search} onChange={(e) => { setPage(1); setSearch(e.target.value); }} />
           <button className="rounded bg-cyan-700 px-3 py-2 text-sm" onClick={() => void createQuickTicket()}>Crear ticket rápido</button>
         </div>
       </SectionCard>
@@ -114,7 +114,7 @@ export default function SupportTicketsPage() {
       <SectionCard title="Tickets">
         {loading && <LoadingState message="Cargando tickets..." />}
         {error && <ErrorState message={error} retry={() => void load()} />}
-        {!loading && !error && items.length === 0 && <EmptyState title="No hay resultados" description="Probá ajustar los filtros o crear un nuevo registro." />}
+        {!loading && !error && items.length === 0 && <EmptyState title="No hay resultados" description="Probá ajustar los filtros para encontrar resultados." />}
 
         {!loading && !error && items.length > 0 && (
           <div className="overflow-x-auto">

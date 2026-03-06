@@ -82,7 +82,7 @@ export default function DriversPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Gestión de conductores" subtitle="Gestión de conductores, estado operativo y validaciones KYC." />
+      <PageHeader title="Conductores" subtitle="Gestioná el estado operativo y la documentación de conductores." />
 
       <SectionCard title="Listado" description="Tabla TanStack con filtros URL y export de dataset actual.">
         <DataTable
@@ -92,7 +92,7 @@ export default function DriversPage() {
           error={error}
           onRetry={() => setRefreshTick((value) => value + 1)}
           emptyTitle="No hay resultados"
-          emptyDescription="Probá ajustar los filtros o crear un nuevo registro."
+          emptyDescription="Probá ajustar los filtros para encontrar resultados."
           page={Number(state.page || '1')}
           totalPages={totalPages}
           onPageChange={(page) => patch({ page: String(page) })}

@@ -65,7 +65,7 @@ export default function AdminUsersPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Gestión de usuarios" subtitle="Administrá usuarios y revisá su actividad." />
+      <PageHeader title="Usuarios" subtitle="Administrá cuentas y revisá la actividad de usuarios." />
 
       <SectionCard title="Filtros">
         <div className="grid gap-2 md:grid-cols-4">
@@ -82,7 +82,7 @@ export default function AdminUsersPage() {
       <SectionCard title="Listado de usuarios">
         {loading && <LoadingState message="Cargando usuarios..." />}
         {error && <ErrorState message={error} retry={() => void load()} />}
-        {!loading && !error && rows.length === 0 && <EmptyState title="No hay resultados" description="Probá ajustar los filtros o crear un nuevo registro." />}
+        {!loading && !error && rows.length === 0 && <EmptyState title="No hay resultados" description="Probá ajustar los filtros para encontrar resultados." />}
 
         {!loading && !error && rows.length > 0 && (
           <div className="overflow-x-auto">

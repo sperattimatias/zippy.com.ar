@@ -130,7 +130,7 @@ export default function SupportTicketDetailPage({ params }: { params: { id: stri
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Ticket detail" subtitle="Seguimiento de ticket, notas y resolución." />
+      <PageHeader title="Detalle del ticket" subtitle="Seguimiento del caso, notas internas y resolución." />
       {loading && <LoadingState message="Cargando ticket..." />}
       {error && <ErrorState message={error} retry={() => void load()} />}
 
@@ -150,7 +150,7 @@ export default function SupportTicketDetailPage({ params }: { params: { id: stri
             <p className="mt-4 text-sm"><span className="text-slate-400">Descripción:</span> {detail.description}</p>
           </SectionCard>
 
-          <SectionCard title="Gestión">
+          <SectionCard title="Gestión del ticket">
             <div className="grid gap-2 md:grid-cols-3">
               <select className="rounded bg-slate-950 p-2" value={status} onChange={(e) => setStatus(e.target.value as TicketDetail['status'])}>
                 <option value="OPEN">OPEN</option>

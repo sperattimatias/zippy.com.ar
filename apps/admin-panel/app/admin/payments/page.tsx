@@ -95,10 +95,10 @@ export default function AdminPaymentsPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Gestión de pagos" subtitle="Revisá pagos, filtrá resultados y exportá información." />
+      <PageHeader title="Pagos y cobros" subtitle="Supervisá pagos, aplicá filtros y exportá información clave." />
       <Card>
         <CardHeader>
-          <CardTitle>Pagos</CardTitle>
+          <CardTitle>Listado de pagos</CardTitle>
           <CardDescription>Tabla TanStack con estado consistente de empty/loading/error.</CardDescription>
         </CardHeader>
         <CardContent>
@@ -109,7 +109,7 @@ export default function AdminPaymentsPage() {
           error={error}
           onRetry={() => setRefreshTick((value) => value + 1)}
           emptyTitle="No hay resultados"
-          emptyDescription="Probá ajustar los filtros o crear un nuevo registro."
+          emptyDescription="Probá ajustar los filtros para encontrar resultados."
           page={Number(state.page || '1')}
           totalPages={totalPages}
           onPageChange={(page) => patch({ page: String(page) })}

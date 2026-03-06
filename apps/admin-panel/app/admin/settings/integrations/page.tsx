@@ -273,11 +273,11 @@ export default function IntegrationsSettingsPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Configuración de integraciones" subtitle="Configurá proveedores de pagos, correo y mapas de forma segura." />
+      <PageHeader title="Configuración de integraciones" subtitle="Gestioná pagos, correo y mapas con una configuración clara y segura." />
       {loading && <TableSkeleton rows={6} />}
       {error && <ErrorState message={error} retry={() => void load()} />}
 
-      {!loading && !error && rows.length === 0 && <EmptyState title="No hay resultados" description="Probá ajustar los filtros o crear un nuevo registro." />}
+      {!loading && !error && rows.length === 0 && <EmptyState title="No hay resultados" description="No hay configuraciones cargadas todavía para esta vista." />}
 
       {!loading && !error && rows.length > 0 && (
         <>
@@ -311,7 +311,7 @@ export default function IntegrationsSettingsPage() {
                         hasStored={encryptedExisting.mercadopago_access_token}
                         value={field.value ?? ''}
                         onChange={field.onChange}
-                        placeholder="Nuevo access token"
+                        placeholder="Nuevo token de acceso"
                         disabled={saving.payments}
                       />
                     </FormControl>
@@ -326,7 +326,7 @@ export default function IntegrationsSettingsPage() {
                         hasStored={encryptedExisting.mercadopago_webhook_secret}
                         value={field.value ?? ''}
                         onChange={field.onChange}
-                        placeholder="Nuevo webhook secret"
+                        placeholder="Nuevo secreto de webhook"
                         disabled={saving.payments}
                       />
                     </FormControl>
@@ -370,7 +370,7 @@ export default function IntegrationsSettingsPage() {
                         hasStored={encryptedExisting.smtp_password}
                         value={field.value ?? ''}
                         onChange={field.onChange}
-                        placeholder="Nuevo SMTP password"
+                        placeholder="Nueva contraseña SMTP"
                         disabled={saving.email}
                       />
                     </FormControl>
@@ -398,7 +398,7 @@ export default function IntegrationsSettingsPage() {
                         hasStored={encryptedExisting.google_maps_api_key}
                         value={field.value ?? ''}
                         onChange={field.onChange}
-                        placeholder="Nueva Google Maps API key"
+                        placeholder="Nueva API key de Google Maps"
                         disabled={saving.maps}
                       />
                     </FormControl>
