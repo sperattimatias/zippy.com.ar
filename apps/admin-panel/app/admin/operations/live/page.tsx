@@ -15,8 +15,29 @@ import { RefreshCw } from 'lucide-react';
 
 type Point = { lat: number; lng: number };
 
-type DriverRow = Record<string, unknown>;
-type LiveDriversPayload = { drivers?: DriverRow[]; stats?: Record<string, unknown> };
+type OperationalStatus = 'available' | 'on_trip' | 'stale';
+type LiveDriver = {
+  driverId: string;
+  lat: number;
+  lng: number;
+  lastSeenAt: string | null;
+  isOnline: boolean;
+  isFresh: boolean;
+  operationalStatus: OperationalStatus;
+  onTrip: boolean;
+};
+type LiveDriversStats = {
+  onlineDrivers: number;
+  freshDrivers: number;
+  staleDrivers: number;
+  onTripDrivers: number;
+  idleDrivers: number;
+};
+type LiveDriversPayload = {
+  generatedAt?: string;
+  drivers?: LiveDriver[];
+  stats?: LiveDriversStats;
+};
 type TripRow = Record<string, unknown> & { id?: string | number };
 
 type TripPath = {
@@ -86,26 +107,6 @@ function parseTripPoints(trip: Record<string, unknown>) {
   return eventPoints;
 }
 
-function parseDriverPoint(driver: DriverRow) {
-  const nestedCandidates = [
-    driver.last_location,
-    driver.current_location,
-    driver.position,
-    driver.location,
-  ];
-  for (const candidate of nestedCandidates) {
-    const point = parsePoint(candidate);
-    if (point) return point;
-  }
-
-  const lat = asNumber(driver.last_lat ?? driver.lat ?? driver.current_lat);
-  const lng = asNumber(driver.last_lng ?? driver.lng ?? driver.current_lng);
-
-  if (lat == null || lng == null) return null;
-
-  return { lat, lng };
-}
-
 function extractItems(payload: unknown) {
   if (Array.isArray(payload)) return payload;
   const record = asRecord(payload);
@@ -116,9 +117,17 @@ function extractItems(payload: unknown) {
 }
 
 export default function AdminOperationsLivePage() {
+  const [drivers, setDrivers] = useState<LiveDriver[]>([]);
   const [driverPoints, setDriverPoints] = useState<Point[]>([]);
   const [tripPaths, setTripPaths] = useState<TripPath[]>([]);
   const [openIncidents, setOpenIncidents] = useState(0);
+  const [driverStats, setDriverStats] = useState<LiveDriversStats>({
+    onlineDrivers: 0,
+    freshDrivers: 0,
+    staleDrivers: 0,
+    onTripDrivers: 0,
+    idleDrivers: 0,
+  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(null);
@@ -144,15 +153,21 @@ export default function AdminOperationsLivePage() {
       ]);
 
       const liveDriversPayload = asRecord(driversPayload) as LiveDriversPayload | null;
-      const drivers = Array.isArray(liveDriversPayload?.drivers)
-        ? (liveDriversPayload?.drivers as DriverRow[])
-        : (extractItems(driversPayload) as DriverRow[]);
+      const liveDrivers = Array.isArray(liveDriversPayload?.drivers)
+        ? (liveDriversPayload?.drivers as LiveDriver[])
+        : [];
       const trips = extractItems(tripsPayload) as TripRow[];
       const incidents = extractItems(incidentsPayload);
 
-      const onlineDrivers = drivers.filter((driver) => driver.isOnline !== false);
+      const onlineDrivers = liveDrivers.filter(
+        (driver) =>
+          driver.isOnline &&
+          Number.isFinite(driver.lat) &&
+          Number.isFinite(driver.lng) &&
+          driver.operationalStatus !== 'stale',
+      );
 
-      const points = onlineDrivers.map(parseDriverPoint).filter(Boolean) as Point[];
+      const points = onlineDrivers.map((driver) => ({ lat: driver.lat, lng: driver.lng }));
       const paths = trips
         .map((trip, index) => {
           const id = String(trip.id ?? `trip-${index}`);
@@ -161,10 +176,21 @@ export default function AdminOperationsLivePage() {
         })
         .filter((trip) => trip.points.length > 0);
 
+      setDrivers(liveDrivers);
       setDriverPoints(points);
       setTripPaths(paths);
       setOpenIncidents(incidents.length);
-      setLastUpdatedAt(new Date().toISOString());
+      setDriverStats(
+        liveDriversPayload?.stats ?? {
+          onlineDrivers: liveDrivers.length,
+          freshDrivers: liveDrivers.filter((driver) => driver.isFresh).length,
+          staleDrivers: liveDrivers.filter((driver) => driver.operationalStatus === 'stale').length,
+          onTripDrivers: liveDrivers.filter((driver) => driver.onTrip).length,
+          idleDrivers: liveDrivers.filter((driver) => driver.operationalStatus === 'available')
+            .length,
+        },
+      );
+      setLastUpdatedAt(liveDriversPayload?.generatedAt ?? new Date().toISOString());
     } catch (loadError) {
       setError(
         loadError instanceof Error ? loadError.message : 'No pudimos actualizar el mapa operativo.',
@@ -181,16 +207,26 @@ export default function AdminOperationsLivePage() {
   }, [load]);
 
   const activeTrips = tripPaths.length;
-  const onlineDrivers = driverPoints.length;
+  const onlineDrivers = driverStats.onlineDrivers;
   const hasPositions = onlineDrivers > 0 || activeTrips > 0;
 
   const metrics = useMemo(
     () => [
       { label: 'Conductores online', value: onlineDrivers, tone: 'success' as const },
+      { label: 'Disponibles', value: driverStats.idleDrivers, tone: 'success' as const },
+      { label: 'En viaje', value: driverStats.onTripDrivers, tone: 'warning' as const },
+      { label: 'Stale', value: driverStats.staleDrivers, tone: 'danger' as const },
       { label: 'Viajes activos', value: activeTrips, tone: 'warning' as const },
       { label: 'Incidentes abiertos', value: openIncidents, tone: 'danger' as const },
     ],
-    [activeTrips, onlineDrivers, openIncidents],
+    [
+      activeTrips,
+      driverStats.idleDrivers,
+      driverStats.onTripDrivers,
+      driverStats.staleDrivers,
+      onlineDrivers,
+      openIncidents,
+    ],
   );
 
   return (
@@ -275,6 +311,15 @@ export default function AdminOperationsLivePage() {
                 <span className="h-3 w-3 rounded-full bg-blue-500" /> Conductores online
               </li>
               <li className="flex items-center gap-2">
+                <Badge variant="success">available / idle</Badge>
+              </li>
+              <li className="flex items-center gap-2">
+                <Badge variant="outline">on_trip</Badge>
+              </li>
+              <li className="flex items-center gap-2">
+                <Badge variant="danger">stale</Badge>
+              </li>
+              <li className="flex items-center gap-2">
                 <span className="h-3 w-3 rounded-full bg-orange-500" /> Viajes activos
                 (marker/polilínea)
               </li>
@@ -282,6 +327,7 @@ export default function AdminOperationsLivePage() {
                 <span className="h-3 w-3 rounded-full bg-rose-500" /> Incidentes abiertos
               </li>
             </ul>
+            <p className="mt-4 text-xs text-slate-400">Drivers en payload live: {drivers.length}</p>
             <p className="mt-4 text-xs text-slate-400">
               Última actualización: {lastUpdatedAt ? formatDateTime(lastUpdatedAt) : '-'}
             </p>
