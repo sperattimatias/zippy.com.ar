@@ -12,7 +12,7 @@ export function useDebouncedValue<T>(value: T, delayMs = 350) {
   return debounced;
 }
 
-export function useQueryState<T extends Record<string, string>>(defaults: T) {
+export function useQueryState<T extends Record<string, string>>(defaults: T, options?: { debounceMs?: number }) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -26,33 +26,31 @@ export function useQueryState<T extends Record<string, string>>(defaults: T) {
   }, [defaults, searchParams]);
 
   const [state, setState] = useState<T>(readState);
+  const debouncedState = useDebouncedValue(state, options?.debounceMs ?? 350);
 
   useEffect(() => {
     setState(readState());
   }, [readState]);
 
-  useEffect(() => {
+  const encodeState = useCallback((targetState: T) => {
     const params = new URLSearchParams();
-    for (const key of Object.keys(state)) {
-      const value = state[key];
+    for (const key of Object.keys(targetState)) {
+      const value = targetState[key];
       if (value) params.set(key, value);
     }
-    const query = params.toString();
+    return params.toString();
+  }, []);
+
+  useEffect(() => {
+    const query = encodeState(debouncedState);
     router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
-  }, [pathname, router, state]);
+  }, [debouncedState, encodeState, pathname, router]);
 
   const patch = useCallback((partial: Partial<T>) => {
     setState((current) => ({ ...current, ...partial }));
   }, []);
 
-  const queryString = useMemo(() => {
-    const params = new URLSearchParams();
-    for (const key of Object.keys(state)) {
-      const value = state[key];
-      if (value) params.set(key, value);
-    }
-    return params.toString();
-  }, [state]);
+  const queryString = useMemo(() => encodeState(debouncedState), [debouncedState, encodeState]);
 
   return { state, patch, queryString };
 }

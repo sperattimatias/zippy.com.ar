@@ -1,7 +1,13 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { AdminCard, ErrorState, LoadingState, Toast } from '../../../../../components/admin/ui';
+import { PageHeader } from '../../../../../components/page/PageHeader';
+import { StatusBadge } from '../../../../../components/common/StatusBadge';
+import { SectionCard } from '../../../../../components/common/SectionCard';
+import { EmptyState } from '../../../../../components/states/EmptyState';
+import { ErrorState } from '../../../../../components/states/ErrorState';
+import { LoadingState } from '../../../../../components/states/LoadingState';
+import { toast } from '../../../../../lib/toast';
 
 type FraudSignal = {
   id: string;
@@ -30,8 +36,7 @@ export default function FraudCaseDetail({ params }: { params: { id: string } }) 
   const [data, setData] = useState<FraudCaseDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [toast, setToast] = useState<{ tone: 'success' | 'error'; message: string } | null>(null);
-
+  
   const [notes, setNotes] = useState('');
   const [assignee, setAssignee] = useState('');
   const [freezePaymentId, setFreezePaymentId] = useState('');
@@ -60,10 +65,10 @@ export default function FraudCaseDetail({ params }: { params: { id: string } }) 
         body: JSON.stringify(body),
       });
       if (!res.ok) throw new Error('No se pudo ejecutar la acción');
-      setToast({ tone: 'success', message: 'Acción ejecutada' });
+      toast.success('Acción ejecutada');
       await load();
     } catch (e) {
-      setToast({ tone: 'error', message: e instanceof Error ? e.message : 'Error inesperado' });
+      toast.error(e instanceof Error ? e.message : 'Error inesperado');
     }
   };
 
@@ -77,19 +82,20 @@ export default function FraudCaseDetail({ params }: { params: { id: string } }) 
 
   return (
     <div className="space-y-6">
-      <AdminCard title={`Fraud Case ${fraudCase.id}`}>
+      <PageHeader title="Fraud case detail" subtitle="Señales, evidencia y resolución del caso." />
+      <SectionCard title={`Fraud Case ${fraudCase.id}`}>
         <div className="grid gap-2 text-sm md:grid-cols-2">
           <p><span className="text-slate-400">Title:</span> {fraudCase.title}</p>
-          <p><span className="text-slate-400">Status:</span> {fraudCase.status}</p>
-          <p><span className="text-slate-400">Severity:</span> {fraudCase.severity}</p>
+          <p><span className="text-slate-400">Status:</span> <StatusBadge status={fraudCase.status} /></p>
+          <p><span className="text-slate-400">Severity:</span> <StatusBadge status={fraudCase.severity} /></p>
           <p><span className="text-slate-400">User:</span> {fraudCase.primary_user_id ?? '-'}</p>
           <p><span className="text-slate-400">Driver:</span> {fraudCase.related_driver_id ?? '-'}</p>
           <p><span className="text-slate-400">Trip:</span> {fraudCase.related_trip_id ?? '-'}</p>
         </div>
         <p className="mt-3 text-sm"><span className="text-slate-400">Summary:</span> {fraudCase.summary ?? '-'}</p>
-      </AdminCard>
+      </SectionCard>
 
-      <AdminCard title="Señales y evidencias">
+      <SectionCard title="Señales y evidencias">
         <div className="space-y-2">
           {data.signals.map((s) => (
             <div key={s.id} className="rounded border border-slate-800 p-2 text-xs">
@@ -99,9 +105,9 @@ export default function FraudCaseDetail({ params }: { params: { id: string } }) 
           ))}
           {data.signals.length === 0 && <p className="text-sm text-slate-400">Sin señales asociadas.</p>}
         </div>
-      </AdminCard>
+      </SectionCard>
 
-      <AdminCard title="Acciones de Fraud Ops">
+      <SectionCard title="Acciones de Fraud Ops">
         <div className="space-y-3 text-sm">
           <div className="grid gap-2 md:grid-cols-3">
             <input className="rounded bg-slate-950 p-2" placeholder="Nota acción / manual review" value={notes} onChange={(e) => setNotes(e.target.value)} />
@@ -122,9 +128,7 @@ export default function FraudCaseDetail({ params }: { params: { id: string } }) 
             <button className="rounded bg-indigo-700 px-3 py-2" onClick={() => void runAction('freeze-payments', { payment_id: freezePaymentId || undefined, trip_id: fraudCase.related_trip_id ?? undefined, note: notes || 'freeze payments' })}>Congelar pagos relacionados</button>
           </div>
         </div>
-      </AdminCard>
-
-      {toast && <Toast tone={toast.tone} message={toast.message} onClose={() => setToast(null)} />}
+      </SectionCard>
     </div>
   );
 }

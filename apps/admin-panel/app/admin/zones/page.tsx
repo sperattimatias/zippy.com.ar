@@ -1,10 +1,21 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import type { MouseEvent } from 'react';
+import type { ReactNode } from 'react';
+import { useEffect, useState } from 'react';
+import dynamic from 'next/dynamic';
 import { useSearchParams } from 'next/navigation';
-import { AdminCard, EmptyState, ErrorState, LoadingState, Toast } from '../../../components/admin/ui';
+import { PageHeader } from '../../../components/page/PageHeader';
+import { EmptyState } from '../../../components/states/EmptyState';
+import { ErrorState } from '../../../components/states/ErrorState';
+import { TableSkeleton } from '../../../components/states/TableSkeleton';
+import { Button } from '../../../components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../../components/ui/card';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../../../components/ui/dialog';
+import { Input } from '../../../components/ui/input';
+import { Select } from '../../../components/ui/select';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../../components/ui/table';
 import { FIRMAT_BASE_POLYGON, isValidLatLng, ZONE_TYPES } from '../../../lib/zones';
+import { toast } from '../../../lib/toast';
 import type { LatLngPoint } from '../../../lib/zones';
 
 type ZoneKind = 'geozones' | 'premium';
@@ -33,108 +44,27 @@ type PricingProfile = {
   night_fee?: number;
 };
 
-type ToastState = { tone: 'success' | 'error'; message: string } | null;
-
 const tabButton = 'rounded-lg px-3 py-2 text-sm font-medium transition';
 
-function PolygonEditor({ points, onChange }: { points: LatLngPoint[]; onChange: (next: LatLngPoint[]) => void }) {
-  const [selected, setSelected] = useState<number | null>(null);
-  const bounds = useMemo(() => {
-    const source = points.length > 0 ? points : FIRMAT_BASE_POLYGON;
-    const lats = source.map((p) => p.lat);
-    const lngs = source.map((p) => p.lng);
-    return {
-      minLat: Math.min(...lats) - 0.01,
-      maxLat: Math.max(...lats) + 0.01,
-      minLng: Math.min(...lngs) - 0.01,
-      maxLng: Math.max(...lngs) + 0.01,
-    };
-  }, [points]);
+const LeafletPolygonEditor = dynamic(
+  () => import('../../../components/maps/leaflet-polygon-editor').then((mod) => mod.LeafletPolygonEditor),
+  { ssr: false, loading: () => <div className="h-[340px] animate-pulse rounded-lg border border-slate-700 bg-slate-900/70" /> },
+);
 
-  const width = 560;
-  const height = 320;
-
-  const toXY = (point: LatLngPoint) => ({
-    x: ((point.lng - bounds.minLng) / (bounds.maxLng - bounds.minLng || 1)) * width,
-    y: ((bounds.maxLat - point.lat) / (bounds.maxLat - bounds.minLat || 1)) * height,
-  });
-
-  const toLatLng = (x: number, y: number): LatLngPoint => ({
-    lng: bounds.minLng + (x / width) * (bounds.maxLng - bounds.minLng),
-    lat: bounds.maxLat - (y / height) * (bounds.maxLat - bounds.minLat),
-  });
-
-  const onCanvasClick = (event: MouseEvent<SVGSVGElement>) => {
-    const rect = event.currentTarget.getBoundingClientRect();
-    const x = event.clientX - rect.left;
-    const y = event.clientY - rect.top;
-    onChange([...points, toLatLng(x, y)]);
-  };
-
-  const movePoint = (event: MouseEvent<SVGCircleElement>, index: number) => {
-    if (selected !== index) return;
-    const rect = event.currentTarget.ownerSVGElement?.getBoundingClientRect();
-    if (!rect) return;
-    const x = Math.max(0, Math.min(width, event.clientX - rect.left));
-    const y = Math.max(0, Math.min(height, event.clientY - rect.top));
-    const next = [...points];
-    next[index] = toLatLng(x, y);
-    onChange(next);
-  };
-
+function ZonesCard({ title, description, action, children }: { title: string; description?: string; action?: ReactNode; children: ReactNode }) {
   return (
-    <div className="space-y-2">
-      <p className="text-xs text-slate-400">Editor de polígono: click para agregar puntos, arrastrá para mover.</p>
-      <div className="h-[340px] w-full overflow-hidden rounded-lg border border-slate-700 bg-slate-950">
-      <svg className="h-full w-full" viewBox={`0 0 ${width} ${height}`} onClick={onCanvasClick}>
-        <rect width={width} height={height} fill="#020617" />
-        <g opacity={0.18}>
-          {Array.from({ length: 8 }).map((_, i) => (
-            <line key={`h-${i}`} x1={0} x2={width} y1={(height / 8) * i} y2={(height / 8) * i} stroke="#64748b" />
-          ))}
-          {Array.from({ length: 12 }).map((_, i) => (
-            <line key={`v-${i}`} y1={0} y2={height} x1={(width / 12) * i} x2={(width / 12) * i} stroke="#64748b" />
-          ))}
-        </g>
-        {points.length > 2 && <polygon points={points.map((p) => `${toXY(p).x},${toXY(p).y}`).join(' ')} fill="#0891b233" stroke="#06b6d4" strokeWidth={2} />}
-        {points.map((point, index) => {
-          const { x, y } = toXY(point);
-          return (
-            <circle
-              key={`${point.lat}-${point.lng}-${index}`}
-              cx={x}
-              cy={y}
-              r={6}
-              fill={selected === index ? '#22d3ee' : '#f8fafc'}
-              stroke="#0f172a"
-              strokeWidth={2}
-              onMouseDown={(e) => {
-                e.stopPropagation();
-                setSelected(index);
-              }}
-              onMouseMove={(e) => movePoint(e, index)}
-              onMouseUp={() => setSelected(null)}
-              onMouseLeave={() => setSelected(null)}
-            />
-          );
-        })}
-      </svg>
-      </div>
-      <div className="flex gap-2">
-        <button className="rounded bg-slate-800 px-3 py-1.5 text-xs hover:bg-slate-700" onClick={() => onChange(FIRMAT_BASE_POLYGON)}>
-          Firmat preset
-        </button>
-        <button className="rounded bg-slate-800 px-3 py-1.5 text-xs hover:bg-slate-700" onClick={() => onChange([])}>
-          Reset
-        </button>
-        <button
-          className="rounded bg-slate-800 px-3 py-1.5 text-xs hover:bg-slate-700"
-          onClick={() => onChange(points.length > 0 ? points.slice(0, points.length - 1) : points)}
-        >
-          Deshacer punto
-        </button>
-      </div>
-    </div>
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <CardTitle>{title}</CardTitle>
+            {description ? <CardDescription className="mt-1">{description}</CardDescription> : null}
+          </div>
+          {action}
+        </div>
+      </CardHeader>
+      <CardContent>{children}</CardContent>
+    </Card>
   );
 }
 
@@ -142,7 +72,6 @@ function ZonesManager({ kind }: { kind: ZoneKind }) {
   const [rows, setRows] = useState<ZoneRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [toast, setToast] = useState<ToastState>(null);
   const [editing, setEditing] = useState<ZoneRow | null>(null);
   const [name, setName] = useState('');
   const [type, setType] = useState((kind === 'geozones' ? ZONE_TYPES.geozone[0] : ZONE_TYPES.premium[0]) as string);
@@ -160,11 +89,15 @@ function ZonesManager({ kind }: { kind: ZoneKind }) {
   const [profileCancelFee, setProfileCancelFee] = useState(500);
   const [profileSurge, setProfileSurge] = useState(1);
   const [profileNightFee, setProfileNightFee] = useState(0);
+  const [saveLoading, setSaveLoading] = useState(false);
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<ZoneRow | null>(null);
 
   const endpoint = kind === 'geozones' ? '/api/admin/geozones' : '/api/admin/premium-zones';
 
-  const showError = (message: string) => setToast({ tone: 'error', message });
-  const showSuccess = (message: string) => setToast({ tone: 'success', message });
+  const showError = (message: string) => toast.error(message);
+  const showSuccess = (message: string) => toast.success(message);
 
   const load = async () => {
     setLoading(true);
@@ -228,20 +161,25 @@ function ZonesManager({ kind }: { kind: ZoneKind }) {
     const url = editing ? `${endpoint}/${editing.id}` : endpoint;
     const method = editing ? 'PATCH' : 'POST';
 
-    const res = await fetch(url, {
-      method,
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
+    setSaveLoading(true);
+    try {
+      const res = await fetch(url, {
+        method,
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
 
-    if (!res.ok) {
-      showError('No se pudo guardar la zona');
-      return;
+      if (!res.ok) {
+        showError('No se pudo guardar la zona');
+        return;
+      }
+
+      showSuccess(editing ? 'Zona actualizada' : 'Zona creada');
+      resetForm();
+      await load();
+    } finally {
+      setSaveLoading(false);
     }
-
-    showSuccess(editing ? 'Zona actualizada' : 'Zona creada');
-    resetForm();
-    await load();
   };
 
   const onEdit = (row: ZoneRow) => {
@@ -261,181 +199,225 @@ function ZonesManager({ kind }: { kind: ZoneKind }) {
       showError('Nombre de perfil requerido');
       return;
     }
-    const res = await fetch('/api/admin/pricing/profiles', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        key,
-        name: profileName.trim(),
-        base_fare: profileBaseFare,
-        per_km: profilePerKm,
-        per_min: profilePerMin,
-        minimum: profileMinimum,
-        cancel_fee: profileCancelFee,
-        surge: profileSurge,
-        night_fee: profileNightFee,
-      }),
-    });
-    if (!res.ok) {
-      showError('No se pudo crear perfil');
-      return;
+
+    setProfileLoading(true);
+    try {
+      const res = await fetch('/api/admin/pricing/profiles', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          key,
+          name: profileName.trim(),
+          base_fare: profileBaseFare,
+          per_km: profilePerKm,
+          per_min: profilePerMin,
+          minimum: profileMinimum,
+          cancel_fee: profileCancelFee,
+          surge: profileSurge,
+          night_fee: profileNightFee,
+        }),
+      });
+      if (!res.ok) {
+        showError('No se pudo crear perfil');
+        return;
+      }
+      showSuccess('Perfil de pricing guardado');
+      setProfileName('');
+      await load();
+    } finally {
+      setProfileLoading(false);
     }
-    showSuccess('Perfil de pricing guardado');
-    setProfileName('');
-    await load();
   };
 
   const onToggle = async (row: ZoneRow) => {
-    const res = await fetch(`${endpoint}/${row.id}`, {
-      method: 'PATCH',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ is_active: !row.is_active }),
-    });
+    setActionLoadingId(`toggle-${row.id}`);
+    try {
+      const res = await fetch(`${endpoint}/${row.id}`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ is_active: !row.is_active }),
+      });
 
-    if (!res.ok) {
-      showError('No se pudo cambiar estado');
-      return;
+      if (!res.ok) {
+        showError('No se pudo cambiar estado');
+        return;
+      }
+
+      showSuccess(`Zona ${row.is_active ? 'desactivada' : 'activada'}`);
+      await load();
+    } finally {
+      setActionLoadingId(null);
     }
-
-    showSuccess(`Zona ${row.is_active ? 'desactivada' : 'activada'}`);
-    await load();
   };
 
   const onDelete = async (row: ZoneRow) => {
-    if (!window.confirm(`¿Borrar zona ${row.name}?`)) return;
-    const res = await fetch(`${endpoint}/${row.id}`, { method: 'DELETE' });
-    if (!res.ok) {
-      showError('No se pudo borrar');
-      return;
-    }
+    setActionLoadingId(`delete-${row.id}`);
+    try {
+      const res = await fetch(`${endpoint}/${row.id}`, { method: 'DELETE' });
+      if (!res.ok) {
+        showError('No se pudo borrar');
+        return;
+      }
 
-    showSuccess('Zona borrada');
-    await load();
+      showSuccess('Zona borrada');
+      setDeleteTarget(null);
+      await load();
+    } finally {
+      setActionLoadingId(null);
+    }
   };
 
   return (
     <div className="space-y-6">
-      <AdminCard title={editing ? `Editar ${editing.name}` : `Nueva ${kind === 'geozones' ? 'GeoZone' : 'Premium Zone'}`}>
+      <ZonesCard
+        title={editing ? `Editar ${editing.name}` : `Nueva ${kind === 'geozones' ? 'GeoZone' : 'Premium Zone'}`}
+        description="Definí polígonos y reglas para la zona seleccionada."
+      >
         <div className="mb-4 rounded-lg border border-slate-800 bg-slate-900/40 p-3">
           <p className="mb-2 text-sm font-medium">Pricing profiles</p>
           <div className="grid gap-2 md:grid-cols-4">
-            <input className="rounded-md border border-slate-700 bg-slate-950 p-2 text-sm" placeholder="Nombre perfil" value={profileName} onChange={(e) => setProfileName(e.target.value)} />
-            <input type="number" className="rounded-md border border-slate-700 bg-slate-950 p-2 text-sm" placeholder="Base fare" value={profileBaseFare} onChange={(e) => setProfileBaseFare(Number(e.target.value))} />
-            <input type="number" className="rounded-md border border-slate-700 bg-slate-950 p-2 text-sm" placeholder="Per km" value={profilePerKm} onChange={(e) => setProfilePerKm(Number(e.target.value))} />
-            <input type="number" className="rounded-md border border-slate-700 bg-slate-950 p-2 text-sm" placeholder="Per min" value={profilePerMin} onChange={(e) => setProfilePerMin(Number(e.target.value))} />
-            <input type="number" className="rounded-md border border-slate-700 bg-slate-950 p-2 text-sm" placeholder="Minimum" value={profileMinimum} onChange={(e) => setProfileMinimum(Number(e.target.value))} />
-            <input type="number" className="rounded-md border border-slate-700 bg-slate-950 p-2 text-sm" placeholder="Cancel fee" value={profileCancelFee} onChange={(e) => setProfileCancelFee(Number(e.target.value))} />
-            <input type="number" step="0.1" className="rounded-md border border-slate-700 bg-slate-950 p-2 text-sm" placeholder="Surge" value={profileSurge} onChange={(e) => setProfileSurge(Number(e.target.value))} />
-            <input type="number" className="rounded-md border border-slate-700 bg-slate-950 p-2 text-sm" placeholder="Night fee" value={profileNightFee} onChange={(e) => setProfileNightFee(Number(e.target.value))} />
+            <Input placeholder="Nombre perfil" value={profileName} onChange={(e) => setProfileName(e.target.value)} />
+            <Input type="number" placeholder="Base fare" value={profileBaseFare} onChange={(e) => setProfileBaseFare(Number(e.target.value))} />
+            <Input type="number" placeholder="Per km" value={profilePerKm} onChange={(e) => setProfilePerKm(Number(e.target.value))} />
+            <Input type="number" placeholder="Per min" value={profilePerMin} onChange={(e) => setProfilePerMin(Number(e.target.value))} />
+            <Input type="number" placeholder="Minimum" value={profileMinimum} onChange={(e) => setProfileMinimum(Number(e.target.value))} />
+            <Input type="number" placeholder="Cancel fee" value={profileCancelFee} onChange={(e) => setProfileCancelFee(Number(e.target.value))} />
+            <Input type="number" step="0.1" placeholder="Surge" value={profileSurge} onChange={(e) => setProfileSurge(Number(e.target.value))} />
+            <Input type="number" placeholder="Night fee" value={profileNightFee} onChange={(e) => setProfileNightFee(Number(e.target.value))} />
           </div>
-          <button className="mt-2 rounded bg-slate-700 px-3 py-1.5 text-xs" onClick={() => void createPricingProfile()}>Guardar perfil</button>
+          <Button size="sm" variant="secondary" className="mt-2" onClick={() => void createPricingProfile()} disabled={profileLoading}>
+            {profileLoading ? 'Guardando...' : 'Guardar perfil'}
+          </Button>
         </div>
 
         <div className="grid gap-3 md:grid-cols-2">
-          <input className="rounded-md border border-slate-700 bg-slate-950 p-2 text-sm" placeholder="Nombre" value={name} onChange={(e) => setName(e.target.value)} />
-          <select className="rounded-md border border-slate-700 bg-slate-950 p-2 text-sm" value={type} onChange={(e) => setType(e.target.value)}>
+          <Input placeholder="Nombre" value={name} onChange={(e) => setName(e.target.value)} />
+          <Select value={type} onChange={(e) => setType(e.target.value)}>
             {(kind === 'geozones' ? ZONE_TYPES.geozone : ZONE_TYPES.premium).map((option) => (
               <option key={option} value={option}>
                 {option}
               </option>
             ))}
-          </select>
+          </Select>
           {kind === 'premium' && (
             <>
-              <input
-                type="number"
-                className="rounded-md border border-slate-700 bg-slate-950 p-2 text-sm"
-                value={minDriverScore}
-                onChange={(e) => setMinDriverScore(Number(e.target.value))}
-                placeholder="Min driver score"
-              />
-              <input
-                type="number"
-                className="rounded-md border border-slate-700 bg-slate-950 p-2 text-sm"
-                value={minPassengerScore}
-                onChange={(e) => setMinPassengerScore(Number(e.target.value))}
-                placeholder="Min passenger score"
-              />
+              <Input type="number" value={minDriverScore} onChange={(e) => setMinDriverScore(Number(e.target.value))} placeholder="Min driver score" />
+              <Input type="number" value={minPassengerScore} onChange={(e) => setMinPassengerScore(Number(e.target.value))} placeholder="Min passenger score" />
             </>
           )}
           <label className="flex items-center gap-2 text-sm text-slate-300">
             <input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} /> Activo
           </label>
-          <select className="rounded-md border border-slate-700 bg-slate-950 p-2 text-sm" value={pricingProfileKey} onChange={(e) => setPricingProfileKey(e.target.value)}>
+          <Select value={pricingProfileKey} onChange={(e) => setPricingProfileKey(e.target.value)}>
             <option value="">Sin profile</option>
             {pricingProfiles.map((profile) => (
-              <option key={profile.key} value={profile.key}>{profile.name} ({profile.key})</option>
+              <option key={profile.key} value={profile.key}>
+                {profile.name} ({profile.key})
+              </option>
             ))}
-          </select>
+          </Select>
         </div>
 
         <div className="mt-4">
-          {loading ? (
-            <div className="h-[340px] animate-pulse rounded-lg border border-slate-700 bg-slate-900/70" />
-          ) : (
-            <PolygonEditor points={points} onChange={setPoints} />
-          )}
+          {loading ? <TableSkeleton rows={6} /> : <LeafletPolygonEditor points={points} onChange={setPoints} />}
+        </div>
+
+        <div className="mt-3 flex flex-wrap gap-2">
+          <Button size="sm" variant="secondary" onClick={() => setPoints(FIRMAT_BASE_POLYGON)}>
+            Firmat preset
+          </Button>
+          <Button size="sm" variant="secondary" onClick={() => setPoints([])}>
+            Reset
+          </Button>
         </div>
 
         <div className="mt-4 flex flex-wrap gap-2">
-          <button className="rounded bg-cyan-600 px-4 py-2 text-sm font-medium text-white hover:bg-cyan-500" onClick={onSave}>
-            {editing ? 'Guardar cambios' : 'Crear zona'}
-          </button>
+          <Button onClick={onSave} disabled={saveLoading}>
+            {saveLoading ? 'Guardando...' : editing ? 'Guardar cambios' : 'Crear zona'}
+          </Button>
           {editing && (
-            <button className="rounded bg-slate-800 px-4 py-2 text-sm hover:bg-slate-700" onClick={resetForm}>
+            <Button variant="secondary" onClick={resetForm}>
               Cancelar edición
-            </button>
+            </Button>
           )}
         </div>
-      </AdminCard>
+      </ZonesCard>
 
-      <AdminCard title="Zonas existentes">
-        {loading && <LoadingState message="Cargando zonas..." />}
+      <ZonesCard title="Zonas existentes" description="Listado de zonas registradas con acciones rápidas.">
+        {loading && <TableSkeleton rows={6} />}
         {error && <ErrorState message={error} retry={() => void load()} />}
-        {!loading && !error && rows.length === 0 && <EmptyState message="No hay zonas cargadas todavía." />}
+        {!loading && !error && rows.length === 0 && (
+          <EmptyState title="No hay zonas cargadas todavía" description="Creá una zona para comenzar a aplicar reglas geográficas y de pricing." />
+        )}
 
         {!loading && !error && rows.length > 0 && (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[720px] text-left text-sm">
-              <thead className="border-b border-slate-700 text-xs uppercase text-slate-400">
-                <tr>
-                  <th className="p-2">Nombre</th>
-                  <th className="p-2">Tipo</th>
-                  <th className="p-2">Activo</th>
-                  <th className="p-2">UpdatedAt</th>
-                  <th className="p-2">Pricing Profile</th>
-                  <th className="p-2">Acciones</th>
-                </tr>
-              </thead>
-              <tbody>
+            <Table className="min-w-[720px]">
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Nombre</TableHead>
+                  <TableHead>Tipo</TableHead>
+                  <TableHead>Activo</TableHead>
+                  <TableHead>UpdatedAt</TableHead>
+                  <TableHead>Pricing Profile</TableHead>
+                  <TableHead>Acciones</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {rows.map((row) => (
-                  <tr key={row.id} className="border-b border-slate-800/80">
-                    <td className="p-2 font-medium text-slate-100">{row.name}</td>
-                    <td className="p-2 text-slate-300">{row.type}</td>
-                    <td className="p-2">{row.is_active ? 'Sí' : 'No'}</td>
-                    <td className="p-2 text-slate-400">{row.updated_at ? new Date(row.updated_at).toLocaleString() : '-'}</td>
-                    <td className="p-2 text-slate-300">{row.pricing_profile_key ?? '-'}</td>
-                    <td className="p-2">
+                  <TableRow key={row.id}>
+                    <TableCell className="font-medium">{row.name}</TableCell>
+                    <TableCell>{row.type}</TableCell>
+                    <TableCell>{row.is_active ? 'Sí' : 'No'}</TableCell>
+                    <TableCell className="text-slate-400">{row.updated_at ? new Date(row.updated_at).toLocaleString() : '-'}</TableCell>
+                    <TableCell>{row.pricing_profile_key ?? '-'}</TableCell>
+                    <TableCell>
                       <div className="flex flex-wrap gap-2">
-                        <button className="rounded bg-slate-800 px-2 py-1 text-xs hover:bg-slate-700" onClick={() => onEdit(row)}>
+                        <Button size="sm" variant="secondary" onClick={() => onEdit(row)}>
                           Editar
-                        </button>
-                        <button className="rounded bg-slate-800 px-2 py-1 text-xs hover:bg-slate-700" onClick={() => void onToggle(row)}>
-                          {row.is_active ? 'Desactivar' : 'Activar'}
-                        </button>
-                        <button className="rounded bg-rose-600 px-2 py-1 text-xs text-white hover:bg-rose-500" onClick={() => void onDelete(row)}>
-                          Borrar
-                        </button>
+                        </Button>
+                        <Button size="sm" variant="secondary" onClick={() => void onToggle(row)} disabled={actionLoadingId === `toggle-${row.id}`}>
+                          {actionLoadingId === `toggle-${row.id}` ? 'Procesando...' : row.is_active ? 'Desactivar' : 'Activar'}
+                        </Button>
+                        <Button size="sm" variant="destructive" onClick={() => setDeleteTarget(row)} disabled={actionLoadingId === `delete-${row.id}`}>
+                          {actionLoadingId === `delete-${row.id}` ? 'Borrando...' : 'Borrar'}
+                        </Button>
                       </div>
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </div>
         )}
-      </AdminCard>
-      {toast && <Toast tone={toast.tone} message={toast.message} onClose={() => setToast(null)} />}
+      </ZonesCard>
+
+      <Dialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Eliminar zona</DialogTitle>
+            <DialogDescription>
+              Esta acción no se puede deshacer. Confirmá la eliminación de{' '}
+              <span className="font-medium text-slate-200">{deleteTarget?.name}</span>.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-2">
+            <Button variant="ghost" onClick={() => setDeleteTarget(null)}>
+              Cancelar
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                if (!deleteTarget) return;
+                void onDelete(deleteTarget);
+              }}
+              disabled={deleteTarget ? actionLoadingId === `delete-${deleteTarget.id}` : false}
+            >
+              {deleteTarget && actionLoadingId === `delete-${deleteTarget.id}` ? 'Borrando...' : 'Confirmar borrado'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -451,18 +433,15 @@ export default function ZonesPage() {
 
   return (
     <div className="space-y-6">
-      <section>
-        <h1 className="text-2xl font-bold">Zones</h1>
-        <p className="text-sm text-slate-400">Administrá GeoZones y Premium Zones desde una misma pantalla.</p>
-      </section>
+      <PageHeader title="Zones" subtitle="Administrá GeoZones y Premium Zones desde una misma pantalla." />
 
       <section className="flex gap-2 rounded-lg border border-slate-800 bg-slate-900/50 p-2">
-        <button className={`${tabButton} ${tab === 'geozones' ? 'bg-cyan-600 text-white' : 'text-slate-300 hover:bg-slate-800'}`} onClick={() => setTab('geozones')}>
+        <Button className={`${tabButton} ${tab === 'geozones' ? 'bg-cyan-600 text-white' : 'text-slate-300 hover:bg-slate-800'}`} variant="ghost" onClick={() => setTab('geozones')}>
           GeoZones
-        </button>
-        <button className={`${tabButton} ${tab === 'premium' ? 'bg-cyan-600 text-white' : 'text-slate-300 hover:bg-slate-800'}`} onClick={() => setTab('premium')}>
+        </Button>
+        <Button className={`${tabButton} ${tab === 'premium' ? 'bg-cyan-600 text-white' : 'text-slate-300 hover:bg-slate-800'}`} variant="ghost" onClick={() => setTab('premium')}>
           Premium Zones
-        </button>
+        </Button>
       </section>
 
       <ZonesManager kind={tab} />
