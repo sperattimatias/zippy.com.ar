@@ -1,7 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { AdminCard, EmptyState, ErrorState, LoadingState, Toast } from '../../../../components/admin/ui';
+import { AdminCard, EmptyState, ErrorState, LoadingState } from '../../../../components/admin/ui';
+import { toast } from '../../../../lib/toast';
 
 type OverviewResponse = {
   from: string;
@@ -21,7 +22,6 @@ type OverviewResponse = {
   };
 };
 
-type ToastState = { tone: 'success' | 'error'; message: string } | null;
 
 const toInputDate = (value: Date) => value.toISOString().slice(0, 10);
 
@@ -32,8 +32,7 @@ export default function ReportsOverviewPage() {
   const [data, setData] = useState<OverviewResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [toast, setToast] = useState<ToastState>(null);
-
+  
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -56,7 +55,7 @@ export default function ReportsOverviewPage() {
   const onExportCsv = () => {
     const params = new URLSearchParams({ from, to });
     window.open(`/api/admin/reports/export.csv?${params.toString()}`, '_blank', 'noopener,noreferrer');
-    setToast({ tone: 'success', message: 'Export iniciado' });
+    toast.success('Export iniciado');
   };
 
   return (
@@ -96,7 +95,6 @@ export default function ReportsOverviewPage() {
           </div>
         )}
       </AdminCard>
-      {toast && <Toast tone={toast.tone} message={toast.message} onClose={() => setToast(null)} />}
     </div>
   );
 }

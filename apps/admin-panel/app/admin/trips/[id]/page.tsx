@@ -1,9 +1,19 @@
 'use client';
 
+import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
-import { AdminCard, EmptyState, ErrorState, LoadingState, Toast } from '../../../../components/admin/ui';
+import { AdminCard, EmptyState, ErrorState, LoadingState } from '../../../../components/admin/ui';
+import { toast } from '../../../../lib/toast';
 import { ReasonDialog } from '../../../../components/forms/reason-dialog';
+import { Button } from '../../../../components/ui/button';
+import { Input } from '../../../../components/ui/input';
+import { Textarea } from '../../../../components/ui/textarea';
+
+const TripRouteMap = dynamic(
+  () => import('../../../../components/maps/trip-route-map').then((mod) => mod.TripRouteMap),
+  { ssr: false, loading: () => <div className="h-[340px] animate-pulse rounded-lg border border-slate-700 bg-slate-900/70" /> },
+);
 
 type TripDetail = {
   id: string;
@@ -23,62 +33,10 @@ type TripDetail = {
   locations: Array<{ id: string; lat: number; lng: number; created_at: string }>;
 };
 
-type ToastState = { tone: 'success' | 'error'; message: string } | null;
-
-function RouteMap({ locations }: { locations: Array<{ lat: number; lng: number }> }) {
-  if (locations.length === 0) {
-    return <EmptyState message="No hay coordenadas disponibles" />;
-  }
-
-  const width = 700;
-  const height = 240;
-  const bounds = useMemo(() => {
-    if (locations.length === 0) return { minLat: -34.61, maxLat: -34.59, minLng: -58.42, maxLng: -58.38 };
-    const lats = locations.map((location) => location.lat);
-    const lngs = locations.map((location) => location.lng);
-    return { minLat: Math.min(...lats) - 0.005, maxLat: Math.max(...lats) + 0.005, minLng: Math.min(...lngs) - 0.005, maxLng: Math.max(...lngs) + 0.005 };
-  }, [locations]);
-
-  const toPoint = (lat: number, lng: number) => {
-    const x = ((lng - bounds.minLng) / (bounds.maxLng - bounds.minLng || 1)) * width;
-    const y = ((bounds.maxLat - lat) / (bounds.maxLat - bounds.minLat || 1)) * height;
-    return { x, y };
-  };
-
-  const path = locations.map((location) => {
-    const point = toPoint(location.lat, location.lng);
-    return `${point.x},${point.y}`;
-  });
-
-  return (
-    <div className="h-[300px] w-full overflow-hidden rounded-lg border border-slate-700 bg-slate-950">
-      <svg className="h-full w-full" viewBox={`0 0 ${width} ${height}`}>
-        <rect width={width} height={height} fill="#020617" />
-        {path.length > 1 && <polyline points={path.join(' ')} fill="none" stroke="#22d3ee" strokeWidth={2} />}
-        {locations.map((location, index) => {
-          const point = toPoint(location.lat, location.lng);
-          const isStart = index === 0;
-          const isEnd = index === locations.length - 1;
-          return (
-            <circle
-              key={`${location.lat}-${location.lng}-${index}`}
-              cx={point.x}
-              cy={point.y}
-              r={isStart || isEnd ? 5 : 3}
-              fill={isStart ? '#22c55e' : isEnd ? '#f97316' : '#f8fafc'}
-            />
-          );
-        })}
-      </svg>
-    </div>
-  );
-}
-
 export default function AdminTripDetailPage({ params }: { params: { id: string } }) {
   const [trip, setTrip] = useState<TripDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [toast, setToast] = useState<ToastState>(null);
 
   const [reassignDriverId, setReassignDriverId] = useState('');
   const [incidentNote, setIncidentNote] = useState('');
@@ -118,49 +76,79 @@ export default function AdminTripDetailPage({ params }: { params: { id: string }
     setCancelLoading(true);
     try {
       await postAction('cancel', { reason });
-      setToast({ tone: 'success', message: 'Viaje cancelado.' });
+      toast.success('Viaje cancelado.');
       setCancelOpen(false);
       await load();
     } catch (actionError) {
-      setToast({ tone: 'error', message: actionError instanceof Error ? actionError.message : 'Error cancelando' });
+      toast.error(actionError instanceof Error ? actionError.message : 'Error cancelando');
     } finally {
       setCancelLoading(false);
     }
   };
 
   const onReassign = async () => {
-    if (!reassignDriverId.trim()) return setToast({ tone: 'error', message: 'Ingresá driverId.' });
+    if (!reassignDriverId.trim()) return toast.error('Ingresá driverId.');
     try {
       await postAction('reassign', { driverId: reassignDriverId });
-      setToast({ tone: 'success', message: 'Driver reasignado.' });
+      toast.success('Driver reasignado.');
       setReassignDriverId('');
       await load();
     } catch (actionError) {
-      setToast({ tone: 'error', message: actionError instanceof Error ? actionError.message : 'Error reasignando' });
+      toast.error(actionError instanceof Error ? actionError.message : 'Error reasignando');
     }
   };
 
   const onRetryMatching = async () => {
     try {
       await postAction('retry-matching');
-      setToast({ tone: 'success', message: 'Matching reintentado.' });
+      toast.success('Matching reintentado.');
       await load();
     } catch (actionError) {
-      setToast({ tone: 'error', message: actionError instanceof Error ? actionError.message : 'Error reintentando matching' });
+      toast.error(actionError instanceof Error ? actionError.message : 'Error reintentando matching');
     }
   };
 
   const onIncident = async () => {
-    if (!incidentNote.trim()) return setToast({ tone: 'error', message: 'Ingresá una nota de incidente.' });
+    if (!incidentNote.trim()) return toast.error('Ingresá una nota de incidente.');
     try {
       await postAction('incident', { note: incidentNote });
-      setToast({ tone: 'success', message: 'Incidente registrado.' });
+      toast.success('Incidente registrado.');
       setIncidentNote('');
       await load();
     } catch (actionError) {
-      setToast({ tone: 'error', message: actionError instanceof Error ? actionError.message : 'Error registrando incidente' });
+      toast.error(actionError instanceof Error ? actionError.message : 'Error registrando incidente');
     }
   };
+  const eventPoints = useMemo(() => {
+    const values: Array<{ lat: number; lng: number }> = [];
+
+    const readPoint = (value: unknown) => {
+      if (!value || typeof value !== 'object') return;
+      const candidate = value as { lat?: unknown; lng?: unknown; lon?: unknown; latitude?: unknown; longitude?: unknown };
+      const lat = Number(candidate.lat ?? candidate.latitude);
+      const lng = Number(candidate.lng ?? candidate.lon ?? candidate.longitude);
+      if (Number.isFinite(lat) && Number.isFinite(lng)) values.push({ lat, lng });
+    };
+
+    for (const event of trip?.events ?? []) {
+      readPoint(event.payload_json);
+      if (Array.isArray(event.payload_json)) {
+        for (const item of event.payload_json) readPoint(item);
+      }
+    }
+
+    return values;
+  }, [trip?.events]);
+
+  const routePoints = useMemo(() => {
+    const fromLocations = (trip?.locations ?? []).map((location) => ({ lat: location.lat, lng: location.lng }));
+    return fromLocations.length > 0 ? fromLocations : eventPoints;
+  }, [eventPoints, trip?.locations]);
+
+  const pickup = routePoints[0];
+  const dropoff = routePoints.length > 1 ? routePoints[routePoints.length - 1] : routePoints[0];
+
+
 
   return (
     <div className="space-y-6">
@@ -189,7 +177,11 @@ export default function AdminTripDetailPage({ params }: { params: { id: string }
 
           <AdminCard title="Ruta GPS">
             <p className="mb-2 text-xs text-slate-400">Inicio (pickup) en verde y fin (dropoff) en naranja.</p>
-            <RouteMap locations={trip.locations.map((location) => ({ lat: location.lat, lng: location.lng }))} />
+            {routePoints.length > 0 ? (
+              <TripRouteMap pickup={pickup} dropoff={dropoff} points={routePoints} />
+            ) : (
+              <EmptyState message="Sin coordenadas disponibles" />
+            )}
           </AdminCard>
 
           <AdminCard title="Eventos">
@@ -211,20 +203,20 @@ export default function AdminTripDetailPage({ params }: { params: { id: string }
 
           <AdminCard title="Acciones sensibles">
             <div className="grid gap-3 md:grid-cols-2">
-              <button className="rounded bg-rose-700 px-3 py-2 text-sm text-white" onClick={() => setCancelOpen(true)}>
+              <Button variant="destructive" onClick={() => setCancelOpen(true)}>
                 Cancelar viaje
-              </button>
-              <button className="rounded bg-amber-600 px-3 py-2 text-sm text-white" onClick={() => void onRetryMatching()}>
+              </Button>
+              <Button className="bg-amber-600 text-white hover:bg-amber-500" onClick={() => void onRetryMatching()}>
                 Retry matching
-              </button>
-              <input className="rounded bg-slate-950 p-2 text-sm" placeholder="Driver ID para reasignar" value={reassignDriverId} onChange={(e) => setReassignDriverId(e.target.value)} />
-              <button className="rounded bg-indigo-600 px-3 py-2 text-sm text-white" onClick={() => void onReassign()}>
+              </Button>
+              <Input placeholder="Driver ID para reasignar" value={reassignDriverId} onChange={(e) => setReassignDriverId(e.target.value)} />
+              <Button className="bg-indigo-600 text-white hover:bg-indigo-500" onClick={() => void onReassign()}>
                 Reasignar
-              </button>
-              <textarea className="rounded bg-slate-950 p-2 text-sm md:col-span-2" placeholder="Nota de incidente" value={incidentNote} onChange={(e) => setIncidentNote(e.target.value)} />
-              <button className="rounded bg-slate-700 px-3 py-2 text-sm text-white md:col-span-2" onClick={() => void onIncident()}>
+              </Button>
+              <Textarea className="md:col-span-2" placeholder="Nota de incidente" value={incidentNote} onChange={(e) => setIncidentNote(e.target.value)} />
+              <Button variant="secondary" className="md:col-span-2" onClick={() => void onIncident()}>
                 Registrar incidente
-              </button>
+              </Button>
             </div>
           </AdminCard>
         </>
@@ -239,7 +231,6 @@ export default function AdminTripDetailPage({ params }: { params: { id: string }
         onConfirm={(reason) => void onCancel(reason)}
       />
 
-      {toast && <Toast tone={toast.tone} message={toast.message} onClose={() => setToast(null)} />}
     </div>
   );
 }

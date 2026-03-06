@@ -1,17 +1,16 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { AdminCard, EmptyState, ErrorState, LoadingState, Toast } from '../../../../components/admin/ui';
+import { AdminCard, EmptyState, ErrorState, LoadingState } from '../../../../components/admin/ui';
+import { toast } from '../../../../lib/toast';
 
 type Template = { id: string; key: string; channel: string; title: string; body: string; is_active: boolean };
-type ToastState = { tone: 'success' | 'error'; message: string } | null;
 
 export default function NotificationTemplatesPage() {
   const [items, setItems] = useState<Template[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [toast, setToast] = useState<ToastState>(null);
-
+  
   const [key, setKey] = useState('');
   const [channel, setChannel] = useState('push');
   const [title, setTitle] = useState('');
@@ -33,7 +32,7 @@ export default function NotificationTemplatesPage() {
 
   const saveTemplate = async () => {
     if (!key.trim() || !title.trim() || !body.trim()) {
-      setToast({ tone: 'error', message: 'Completá key/título/body' });
+      toast.error('Completá key/título/body');
       return;
     }
     const res = await fetch('/api/admin/notifications/templates', {
@@ -42,10 +41,10 @@ export default function NotificationTemplatesPage() {
       body: JSON.stringify({ key: key.trim(), channel, title: title.trim(), body: body.trim(), is_active: isActive }),
     });
     if (!res.ok) {
-      setToast({ tone: 'error', message: 'No se pudo guardar template' });
+      toast.error('No se pudo guardar template');
       return;
     }
-    setToast({ tone: 'success', message: 'Template guardado' });
+    toast.success('Template guardado');
     setKey(''); setTitle(''); setBody(''); setIsActive(true);
     await load();
   };
@@ -77,7 +76,6 @@ export default function NotificationTemplatesPage() {
           </div>
         )}
       </AdminCard>
-      {toast && <Toast tone={toast.tone} message={toast.message} onClose={() => setToast(null)} />}
     </div>
   );
 }

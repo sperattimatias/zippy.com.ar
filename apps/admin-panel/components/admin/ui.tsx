@@ -1,4 +1,7 @@
+// DEPRECATED: do not use in new code. Prefer shadcn components in `components/ui/*`
+// and shared states from `components/admin/states` + toast from `components/ui/sonner`.
 import type { ReactNode } from 'react';
+import { Button } from '../ui/button';
 
 export function AdminCard({ title, children, action }: { title: string; children: ReactNode; action?: ReactNode }) {
   return (
@@ -25,9 +28,9 @@ export function ErrorState({ message, retry }: { message: string; retry?: () => 
     <div className="space-y-3 rounded-lg border border-rose-500/40 bg-rose-950/20 p-4 text-sm text-rose-200">
       <p>{message}</p>
       {retry && (
-        <button className="rounded bg-rose-500 px-3 py-1.5 font-medium text-slate-950" onClick={retry}>
+        <Button variant="destructive" size="sm" onClick={retry}>
           Reintentar
-        </button>
+        </Button>
       )}
     </div>
   );

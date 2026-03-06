@@ -2,37 +2,32 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { AdminCard, ErrorState, LoadingState, Toast } from '../../../../components/admin/ui';
+import { AdminCard, ErrorState, LoadingState } from '../../../../components/admin/ui';
+import { ReasonDialog } from '../../../../components/forms/reason-dialog';
+import { Input } from '../../../../components/ui/input';
+import { Button } from '../../../../components/ui/button';
+import { toast } from '../../../../lib/toast';
 
-type Detail = {
+type DriverDetail = {
   id: string;
   user_id: string;
   status: string;
   rejection_reason?: string | null;
   notes?: string | null;
-  vehicle?: {
-    category: string;
-    brand?: string | null;
-    model?: string | null;
-    year?: number | null;
-    plate?: string | null;
-    color?: string | null;
-  } | null;
+  vehicle?: { category?: string | null; brand?: string | null; model?: string | null; year?: number | null; plate?: string | null } | null;
+  documents: Array<{ id: string; type: string; created_at: string; get_url: string }>;
   activity_summary?: { trips_total: number; cancellations_total: number; payments_total: number };
-  documents: Array<{ id: string; type: string; get_url: string; created_at: string }>;
-  events: Array<{ id: string; type: string; actor_user_id: string; created_at: string; payload_json?: unknown }>;
+  events: Array<{ id: string; type: string; created_at: string; actor_user_id: string }>;
 };
 
-type ToastState = { tone: 'success' | 'error'; message: string } | null;
-
-export default function DriverDetailPage({ params }: { params: { id: string } }) {
-  const [detail, setDetail] = useState<Detail | null>(null);
+export default function AdminDriverDetailPage({ params }: { params: { id: string } }) {
+  const [detail, setDetail] = useState<DriverDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [toast, setToast] = useState<ToastState>(null);
-
-  const [statusReason, setStatusReason] = useState('');
   const [note, setNote] = useState('');
+  const [suspendOpen, setSuspendOpen] = useState(false);
+  const [blockOpen, setBlockOpen] = useState(false);
+  const [statusLoading, setStatusLoading] = useState(false);
 
   const reload = async () => {
     setLoading(true);
@@ -40,7 +35,8 @@ export default function DriverDetailPage({ params }: { params: { id: string } })
     try {
       const response = await fetch(`/api/admin/drivers/${params.id}`, { cache: 'no-store' });
       if (!response.ok) throw new Error('No se pudo cargar conductor');
-      setDetail(await response.json());
+      const data = (await response.json()) as DriverDetail;
+      setDetail(data);
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : 'Error inesperado');
     } finally {
@@ -52,19 +48,23 @@ export default function DriverDetailPage({ params }: { params: { id: string } })
     void reload();
   }, [params.id]);
 
-  const patchStatus = async (status: 'active' | 'suspended' | 'blocked') => {
+  const patchStatus = async (status: 'active' | 'suspended' | 'blocked', reason: string) => {
+    setStatusLoading(true);
     try {
       const response = await fetch(`/api/admin/drivers/${params.id}/status`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status, reason: statusReason }),
+        body: JSON.stringify({ status, reason }),
       });
       if (!response.ok) throw new Error('No se pudo actualizar estado');
-      setToast({ tone: 'success', message: `Estado actualizado a ${status}.` });
-      setStatusReason('');
+      toast.success(`Estado actualizado a ${status}.`);
+      setSuspendOpen(false);
+      setBlockOpen(false);
       await reload();
     } catch (actionError) {
-      setToast({ tone: 'error', message: actionError instanceof Error ? actionError.message : 'Error actualizando estado' });
+      toast.error(actionError instanceof Error ? actionError.message : 'Error actualizando estado');
+    } finally {
+      setStatusLoading(false);
     }
   };
 
@@ -72,16 +72,16 @@ export default function DriverDetailPage({ params }: { params: { id: string } })
     try {
       const response = await fetch(`/api/admin/drivers/${params.id}/kyc/reset`, { method: 'PATCH' });
       if (!response.ok) throw new Error('No se pudo resetear KYC');
-      setToast({ tone: 'success', message: 'KYC reseteado.' });
+      toast.success('KYC reseteado.');
       await reload();
     } catch (actionError) {
-      setToast({ tone: 'error', message: actionError instanceof Error ? actionError.message : 'Error reseteando KYC' });
+      toast.error(actionError instanceof Error ? actionError.message : 'Error reseteando KYC');
     }
   };
 
   const addNote = async () => {
     if (!note.trim()) {
-      setToast({ tone: 'error', message: 'La nota es obligatoria.' });
+      toast.error('La nota es obligatoria.');
       return;
     }
 
@@ -92,12 +92,16 @@ export default function DriverDetailPage({ params }: { params: { id: string } })
         body: JSON.stringify({ note }),
       });
       if (!response.ok) throw new Error('No se pudo guardar nota');
-      setToast({ tone: 'success', message: 'Nota agregada.' });
+      toast.success('Nota agregada.');
       setNote('');
       await reload();
     } catch (actionError) {
-      setToast({ tone: 'error', message: actionError instanceof Error ? actionError.message : 'Error agregando nota' });
+      toast.error(actionError instanceof Error ? actionError.message : 'Error agregando nota');
     }
+  };
+
+  const reactivate = async () => {
+    await patchStatus('active', 'Reactivación manual desde admin');
   };
 
   return (
@@ -108,7 +112,7 @@ export default function DriverDetailPage({ params }: { params: { id: string } })
       {!loading && detail && (
         <>
           <AdminCard title={`Driver ${detail.user_id}`}>
-            <div className="grid gap-2 md:grid-cols-2 text-sm">
+            <div className="grid gap-2 text-sm md:grid-cols-2">
               <p><span className="text-slate-400">Estado:</span> {detail.status}</p>
               <p><span className="text-slate-400">Driver ID:</span> {detail.id}</p>
               <p><span className="text-slate-400">Rechazo:</span> {detail.rejection_reason ?? '-'}</p>
@@ -117,7 +121,7 @@ export default function DriverDetailPage({ params }: { params: { id: string } })
           </AdminCard>
 
           <AdminCard title="Vehículo">
-            <div className="grid gap-2 md:grid-cols-2 text-sm">
+            <div className="grid gap-2 text-sm md:grid-cols-2">
               <p><span className="text-slate-400">Categoría:</span> {detail.vehicle?.category ?? '-'}</p>
               <p><span className="text-slate-400">Marca/Modelo:</span> {detail.vehicle ? `${detail.vehicle.brand ?? ''} ${detail.vehicle.model ?? ''}` : '-'}</p>
               <p><span className="text-slate-400">Año:</span> {detail.vehicle?.year ?? '-'}</p>
@@ -137,7 +141,7 @@ export default function DriverDetailPage({ params }: { params: { id: string } })
           </AdminCard>
 
           <AdminCard title="Actividad">
-            <div className="grid gap-2 md:grid-cols-3 text-sm">
+            <div className="grid gap-2 text-sm md:grid-cols-3">
               <p><span className="text-slate-400">Viajes:</span> {detail.activity_summary?.trips_total ?? 0}</p>
               <p><span className="text-slate-400">Cancelaciones:</span> {detail.activity_summary?.cancellations_total ?? 0}</p>
               <p><span className="text-slate-400">Pagos:</span> {detail.activity_summary?.payments_total ?? 0}</p>
@@ -146,16 +150,15 @@ export default function DriverDetailPage({ params }: { params: { id: string } })
 
           <AdminCard title="Acciones" action={<Link className="text-xs text-cyan-300 underline" href={`/admin/audit?entityType=driver&entityId=${params.id}`}>Ver auditoría</Link>}>
             <div className="space-y-3 text-sm">
-              <input className="w-full rounded bg-slate-950 p-2" placeholder="Motivo para suspend/bloquear" value={statusReason} onChange={(e) => setStatusReason(e.target.value)} />
               <div className="flex flex-wrap gap-2">
-                <button className="rounded bg-amber-600 px-3 py-2 text-white" onClick={() => void patchStatus('suspended')}>Suspender</button>
-                <button className="rounded bg-rose-700 px-3 py-2 text-white" onClick={() => void patchStatus('blocked')}>Bloquear</button>
-                <button className="rounded bg-emerald-600 px-3 py-2 text-white" onClick={() => void patchStatus('active')}>Reactivar</button>
-                <button className="rounded bg-slate-700 px-3 py-2" onClick={() => void resetKyc()}>Reset verificación KYC</button>
+                <Button className="bg-amber-600 hover:bg-amber-500" onClick={() => setSuspendOpen(true)}>Suspender</Button>
+                <Button variant="destructive" onClick={() => setBlockOpen(true)}>Bloquear</Button>
+                <Button className="bg-emerald-600 hover:bg-emerald-500" onClick={() => void reactivate()}>Reactivar</Button>
+                <Button variant="secondary" onClick={() => void resetKyc()}>Reset verificación KYC</Button>
               </div>
               <div className="flex flex-wrap gap-2">
-                <input className="min-w-[280px] rounded bg-slate-950 p-2" placeholder="Nota interna" value={note} onChange={(e) => setNote(e.target.value)} />
-                <button className="rounded bg-slate-700 px-3 py-2" onClick={() => void addNote()}>Agregar nota</button>
+                <Input className="min-w-[280px]" placeholder="Nota interna" value={note} onChange={(e) => setNote(e.target.value)} />
+                <Button variant="secondary" onClick={() => void addNote()}>Agregar nota</Button>
               </div>
             </div>
           </AdminCard>
@@ -170,7 +173,25 @@ export default function DriverDetailPage({ params }: { params: { id: string } })
         </>
       )}
 
-      {toast && <Toast tone={toast.tone} message={toast.message} onClose={() => setToast(null)} />}
+      <ReasonDialog
+        open={suspendOpen}
+        title="Suspender conductor"
+        description="Ingresá el motivo para auditar la suspensión."
+        reasonLabel="Motivo de suspensión"
+        loading={statusLoading}
+        onClose={() => setSuspendOpen(false)}
+        onConfirm={(reason) => patchStatus('suspended', reason)}
+      />
+
+      <ReasonDialog
+        open={blockOpen}
+        title="Bloquear conductor"
+        description="Ingresá el motivo para auditar el bloqueo."
+        reasonLabel="Motivo de bloqueo"
+        loading={statusLoading}
+        onClose={() => setBlockOpen(false)}
+        onConfirm={(reason) => patchStatus('blocked', reason)}
+      />
     </div>
   );
 }
