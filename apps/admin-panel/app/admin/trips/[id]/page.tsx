@@ -4,7 +4,7 @@ import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { AdminCard, EmptyState, ErrorState, LoadingState } from '../../../../components/admin/ui';
-import { toast } from '../../../../components/ui/sonner';
+import { toast } from '../../../../lib/toast';
 import { ReasonDialog } from '../../../../components/forms/reason-dialog';
 import { Button } from '../../../../components/ui/button';
 import { Input } from '../../../../components/ui/input';
@@ -76,47 +76,47 @@ export default function AdminTripDetailPage({ params }: { params: { id: string }
     setCancelLoading(true);
     try {
       await postAction('cancel', { reason });
-      toast('Viaje cancelado.', 'success');
+      toast.success('Viaje cancelado.');
       setCancelOpen(false);
       await load();
     } catch (actionError) {
-      toast(actionError instanceof Error ? actionError.message : 'Error cancelando', 'error');
+      toast.error(actionError instanceof Error ? actionError.message : 'Error cancelando');
     } finally {
       setCancelLoading(false);
     }
   };
 
   const onReassign = async () => {
-    if (!reassignDriverId.trim()) return toast('Ingresá driverId.', 'error');
+    if (!reassignDriverId.trim()) return toast.error('Ingresá driverId.');
     try {
       await postAction('reassign', { driverId: reassignDriverId });
-      toast('Driver reasignado.', 'success');
+      toast.success('Driver reasignado.');
       setReassignDriverId('');
       await load();
     } catch (actionError) {
-      toast(actionError instanceof Error ? actionError.message : 'Error reasignando', 'error');
+      toast.error(actionError instanceof Error ? actionError.message : 'Error reasignando');
     }
   };
 
   const onRetryMatching = async () => {
     try {
       await postAction('retry-matching');
-      toast('Matching reintentado.', 'success');
+      toast.success('Matching reintentado.');
       await load();
     } catch (actionError) {
-      toast(actionError instanceof Error ? actionError.message : 'Error reintentando matching', 'error');
+      toast.error(actionError instanceof Error ? actionError.message : 'Error reintentando matching');
     }
   };
 
   const onIncident = async () => {
-    if (!incidentNote.trim()) return toast('Ingresá una nota de incidente.', 'error');
+    if (!incidentNote.trim()) return toast.error('Ingresá una nota de incidente.');
     try {
       await postAction('incident', { note: incidentNote });
-      toast('Incidente registrado.', 'success');
+      toast.success('Incidente registrado.');
       setIncidentNote('');
       await load();
     } catch (actionError) {
-      toast(actionError instanceof Error ? actionError.message : 'Error registrando incidente', 'error');
+      toast.error(actionError instanceof Error ? actionError.message : 'Error registrando incidente');
     }
   };
   const eventPoints = useMemo(() => {

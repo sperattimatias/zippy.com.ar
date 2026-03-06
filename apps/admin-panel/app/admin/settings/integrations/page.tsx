@@ -11,7 +11,7 @@ import { SecretInput } from '../../../../components/forms/secret-input';
 import { Button } from '../../../../components/ui/button';
 import { Input } from '../../../../components/ui/input';
 import { Select } from '../../../../components/ui/select';
-import { toast } from '../../../../components/ui/sonner';
+import { toast } from '../../../../lib/toast';
 import { FORM_LABELS } from '../../../../lib/admin-form-labels';
 
 type Category = 'payments' | 'email' | 'maps';
@@ -160,10 +160,10 @@ export default function IntegrationsSettingsPage() {
       if (values.mercadopago_webhook_secret?.trim()) {
         await putSetting('mercadopago_webhook_secret', { value: values.mercadopago_webhook_secret.trim(), category: 'payments', encrypted: true });
       }
-      toast('Configuración de pagos guardada.', 'success');
+      toast.success('Configuración de pagos guardada.');
       await load();
     } catch (saveError) {
-      toast(saveError instanceof Error ? saveError.message : 'No se pudo guardar pagos.', 'error');
+      toast.error(saveError instanceof Error ? saveError.message : 'No se pudo guardar pagos.');
     } finally {
       setSaving((prev) => ({ ...prev, payments: false }));
     }
@@ -181,10 +181,10 @@ export default function IntegrationsSettingsPage() {
       if (values.smtp_password?.trim()) {
         await putSetting('smtp_password', { value: values.smtp_password.trim(), category: 'email', encrypted: true });
       }
-      toast('Configuración de email guardada.', 'success');
+      toast.success('Configuración de email guardada.');
       await load();
     } catch (saveError) {
-      toast(saveError instanceof Error ? saveError.message : 'No se pudo guardar email.', 'error');
+      toast.error(saveError instanceof Error ? saveError.message : 'No se pudo guardar email.');
     } finally {
       setSaving((prev) => ({ ...prev, email: false }));
     }
@@ -194,7 +194,7 @@ export default function IntegrationsSettingsPage() {
     setSaving((prev) => ({ ...prev, maps: true }));
     try {
       if (!values.google_maps_api_key?.trim() && encryptedExisting.google_maps_api_key) {
-        toast('Ingresá una API key para reemplazar la existente.', 'error');
+        toast.error('Ingresá una API key para reemplazar la existente.');
         return;
       }
       if (values.google_maps_api_key?.trim()) {
@@ -203,11 +203,11 @@ export default function IntegrationsSettingsPage() {
           category: 'maps',
           encrypted: true,
         });
-        toast('API key de mapas guardada.', 'success');
+        toast.success('API key de mapas guardada.');
         await load();
       }
     } catch (saveError) {
-      toast(saveError instanceof Error ? saveError.message : 'No se pudo guardar maps.', 'error');
+      toast.error(saveError instanceof Error ? saveError.message : 'No se pudo guardar maps.');
     } finally {
       setSaving((prev) => ({ ...prev, maps: false }));
     }
@@ -219,10 +219,10 @@ export default function IntegrationsSettingsPage() {
       const res = await fetch('/api/admin/settings/test/mercadopago', { method: 'POST' });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || data.ok === false) throw new Error(data.message ?? 'Error probando MercadoPago.');
-      toast('MercadoPago conectado correctamente.', 'success');
+      toast.success('MercadoPago conectado correctamente.');
       setTestDialogOpen(false);
     } catch (testError) {
-      toast(testError instanceof Error ? testError.message : 'No se pudo probar MercadoPago.', 'error');
+      toast.error(testError instanceof Error ? testError.message : 'No se pudo probar MercadoPago.');
     } finally {
       setTestingMp(false);
     }
@@ -230,7 +230,7 @@ export default function IntegrationsSettingsPage() {
 
   const testSmtp = async () => {
     if (!smtpToEmail.includes('@')) {
-      toast('Ingresá un email válido para la prueba SMTP.', 'error');
+      toast.error('Ingresá un email válido para la prueba SMTP.');
       return;
     }
     setTestingSmtp(true);
@@ -242,10 +242,10 @@ export default function IntegrationsSettingsPage() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || data.ok === false) throw new Error(data.message ?? 'Error probando SMTP.');
-      toast(`SMTP ok. Email enviado a ${smtpToEmail}.`, 'success');
+      toast.success(`SMTP ok. Email enviado a ${smtpToEmail}.`);
       setTestDialogOpen(false);
     } catch (testError) {
-      toast(testError instanceof Error ? testError.message : 'No se pudo probar SMTP.', 'error');
+      toast.error(testError instanceof Error ? testError.message : 'No se pudo probar SMTP.');
     } finally {
       setTestingSmtp(false);
     }

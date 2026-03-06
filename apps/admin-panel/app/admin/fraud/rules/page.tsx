@@ -1,14 +1,14 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { AdminCard, ErrorState, LoadingState, Toast } from '../../../../components/admin/ui';
+import { AdminCard, ErrorState, LoadingState } from '../../../../components/admin/ui';
+import { toast } from '../../../../lib/toast';
 
 export default function FraudRulesPage() {
   const [json, setJson] = useState('{}');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [toast, setToast] = useState<{ tone: 'success' | 'error'; message: string } | null>(null);
-
+  
   const load = async () => {
     setLoading(true);
     setError(null);
@@ -35,9 +35,9 @@ export default function FraudRulesPage() {
         body: JSON.stringify({ value_json: parsed }),
       });
       if (!res.ok) throw new Error('No se pudieron guardar reglas');
-      setToast({ tone: 'success', message: 'Reglas actualizadas' });
+      toast.success('Reglas actualizadas');
     } catch (e) {
-      setToast({ tone: 'error', message: e instanceof Error ? e.message : 'JSON inválido' });
+      toast.error(e instanceof Error ? e.message : 'JSON inválido');
     }
   };
 
@@ -53,7 +53,6 @@ export default function FraudRulesPage() {
           <button className="rounded bg-cyan-700 px-3 py-2 text-sm" onClick={() => void save()}>Guardar reglas</button>
         </div>
       </AdminCard>
-      {toast && <Toast tone={toast.tone} message={toast.message} onClose={() => setToast(null)} />}
     </div>
   );
 }

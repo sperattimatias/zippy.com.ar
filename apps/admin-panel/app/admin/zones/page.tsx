@@ -3,9 +3,10 @@
 import { useEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { useSearchParams } from 'next/navigation';
-import { AdminCard, EmptyState, ErrorState, LoadingState, Toast } from '../../../components/admin/ui';
+import { AdminCard, EmptyState, ErrorState, LoadingState } from '../../../components/admin/ui';
 import { Button } from '../../../components/ui/button';
 import { FIRMAT_BASE_POLYGON, isValidLatLng, ZONE_TYPES } from '../../../lib/zones';
+import { toast } from '../../../lib/toast';
 import type { LatLngPoint } from '../../../lib/zones';
 
 type ZoneKind = 'geozones' | 'premium';
@@ -34,7 +35,6 @@ type PricingProfile = {
   night_fee?: number;
 };
 
-type ToastState = { tone: 'success' | 'error'; message: string } | null;
 
 const tabButton = 'rounded-lg px-3 py-2 text-sm font-medium transition';
 
@@ -47,7 +47,6 @@ function ZonesManager({ kind }: { kind: ZoneKind }) {
   const [rows, setRows] = useState<ZoneRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [toast, setToast] = useState<ToastState>(null);
   const [editing, setEditing] = useState<ZoneRow | null>(null);
   const [name, setName] = useState('');
   const [type, setType] = useState((kind === 'geozones' ? ZONE_TYPES.geozone[0] : ZONE_TYPES.premium[0]) as string);
@@ -65,11 +64,14 @@ function ZonesManager({ kind }: { kind: ZoneKind }) {
   const [profileCancelFee, setProfileCancelFee] = useState(500);
   const [profileSurge, setProfileSurge] = useState(1);
   const [profileNightFee, setProfileNightFee] = useState(0);
+  const [saveLoading, setSaveLoading] = useState(false);
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
 
   const endpoint = kind === 'geozones' ? '/api/admin/geozones' : '/api/admin/premium-zones';
 
-  const showError = (message: string) => setToast({ tone: 'error', message });
-  const showSuccess = (message: string) => setToast({ tone: 'success', message });
+  const showError = (message: string) => toast.error(message);
+  const showSuccess = (message: string) => toast.success(message);
 
   const load = async () => {
     setLoading(true);
@@ -133,20 +135,25 @@ function ZonesManager({ kind }: { kind: ZoneKind }) {
     const url = editing ? `${endpoint}/${editing.id}` : endpoint;
     const method = editing ? 'PATCH' : 'POST';
 
-    const res = await fetch(url, {
-      method,
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
+    setSaveLoading(true);
+    try {
+      const res = await fetch(url, {
+        method,
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
 
-    if (!res.ok) {
-      showError('No se pudo guardar la zona');
-      return;
+      if (!res.ok) {
+        showError('No se pudo guardar la zona');
+        return;
+      }
+
+      showSuccess(editing ? 'Zona actualizada' : 'Zona creada');
+      resetForm();
+      await load();
+    } finally {
+      setSaveLoading(false);
     }
-
-    showSuccess(editing ? 'Zona actualizada' : 'Zona creada');
-    resetForm();
-    await load();
   };
 
   const onEdit = (row: ZoneRow) => {
@@ -166,7 +173,9 @@ function ZonesManager({ kind }: { kind: ZoneKind }) {
       showError('Nombre de perfil requerido');
       return;
     }
-    const res = await fetch('/api/admin/pricing/profiles', {
+    setProfileLoading(true);
+    try {
+      const res = await fetch('/api/admin/pricing/profiles', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
@@ -181,41 +190,54 @@ function ZonesManager({ kind }: { kind: ZoneKind }) {
         night_fee: profileNightFee,
       }),
     });
-    if (!res.ok) {
-      showError('No se pudo crear perfil');
-      return;
+      if (!res.ok) {
+        showError('No se pudo crear perfil');
+        return;
+      }
+      showSuccess('Perfil de pricing guardado');
+      setProfileName('');
+      await load();
+    } finally {
+      setProfileLoading(false);
     }
-    showSuccess('Perfil de pricing guardado');
-    setProfileName('');
-    await load();
   };
 
   const onToggle = async (row: ZoneRow) => {
-    const res = await fetch(`${endpoint}/${row.id}`, {
+    setActionLoadingId(`toggle-${row.id}`);
+    try {
+      const res = await fetch(`${endpoint}/${row.id}`, {
       method: 'PATCH',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ is_active: !row.is_active }),
     });
 
-    if (!res.ok) {
-      showError('No se pudo cambiar estado');
-      return;
-    }
+      if (!res.ok) {
+        showError('No se pudo cambiar estado');
+        return;
+      }
 
-    showSuccess(`Zona ${row.is_active ? 'desactivada' : 'activada'}`);
-    await load();
+      showSuccess(`Zona ${row.is_active ? 'desactivada' : 'activada'}`);
+      await load();
+    } finally {
+      setActionLoadingId(null);
+    }
   };
 
   const onDelete = async (row: ZoneRow) => {
     if (!window.confirm(`¿Borrar zona ${row.name}?`)) return;
-    const res = await fetch(`${endpoint}/${row.id}`, { method: 'DELETE' });
-    if (!res.ok) {
-      showError('No se pudo borrar');
-      return;
-    }
+    setActionLoadingId(`delete-${row.id}`);
+    try {
+      const res = await fetch(`${endpoint}/${row.id}`, { method: 'DELETE' });
+      if (!res.ok) {
+        showError('No se pudo borrar');
+        return;
+      }
 
-    showSuccess('Zona borrada');
-    await load();
+      showSuccess('Zona borrada');
+      await load();
+    } finally {
+      setActionLoadingId(null);
+    }
   };
 
   return (
@@ -233,7 +255,7 @@ function ZonesManager({ kind }: { kind: ZoneKind }) {
             <input type="number" step="0.1" className="rounded-md border border-slate-700 bg-slate-950 p-2 text-sm" placeholder="Surge" value={profileSurge} onChange={(e) => setProfileSurge(Number(e.target.value))} />
             <input type="number" className="rounded-md border border-slate-700 bg-slate-950 p-2 text-sm" placeholder="Night fee" value={profileNightFee} onChange={(e) => setProfileNightFee(Number(e.target.value))} />
           </div>
-          <Button size="sm" variant="secondary" className="mt-2" onClick={() => void createPricingProfile()}>Guardar perfil</Button>
+          <Button size="sm" variant="secondary" className="mt-2" onClick={() => void createPricingProfile()} disabled={profileLoading}>{profileLoading ? 'Guardando...' : 'Guardar perfil'}</Button>
         </div>
 
         <div className="grid gap-3 md:grid-cols-2">
@@ -292,8 +314,8 @@ function ZonesManager({ kind }: { kind: ZoneKind }) {
         </div>
 
         <div className="mt-4 flex flex-wrap gap-2">
-          <Button onClick={onSave}>
-            {editing ? 'Guardar cambios' : 'Crear zona'}
+          <Button onClick={onSave} disabled={saveLoading}>
+            {saveLoading ? 'Guardando...' : editing ? 'Guardar cambios' : 'Crear zona'}
           </Button>
           {editing && (
             <Button variant="secondary" onClick={resetForm}>
@@ -334,11 +356,11 @@ function ZonesManager({ kind }: { kind: ZoneKind }) {
                         <Button size="sm" variant="secondary" onClick={() => onEdit(row)}>
                           Editar
                         </Button>
-                        <Button size="sm" variant="secondary" onClick={() => void onToggle(row)}>
-                          {row.is_active ? 'Desactivar' : 'Activar'}
+                        <Button size="sm" variant="secondary" onClick={() => void onToggle(row)} disabled={actionLoadingId === `toggle-${row.id}`}>
+                          {actionLoadingId === `toggle-${row.id}` ? 'Procesando...' : row.is_active ? 'Desactivar' : 'Activar'}
                         </Button>
-                        <Button size="sm" variant="destructive" onClick={() => void onDelete(row)}>
-                          Borrar
+                        <Button size="sm" variant="destructive" onClick={() => void onDelete(row)} disabled={actionLoadingId === `delete-${row.id}`}>
+                          {actionLoadingId === `delete-${row.id}` ? 'Borrando...' : 'Borrar'}
                         </Button>
                       </div>
                     </td>
@@ -349,7 +371,6 @@ function ZonesManager({ kind }: { kind: ZoneKind }) {
           </div>
         )}
       </AdminCard>
-      {toast && <Toast tone={toast.tone} message={toast.message} onClose={() => setToast(null)} />}
     </div>
   );
 }

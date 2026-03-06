@@ -10,7 +10,7 @@ import { ConfirmDialog } from '../../../../components/forms/confirm-dialog';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '../../../../components/forms/form';
 import { Input } from '../../../../components/ui/input';
 import { Button } from '../../../../components/ui/button';
-import { toast } from '../../../../components/ui/sonner';
+import { toast } from '../../../../lib/toast';
 import { can } from '../../../../lib/admin-rbac';
 
 type PaymentDetail = {
@@ -95,12 +95,12 @@ export default function AdminPaymentDetailPage({ params }: { params: { id: strin
         body: JSON.stringify(payload),
       });
       if (!res.ok) throw new Error('No se pudo crear el reembolso');
-      toast('Reembolso creado correctamente', 'success');
+      toast.success('Reembolso creado correctamente');
       refundForm.reset({ amount: '', reason: '' });
       setRefundOpen(false);
       await load();
     } catch (e) {
-      toast(e instanceof Error ? e.message : 'Error inesperado', 'error');
+      toast.error(e instanceof Error ? e.message : 'Error inesperado');
     } finally {
       setRefundLoading(false);
     }
@@ -114,10 +114,10 @@ export default function AdminPaymentDetailPage({ params }: { params: { id: strin
         body: JSON.stringify({ type, note: flagNote.trim() || undefined }),
       });
       if (!res.ok) throw new Error('No se pudo actualizar flag');
-      toast('Flag actualizado', 'success');
+      toast.success('Flag actualizado');
       await load();
     } catch (e) {
-      toast(e instanceof Error ? e.message : 'Error inesperado', 'error');
+      toast.error(e instanceof Error ? e.message : 'Error inesperado');
     }
   };
 

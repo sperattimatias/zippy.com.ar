@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { AdminCard, ErrorState, LoadingState, Toast } from '../../../../../components/admin/ui';
+import { AdminCard, ErrorState, LoadingState } from '../../../../../components/admin/ui';
+import { toast } from '../../../../../lib/toast';
 
 type FraudSignal = {
   id: string;
@@ -30,8 +31,7 @@ export default function FraudCaseDetail({ params }: { params: { id: string } }) 
   const [data, setData] = useState<FraudCaseDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [toast, setToast] = useState<{ tone: 'success' | 'error'; message: string } | null>(null);
-
+  
   const [notes, setNotes] = useState('');
   const [assignee, setAssignee] = useState('');
   const [freezePaymentId, setFreezePaymentId] = useState('');
@@ -60,10 +60,10 @@ export default function FraudCaseDetail({ params }: { params: { id: string } }) 
         body: JSON.stringify(body),
       });
       if (!res.ok) throw new Error('No se pudo ejecutar la acción');
-      setToast({ tone: 'success', message: 'Acción ejecutada' });
+      toast.success('Acción ejecutada');
       await load();
     } catch (e) {
-      setToast({ tone: 'error', message: e instanceof Error ? e.message : 'Error inesperado' });
+      toast.error(e instanceof Error ? e.message : 'Error inesperado');
     }
   };
 
@@ -123,8 +123,6 @@ export default function FraudCaseDetail({ params }: { params: { id: string } }) 
           </div>
         </div>
       </AdminCard>
-
-      {toast && <Toast tone={toast.tone} message={toast.message} onClose={() => setToast(null)} />}
     </div>
   );
 }

@@ -6,7 +6,7 @@ import { AdminCard, ErrorState, LoadingState } from '../../../../components/admi
 import { ReasonDialog } from '../../../../components/forms/reason-dialog';
 import { Input } from '../../../../components/ui/input';
 import { Button } from '../../../../components/ui/button';
-import { toast } from '../../../../components/ui/sonner';
+import { toast } from '../../../../lib/toast';
 
 type DriverDetail = {
   id: string;
@@ -57,12 +57,12 @@ export default function AdminDriverDetailPage({ params }: { params: { id: string
         body: JSON.stringify({ status, reason }),
       });
       if (!response.ok) throw new Error('No se pudo actualizar estado');
-      toast(`Estado actualizado a ${status}.`, 'success');
+      toast.success(`Estado actualizado a ${status}.`);
       setSuspendOpen(false);
       setBlockOpen(false);
       await reload();
     } catch (actionError) {
-      toast(actionError instanceof Error ? actionError.message : 'Error actualizando estado', 'error');
+      toast.error(actionError instanceof Error ? actionError.message : 'Error actualizando estado');
     } finally {
       setStatusLoading(false);
     }
@@ -72,16 +72,16 @@ export default function AdminDriverDetailPage({ params }: { params: { id: string
     try {
       const response = await fetch(`/api/admin/drivers/${params.id}/kyc/reset`, { method: 'PATCH' });
       if (!response.ok) throw new Error('No se pudo resetear KYC');
-      toast('KYC reseteado.', 'success');
+      toast.success('KYC reseteado.');
       await reload();
     } catch (actionError) {
-      toast(actionError instanceof Error ? actionError.message : 'Error reseteando KYC', 'error');
+      toast.error(actionError instanceof Error ? actionError.message : 'Error reseteando KYC');
     }
   };
 
   const addNote = async () => {
     if (!note.trim()) {
-      toast('La nota es obligatoria.', 'error');
+      toast.error('La nota es obligatoria.');
       return;
     }
 
@@ -92,11 +92,11 @@ export default function AdminDriverDetailPage({ params }: { params: { id: string
         body: JSON.stringify({ note }),
       });
       if (!response.ok) throw new Error('No se pudo guardar nota');
-      toast('Nota agregada.', 'success');
+      toast.success('Nota agregada.');
       setNote('');
       await reload();
     } catch (actionError) {
-      toast(actionError instanceof Error ? actionError.message : 'Error agregando nota', 'error');
+      toast.error(actionError instanceof Error ? actionError.message : 'Error agregando nota');
     }
   };
 

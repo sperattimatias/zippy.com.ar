@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { AdminCard, ErrorState, LoadingState, Toast } from '../../../../../components/admin/ui';
+import { AdminCard, ErrorState, LoadingState } from '../../../../../components/admin/ui';
+import { toast } from '../../../../../lib/toast';
 
 type TicketNote = { id: string; note: string; created_by?: string | null; created_at: string };
 
@@ -30,8 +31,7 @@ export default function SupportTicketDetailPage({ params }: { params: { id: stri
   const [detail, setDetail] = useState<TicketDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [toast, setToast] = useState<{ tone: 'success' | 'error'; message: string } | null>(null);
-
+  
   const [status, setStatus] = useState<TicketDetail['status']>('OPEN');
   const [assignedAgent, setAssignedAgent] = useState('');
   const [note, setNote] = useState('');
@@ -72,15 +72,15 @@ export default function SupportTicketDetailPage({ params }: { params: { id: stri
         body: JSON.stringify({ status, assigned_agent: assignedAgent, attachments: attachmentUrls }),
       });
       if (!res.ok) throw new Error('No se pudo actualizar ticket');
-      setToast({ tone: 'success', message: 'Ticket actualizado' });
+      toast.success('Ticket actualizado');
       await load();
     } catch (e) {
-      setToast({ tone: 'error', message: e instanceof Error ? e.message : 'Error inesperado' });
+      toast.error(e instanceof Error ? e.message : 'Error inesperado');
     }
   };
 
   const addNote = async () => {
-    if (!note.trim()) return setToast({ tone: 'error', message: 'La nota es obligatoria' });
+    if (!note.trim()) return toast.error('La nota es obligatoria');
     try {
       const res = await fetch(`/api/admin/support/tickets/${params.id}/notes`, {
         method: 'POST',
@@ -88,11 +88,11 @@ export default function SupportTicketDetailPage({ params }: { params: { id: stri
         body: JSON.stringify({ note: note.trim() }),
       });
       if (!res.ok) throw new Error('No se pudo agregar nota');
-      setToast({ tone: 'success', message: 'Nota agregada' });
+      toast.success('Nota agregada');
       setNote('');
       await load();
     } catch (e) {
-      setToast({ tone: 'error', message: e instanceof Error ? e.message : 'Error inesperado' });
+      toast.error(e instanceof Error ? e.message : 'Error inesperado');
     }
   };
 
@@ -151,8 +151,6 @@ export default function SupportTicketDetailPage({ params }: { params: { id: stri
           </AdminCard>
         </>
       )}
-
-      {toast && <Toast tone={toast.tone} message={toast.message} onClose={() => setToast(null)} />}
     </div>
   );
 }
