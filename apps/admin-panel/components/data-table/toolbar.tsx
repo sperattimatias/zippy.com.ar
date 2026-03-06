@@ -45,7 +45,7 @@ export function DataTableToolbar<TData>({
           placeholder={searchPlaceholder ?? 'Buscar...'}
         />
         <DropdownMenu>
-          <DropdownMenuTrigger>
+          <DropdownMenuTrigger asChild>
             <Button type="button" variant="outline" size="sm">
               Columnas
             </Button>

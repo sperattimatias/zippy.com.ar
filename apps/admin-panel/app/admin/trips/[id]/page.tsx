@@ -15,11 +15,6 @@ const TripRouteMap = dynamic(
   { ssr: false, loading: () => <div className="h-[340px] animate-pulse rounded-lg border border-slate-700 bg-slate-900/70" /> },
 );
 
-const TripRouteMap = dynamic(
-  () => import('../../../../components/maps/trip-route-map').then((mod) => mod.TripRouteMap),
-  { ssr: false, loading: () => <div className="h-[340px] animate-pulse rounded-lg border border-slate-700 bg-slate-900/70" /> },
-);
-
 type TripDetail = {
   id: string;
   status: string;

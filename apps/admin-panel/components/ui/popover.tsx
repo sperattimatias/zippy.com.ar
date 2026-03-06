@@ -1,48 +1,26 @@
 'use client';
 
-import { createContext, useContext, useMemo, useRef, useState, type HTMLAttributes, type ReactNode } from 'react';
+import * as React from 'react';
+import * as PopoverPrimitive from '@radix-ui/react-popover';
 import { cn } from '../../lib/utils';
 
-type PopoverContextValue = {
-  open: boolean;
-  setOpen: (open: boolean) => void;
-};
+const Popover = PopoverPrimitive.Root;
+const PopoverTrigger = PopoverPrimitive.Trigger;
 
-const PopoverContext = createContext<PopoverContextValue | null>(null);
-
-function usePopoverContext() {
-  const context = useContext(PopoverContext);
-  if (!context) throw new Error('Popover components must be used inside <Popover>');
-  return context;
-}
-
-export function Popover({ children }: { children: ReactNode }) {
-  const [open, setOpen] = useState(false);
-  const value = useMemo(() => ({ open, setOpen }), [open]);
-  return <PopoverContext.Provider value={value}>{children}</PopoverContext.Provider>;
-}
-
-export function PopoverTrigger({ children }: { children: ReactNode }) {
-  const { open, setOpen } = usePopoverContext();
-  return (
-    <button type="button" aria-expanded={open} onClick={() => setOpen(!open)}>
-      {children}
-    </button>
-  );
-}
-
-export function PopoverContent({ className, children, ...props }: HTMLAttributes<HTMLDivElement>) {
-  const { open } = usePopoverContext();
-  const ref = useRef<HTMLDivElement>(null);
-  if (!open) return null;
-
-  return (
-    <div
+const PopoverContent = React.forwardRef<
+  React.ElementRef<typeof PopoverPrimitive.Content>,
+  React.ComponentPropsWithoutRef<typeof PopoverPrimitive.Content>
+>(({ className, align = 'center', sideOffset = 4, ...props }, ref) => (
+  <PopoverPrimitive.Portal>
+    <PopoverPrimitive.Content
       ref={ref}
+      align={align}
+      sideOffset={sideOffset}
       className={cn('z-50 w-72 rounded-md border border-slate-700 bg-slate-900 p-4 text-slate-100 shadow-md outline-none', className)}
       {...props}
-    >
-      {children}
-    </div>
-  );
-}
+    />
+  </PopoverPrimitive.Portal>
+));
+PopoverContent.displayName = PopoverPrimitive.Content.displayName;
+
+export { Popover, PopoverContent, PopoverTrigger };
