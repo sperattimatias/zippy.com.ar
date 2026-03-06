@@ -2,7 +2,15 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { AdminCard, ErrorState, LoadingState, Toast } from '../../../../components/admin/ui';
+import { PageHeader } from '../../../../components/page/PageHeader';
+import { StatusBadge } from '../../../../components/common/StatusBadge';
+import { CopyText } from '../../../../components/common/CopyText';
+import { SectionCard } from '../../../../components/common/SectionCard';
+import { EmptyState } from '../../../../components/states/EmptyState';
+import { ErrorState } from '../../../../components/states/ErrorState';
+import { LoadingState } from '../../../../components/states/LoadingState';
+import { toast } from '../../../../lib/toast';
+import { formatDateTime } from '../../../../lib/format';
 
 type UserDetail = {
   id: string;
@@ -15,14 +23,12 @@ type UserDetail = {
   history?: { trips: unknown[]; cancellations: unknown[]; claims: unknown[]; fraud: unknown[] };
 };
 
-type ToastState = { tone: 'success' | 'error'; message: string } | null;
 
 export default function AdminUserDetailPage({ params }: { params: { id: string } }) {
   const [detail, setDetail] = useState<UserDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [toast, setToast] = useState<ToastState>(null);
-  const [note, setNote] = useState('');
+    const [note, setNote] = useState('');
 
   const load = async () => {
     setLoading(true);
@@ -48,10 +54,10 @@ export default function AdminUserDetailPage({ params }: { params: { id: string }
         body: JSON.stringify({ status }),
       });
       if (!res.ok) throw new Error('No se pudo actualizar estado');
-      setToast({ tone: 'success', message: `Estado actualizado a ${status}` });
+      toast.success(`Estado actualizado a ${status}`);
       await load();
     } catch (actionError) {
-      setToast({ tone: 'error', message: actionError instanceof Error ? actionError.message : 'Error actualizando estado' });
+      toast.error(actionError instanceof Error ? actionError.message : 'Error actualizando estado');
     }
   };
 
@@ -64,16 +70,16 @@ export default function AdminUserDetailPage({ params }: { params: { id: string }
         body: JSON.stringify({ payment_limited: next }),
       });
       if (!res.ok) throw new Error('No se pudo actualizar flag de pagos');
-      setToast({ tone: 'success', message: `Payment limit ${next ? 'activado' : 'desactivado'}` });
+      toast.success(`Payment limit ${next ? 'activado' : 'desactivado'}`);
       await load();
     } catch (actionError) {
-      setToast({ tone: 'error', message: actionError instanceof Error ? actionError.message : 'Error actualizando flag' });
+      toast.error(actionError instanceof Error ? actionError.message : 'Error actualizando flag');
     }
   };
 
   const addNote = async () => {
     if (!note.trim()) {
-      setToast({ tone: 'error', message: 'La nota es obligatoria' });
+      toast.error('La nota es obligatoria');
       return;
     }
     try {
@@ -83,42 +89,44 @@ export default function AdminUserDetailPage({ params }: { params: { id: string }
         body: JSON.stringify({ note }),
       });
       if (!res.ok) throw new Error('No se pudo guardar nota');
-      setToast({ tone: 'success', message: 'Nota agregada' });
+      toast.success('Nota agregada');
       setNote('');
       await load();
     } catch (actionError) {
-      setToast({ tone: 'error', message: actionError instanceof Error ? actionError.message : 'Error agregando nota' });
+      toast.error(actionError instanceof Error ? actionError.message : 'Error agregando nota');
     }
   };
 
   return (
     <div className="space-y-6">
+      <PageHeader title="Detalle del usuario" subtitle="Información general, historial y acciones sobre la cuenta." />
       {loading && <LoadingState message="Cargando usuario..." />}
       {error && <ErrorState message={error} retry={() => void load()} />}
 
       {!loading && detail && (
         <>
-          <AdminCard title={`Usuario ${detail.id}`}>
-            <div className="grid gap-2 md:grid-cols-2 text-sm">
+          <SectionCard title="Detalle de cuenta">
+            <div className="grid gap-x-6 gap-y-3 text-sm md:grid-cols-2">
               <p><span className="text-slate-400">Email:</span> {detail.email}</p>
-              <p><span className="text-slate-400">Phone:</span> {detail.phone ?? '-'}</p>
-              <p><span className="text-slate-400">Estado:</span> {detail.status}</p>
-              <p><span className="text-slate-400">Creado:</span> {new Date(detail.created_at).toLocaleString()}</p>
-              <p><span className="text-slate-400">Payment limited:</span> {detail.flags?.payment_limited ? 'Sí' : 'No'}</p>
+              <p><span className="text-slate-400">Teléfono:</span> {detail.phone ?? '-'}</p>
+              <p><span className="text-slate-400">Estado:</span> <StatusBadge status={detail.status} /></p>
+              <p><span className="text-slate-400">ID usuario:</span> <CopyText value={detail.id} /></p>
+              <p><span className="text-slate-400">Creado:</span> {formatDateTime(detail.created_at)}</p>
+              <p><span className="text-slate-400">Pagos limitados:</span> {detail.flags?.payment_limited ? 'Sí' : 'No'}</p>
               <p><span className="text-slate-400">Notas:</span> {detail.notes ?? '-'}</p>
             </div>
-          </AdminCard>
+          </SectionCard>
 
-          <AdminCard title="Historial">
-            <div className="grid gap-2 md:grid-cols-2 text-sm">
+          <SectionCard title="Historial">
+            <div className="grid gap-x-6 gap-y-3 text-sm md:grid-cols-2">
               <p>Viajes: {detail.history?.trips?.length ?? 0}</p>
               <p>Cancelaciones: {detail.history?.cancellations?.length ?? 0}</p>
               <p>Reclamos: {detail.history?.claims?.length ?? 0}</p>
               <p>Fraude: {detail.history?.fraud?.length ?? 0}</p>
             </div>
-          </AdminCard>
+          </SectionCard>
 
-          <AdminCard title="Acciones" action={<Link className="text-xs text-cyan-300 underline" href={`/admin/audit?entityType=user&entityId=${params.id}`}>Ver auditoría</Link>}>
+          <SectionCard title="Acciones" action={<Link className="text-xs font-medium text-cyan-300 underline-offset-4 hover:underline" href={`/admin/audit?entityType=user&entityId=${params.id}`}>Ver auditoría</Link>}>
             <div className="space-y-3 text-sm">
               <div className="flex flex-wrap gap-2">
                 <button className="rounded bg-rose-700 px-3 py-2 text-white" onClick={() => void patchStatus('blocked')}>Bloquear</button>
@@ -130,11 +138,9 @@ export default function AdminUserDetailPage({ params }: { params: { id: string }
                 <button className="rounded bg-slate-700 px-3 py-2" onClick={() => void addNote()}>Agregar nota</button>
               </div>
             </div>
-          </AdminCard>
+          </SectionCard>
         </>
       )}
-
-      {toast && <Toast tone={toast.tone} message={toast.message} onClose={() => setToast(null)} />}
     </div>
   );
 }

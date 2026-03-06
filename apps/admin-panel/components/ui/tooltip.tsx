@@ -1,14 +1,24 @@
-import type { ReactNode } from 'react';
+'use client';
 
-export function TooltipProvider({ children }: { children: ReactNode }) {
-  return <>{children}</>;
-}
-export function Tooltip({ children }: { children: ReactNode }) {
-  return <>{children}</>;
-}
-export function TooltipTrigger({ children }: { children: ReactNode }) {
-  return <>{children}</>;
-}
-export function TooltipContent({ children }: { children: ReactNode }) {
-  return <span className="rounded-md bg-slate-100 px-2 py-1 text-xs text-slate-900">{children}</span>;
-}
+import * as React from 'react';
+import * as TooltipPrimitive from '@radix-ui/react-tooltip';
+import { cn } from '../../lib/utils';
+
+const TooltipProvider = TooltipPrimitive.Provider;
+const Tooltip = TooltipPrimitive.Root;
+const TooltipTrigger = TooltipPrimitive.Trigger;
+
+const TooltipContent = React.forwardRef<
+  React.ElementRef<typeof TooltipPrimitive.Content>,
+  React.ComponentPropsWithoutRef<typeof TooltipPrimitive.Content>
+>(({ className, sideOffset = 4, ...props }, ref) => (
+  <TooltipPrimitive.Content
+    ref={ref}
+    sideOffset={sideOffset}
+    className={cn('z-50 overflow-hidden rounded-md border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs text-slate-100 shadow-md', className)}
+    {...props}
+  />
+));
+TooltipContent.displayName = TooltipPrimitive.Content.displayName;
+
+export { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger };
