@@ -1,38 +1,104 @@
 'use client';
 
+import { zodResolver } from '@hookform/resolvers/zod';
+import type { ReactNode } from 'react';
 import { useEffect, useMemo, useState } from 'react';
-import { AdminCard, EmptyState, ErrorState, LoadingState, Toast } from '../../../../components/admin/ui';
-import { FormField } from '../../../../components/forms/form-field';
-import { MaskedSecretInput } from '../../../../components/forms/masked-secret-input';
+import { useForm } from 'react-hook-form';
+import { z } from 'zod';
+import { PageHeader } from '../../../../components/page/PageHeader';
+import { EmptyState } from '../../../../components/states/EmptyState';
+import { ErrorState } from '../../../../components/states/ErrorState';
+import { TableSkeleton } from '../../../../components/states/TableSkeleton';
 import { ConfirmDialog } from '../../../../components/forms/confirm-dialog';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '../../../../components/forms/form';
+import { SecretInput } from '../../../../components/forms/secret-input';
+import { Button } from '../../../../components/ui/button';
+import { Input } from '../../../../components/ui/input';
+import { Card, CardContent, CardHeader, CardTitle } from '../../../../components/ui/card';
+import { Select } from '../../../../components/ui/select';
+import { toast } from '../../../../lib/toast';
 import { FORM_LABELS } from '../../../../lib/admin-form-labels';
 
 type Category = 'payments' | 'email' | 'maps';
 type SettingRow = { key: string; category: Category | string; value: string | null; masked_value: string | null; is_encrypted: boolean };
-type ToastState = { tone: 'success' | 'error'; message: string } | null;
 
-const modeOptions = ['sandbox', 'production'] as const;
-const smtpEncryptionOptions = ['none', 'ssl', 'tls', 'starttls'] as const;
+const paymentsSchema = z.object({
+  mercadopago_public_key: z.string().trim().min(1, 'La public key es obligatoria'),
+  mercadopago_access_token: z.string().optional(),
+  mercadopago_webhook_secret: z.string().optional(),
+  mercadopago_mode: z.enum(['sandbox', 'live']),
+});
+
+const emailSchema = z.object({
+  smtp_host: z.string().trim().min(1, 'Host requerido'),
+  smtp_port: z.coerce.number().int().min(1, 'Puerto inválido').max(65535, 'Puerto inválido'),
+  smtp_user: z.string().optional(),
+  smtp_password: z.string().optional(),
+  smtp_encryption: z.enum(['none', 'tls', 'ssl']),
+  smtp_from_name: z.string().optional(),
+  smtp_from_email: z.string().email('Email inválido'),
+});
+
+const mapsSchema = z.object({
+  google_maps_api_key: z.string().optional(),
+});
+
+type PaymentsValues = z.infer<typeof paymentsSchema>;
+type EmailValues = z.infer<typeof emailSchema>;
+type MapsValues = z.infer<typeof mapsSchema>;
+
+
+function SettingsCard({ title, action, children }: { title: string; action?: ReactNode; children: ReactNode }) {
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between gap-3">
+          <CardTitle>{title}</CardTitle>
+          {action}
+        </div>
+      </CardHeader>
+      <CardContent>{children}</CardContent>
+    </Card>
+  );
+}
 
 export default function IntegrationsSettingsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [toast, setToast] = useState<ToastState>(null);
   const [rows, setRows] = useState<SettingRow[]>([]);
-
-  const [payments, setPayments] = useState({ mercadopago_public_key: '', mercadopago_access_token: '', mercadopago_webhook_secret: '', mercadopago_mode: 'sandbox' });
-  const [email, setEmail] = useState({ smtp_host: '', smtp_port: '587', smtp_user: '', smtp_password: '', smtp_encryption: 'tls', smtp_from_name: '', smtp_from_email: '' });
-  const [maps, setMaps] = useState({ google_maps_api_key: '' });
-  const [smtpToEmail, setSmtpToEmail] = useState('');
-
   const [saving, setSaving] = useState<{ payments: boolean; email: boolean; maps: boolean }>({ payments: false, email: false, maps: false });
   const [testDialogOpen, setTestDialogOpen] = useState(false);
   const [testingMp, setTestingMp] = useState(false);
   const [testingSmtp, setTestingSmtp] = useState(false);
-  const [mpStatus, setMpStatus] = useState('');
-  const [smtpStatus, setSmtpStatus] = useState('');
+  const [smtpToEmail, setSmtpToEmail] = useState('');
 
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const paymentsForm = useForm<PaymentsValues>({
+    resolver: zodResolver(paymentsSchema),
+    defaultValues: {
+      mercadopago_public_key: '',
+      mercadopago_access_token: '',
+      mercadopago_webhook_secret: '',
+      mercadopago_mode: 'sandbox',
+    },
+  });
+
+  const emailForm = useForm<EmailValues>({
+    resolver: zodResolver(emailSchema),
+    defaultValues: {
+      smtp_host: '',
+      smtp_port: 587,
+      smtp_user: '',
+      smtp_password: '',
+      smtp_encryption: 'tls',
+      smtp_from_name: '',
+      smtp_from_email: '',
+    },
+  });
+
+  const mapsForm = useForm<MapsValues>({
+    resolver: zodResolver(mapsSchema),
+    defaultValues: { google_maps_api_key: '' },
+  });
 
   const encryptedExisting = useMemo(() => {
     const asMap = new Map<string, SettingRow>();
@@ -60,9 +126,26 @@ export default function IntegrationsSettingsPage() {
       setRows(merged);
       const getPlain = (key: string) => merged.find((item) => item.key === key)?.value ?? '';
 
-      setPayments({ mercadopago_public_key: getPlain('mercadopago_public_key'), mercadopago_access_token: '', mercadopago_webhook_secret: '', mercadopago_mode: (getPlain('mercadopago_mode') || 'sandbox').toLowerCase() });
-      setEmail({ smtp_host: getPlain('smtp_host'), smtp_port: getPlain('smtp_port') || '587', smtp_user: getPlain('smtp_user'), smtp_password: '', smtp_encryption: (getPlain('smtp_encryption') || 'tls').toLowerCase(), smtp_from_name: getPlain('smtp_from_name'), smtp_from_email: getPlain('smtp_from_email') });
-      setMaps({ google_maps_api_key: '' });
+      const currentMode = (getPlain('mercadopago_mode') || 'sandbox').toLowerCase();
+      paymentsForm.reset({
+        mercadopago_public_key: getPlain('mercadopago_public_key'),
+        mercadopago_access_token: '',
+        mercadopago_webhook_secret: '',
+        mercadopago_mode: currentMode === 'production' ? 'live' : (currentMode as 'sandbox' | 'live'),
+      });
+
+      const currentEncryption = (getPlain('smtp_encryption') || 'tls').toLowerCase();
+      emailForm.reset({
+        smtp_host: getPlain('smtp_host'),
+        smtp_port: Number(getPlain('smtp_port') || '587'),
+        smtp_user: getPlain('smtp_user'),
+        smtp_password: '',
+        smtp_encryption: (currentEncryption === 'starttls' ? 'tls' : currentEncryption) as 'none' | 'tls' | 'ssl',
+        smtp_from_name: getPlain('smtp_from_name'),
+        smtp_from_email: getPlain('smtp_from_email'),
+      });
+
+      mapsForm.reset({ google_maps_api_key: '' });
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : 'Error inesperado');
     } finally {
@@ -75,81 +158,76 @@ export default function IntegrationsSettingsPage() {
   }, []);
 
   const putSetting = async (key: string, payload: { value: string; category: Category; encrypted?: boolean }) => {
-    const response = await fetch(`/api/admin/settings/${key}`, { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) });
+    const response = await fetch(`/api/admin/settings/${key}`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
     if (!response.ok) {
       const data = await response.json().catch(() => ({}));
       throw new Error(data.message ?? `No se pudo guardar ${key}`);
     }
   };
 
-  const validatePayments = () => {
-    const next: Record<string, string> = {};
-    if (!modeOptions.includes(payments.mercadopago_mode as (typeof modeOptions)[number])) next.mercadopago_mode = 'Modo inválido';
-    if (!payments.mercadopago_public_key.trim()) next.mercadopago_public_key = 'La public key es obligatoria';
-    setFieldErrors((prev) => ({ ...prev, ...next }));
-    return Object.keys(next).length === 0;
-  };
-
-  const validateEmail = () => {
-    const next: Record<string, string> = {};
-    const port = Number(email.smtp_port);
-    if (!email.smtp_host.trim()) next.smtp_host = 'Host requerido';
-    if (!Number.isFinite(port) || port < 1 || port > 65535) next.smtp_port = 'Puerto inválido';
-    if (!email.smtp_from_email.includes('@')) next.smtp_from_email = 'Email inválido';
-    if (!smtpEncryptionOptions.includes(email.smtp_encryption as (typeof smtpEncryptionOptions)[number])) next.smtp_encryption = 'Encriptación inválida';
-    setFieldErrors((prev) => ({ ...prev, ...next }));
-    return Object.keys(next).length === 0;
-  };
-
-  const savePayments = async () => {
-    if (!validatePayments()) return setToast({ tone: 'error', message: 'Revisá los errores del formulario de pagos.' });
+  const savePayments = async (values: PaymentsValues) => {
     setSaving((prev) => ({ ...prev, payments: true }));
     try {
-      await putSetting('mercadopago_public_key', { value: payments.mercadopago_public_key, category: 'payments', encrypted: false });
-      await putSetting('mercadopago_mode', { value: payments.mercadopago_mode, category: 'payments', encrypted: false });
-      if (payments.mercadopago_access_token.trim()) await putSetting('mercadopago_access_token', { value: payments.mercadopago_access_token, category: 'payments', encrypted: true });
-      if (payments.mercadopago_webhook_secret.trim()) await putSetting('mercadopago_webhook_secret', { value: payments.mercadopago_webhook_secret, category: 'payments', encrypted: true });
-      setToast({ tone: 'success', message: 'Configuración de pagos guardada.' });
+      await putSetting('mercadopago_public_key', { value: values.mercadopago_public_key.trim(), category: 'payments' });
+      await putSetting('mercadopago_mode', { value: values.mercadopago_mode, category: 'payments' });
+      if (values.mercadopago_access_token?.trim()) {
+        await putSetting('mercadopago_access_token', { value: values.mercadopago_access_token.trim(), category: 'payments', encrypted: true });
+      }
+      if (values.mercadopago_webhook_secret?.trim()) {
+        await putSetting('mercadopago_webhook_secret', { value: values.mercadopago_webhook_secret.trim(), category: 'payments', encrypted: true });
+      }
+      toast.success('Configuración de pagos guardada.');
       await load();
     } catch (saveError) {
-      setToast({ tone: 'error', message: saveError instanceof Error ? saveError.message : 'No se pudo guardar pagos.' });
+      toast.error(saveError instanceof Error ? saveError.message : 'No se pudo guardar pagos.');
     } finally {
       setSaving((prev) => ({ ...prev, payments: false }));
     }
   };
 
-  const saveEmail = async () => {
-    if (!validateEmail()) return setToast({ tone: 'error', message: 'Revisá los errores del formulario SMTP.' });
+  const saveEmail = async (values: EmailValues) => {
     setSaving((prev) => ({ ...prev, email: true }));
     try {
-      await putSetting('smtp_host', { value: email.smtp_host, category: 'email', encrypted: false });
-      await putSetting('smtp_port', { value: `${Number(email.smtp_port)}`, category: 'email', encrypted: false });
-      await putSetting('smtp_user', { value: email.smtp_user, category: 'email', encrypted: false });
-      await putSetting('smtp_encryption', { value: email.smtp_encryption, category: 'email', encrypted: false });
-      await putSetting('smtp_from_name', { value: email.smtp_from_name, category: 'email', encrypted: false });
-      await putSetting('smtp_from_email', { value: email.smtp_from_email, category: 'email', encrypted: false });
-      if (email.smtp_password.trim()) await putSetting('smtp_password', { value: email.smtp_password, category: 'email', encrypted: true });
-      setToast({ tone: 'success', message: 'Configuración de email guardada.' });
+      await putSetting('smtp_host', { value: values.smtp_host.trim(), category: 'email' });
+      await putSetting('smtp_port', { value: String(values.smtp_port), category: 'email' });
+      await putSetting('smtp_user', { value: values.smtp_user?.trim() ?? '', category: 'email' });
+      await putSetting('smtp_encryption', { value: values.smtp_encryption, category: 'email' });
+      await putSetting('smtp_from_name', { value: values.smtp_from_name?.trim() ?? '', category: 'email' });
+      await putSetting('smtp_from_email', { value: values.smtp_from_email.trim(), category: 'email' });
+      if (values.smtp_password?.trim()) {
+        await putSetting('smtp_password', { value: values.smtp_password.trim(), category: 'email', encrypted: true });
+      }
+      toast.success('Configuración de email guardada.');
       await load();
     } catch (saveError) {
-      setToast({ tone: 'error', message: saveError instanceof Error ? saveError.message : 'No se pudo guardar email.' });
+      toast.error(saveError instanceof Error ? saveError.message : 'No se pudo guardar email.');
     } finally {
       setSaving((prev) => ({ ...prev, email: false }));
     }
   };
 
-  const saveMaps = async () => {
+  const saveMaps = async (values: MapsValues) => {
     setSaving((prev) => ({ ...prev, maps: true }));
     try {
-      if (maps.google_maps_api_key.trim()) {
-        await putSetting('google_maps_api_key', { value: maps.google_maps_api_key, category: 'maps', encrypted: true });
-        setToast({ tone: 'success', message: 'API key de mapas guardada.' });
+      if (!values.google_maps_api_key?.trim() && encryptedExisting.google_maps_api_key) {
+        toast.error('Ingresá una API key para reemplazar la existente.');
+        return;
+      }
+      if (values.google_maps_api_key?.trim()) {
+        await putSetting('google_maps_api_key', {
+          value: values.google_maps_api_key.trim(),
+          category: 'maps',
+          encrypted: true,
+        });
+        toast.success('API key de mapas guardada.');
         await load();
-      } else {
-        setToast({ tone: 'error', message: 'Ingresá una API key para reemplazar la existente.' });
       }
     } catch (saveError) {
-      setToast({ tone: 'error', message: saveError instanceof Error ? saveError.message : 'No se pudo guardar maps.' });
+      toast.error(saveError instanceof Error ? saveError.message : 'No se pudo guardar maps.');
     } finally {
       setSaving((prev) => ({ ...prev, maps: false }));
     }
@@ -157,148 +235,209 @@ export default function IntegrationsSettingsPage() {
 
   const testMercadoPago = async () => {
     setTestingMp(true);
-    setMpStatus('Probando conexión...');
     try {
       const res = await fetch('/api/admin/settings/test/mercadopago', { method: 'POST' });
       const data = await res.json().catch(() => ({}));
-      if (res.ok && data.ok) {
-        setMpStatus('✅ Conexión exitosa');
-        setToast({ tone: 'success', message: 'MercadoPago conectado correctamente.' });
-      } else {
-        const message = data.error ?? data.message ?? 'Falló la prueba de MercadoPago';
-        setMpStatus(`❌ ${message}`);
-        setToast({ tone: 'error', message });
-      }
-    } catch {
-      setMpStatus('❌ Error de conexión');
-      setToast({ tone: 'error', message: 'No se pudo probar MercadoPago.' });
+      if (!res.ok || data.ok === false) throw new Error(data.message ?? 'Error probando MercadoPago.');
+      toast.success('MercadoPago conectado correctamente.');
+      setTestDialogOpen(false);
+    } catch (testError) {
+      toast.error(testError instanceof Error ? testError.message : 'No se pudo probar MercadoPago.');
     } finally {
       setTestingMp(false);
     }
   };
 
   const testSmtp = async () => {
-    if (!smtpToEmail.includes('@')) return setToast({ tone: 'error', message: 'Ingresá un email válido para la prueba SMTP.' });
+    if (!smtpToEmail.includes('@')) {
+      toast.error('Ingresá un email válido para la prueba SMTP.');
+      return;
+    }
     setTestingSmtp(true);
-    setSmtpStatus('Enviando email de prueba...');
     try {
       const res = await fetch('/api/admin/settings/test/smtp', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ toEmail: smtpToEmail }),
+        body: JSON.stringify({ to_email: smtpToEmail }),
       });
       const data = await res.json().catch(() => ({}));
-      if (res.ok && data.ok) {
-        setSmtpStatus('✅ Email de prueba enviado');
-        setToast({ tone: 'success', message: `SMTP ok. Email enviado a ${smtpToEmail}.` });
-      } else {
-        const message = data.error ?? data.message ?? 'Falló la prueba SMTP';
-        setSmtpStatus(`❌ ${message}`);
-        setToast({ tone: 'error', message });
-      }
-    } catch {
-      setSmtpStatus('❌ Error de conexión');
-      setToast({ tone: 'error', message: 'No se pudo probar SMTP.' });
+      if (!res.ok || data.ok === false) throw new Error(data.message ?? 'Error probando SMTP.');
+      toast.success(`SMTP ok. Email enviado a ${smtpToEmail}.`);
+      setTestDialogOpen(false);
+    } catch (testError) {
+      toast.error(testError instanceof Error ? testError.message : 'No se pudo probar SMTP.');
     } finally {
       setTestingSmtp(false);
-      setTestDialogOpen(false);
     }
   };
 
   return (
     <div className="space-y-6">
-      {loading && <LoadingState message="Cargando integraciones..." />}
+      <PageHeader title="Configuración de integraciones" subtitle="Configurá proveedores de pagos, correo y mapas de forma segura." />
+      {loading && <TableSkeleton rows={6} />}
       {error && <ErrorState message={error} retry={() => void load()} />}
-      {!loading && !error && rows.length === 0 && <EmptyState message="No hay configuraciones guardadas todavía." />}
 
-      {!loading && !error && (
+      {!loading && !error && rows.length === 0 && <EmptyState title="No hay resultados" description="Probá ajustar los filtros o crear un nuevo registro." />}
+
+      {!loading && !error && rows.length > 0 && (
         <>
-          <AdminCard
-            title={FORM_LABELS.sections.payments}
-            action={
-              <div className="flex gap-2">
-                <button className="rounded-md bg-slate-800 px-3 py-1.5 text-xs" onClick={() => void testMercadoPago()} disabled={testingMp}>
-                  {testingMp ? 'Probando...' : FORM_LABELS.actions.testMp}
-                </button>
-                <button className="rounded-md bg-cyan-700 px-3 py-1.5 text-xs" onClick={() => void savePayments()} disabled={saving.payments}>
-                  {saving.payments ? 'Guardando...' : FORM_LABELS.actions.savePayments}
-                </button>
-              </div>
-            }
-          >
-            <div className="grid gap-3 md:grid-cols-2">
-              <FormField label="Public key" error={fieldErrors.mercadopago_public_key}>
-                <input className="rounded-md border border-slate-700 bg-slate-950 p-2 text-sm" value={payments.mercadopago_public_key} onChange={(e) => setPayments((prev) => ({ ...prev, mercadopago_public_key: e.target.value }))} />
-              </FormField>
-              <FormField label="Mode" error={fieldErrors.mercadopago_mode}>
-                <select className="rounded-md border border-slate-700 bg-slate-950 p-2 text-sm" value={payments.mercadopago_mode} onChange={(e) => setPayments((prev) => ({ ...prev, mercadopago_mode: e.target.value }))}>
-                  {modeOptions.map((option) => <option key={option} value={option}>{option}</option>)}
-                </select>
-              </FormField>
-              <FormField label="Access token" description="Nunca se muestra el valor real; solo podés reemplazarlo.">
-                <MaskedSecretInput hasStored={encryptedExisting.mercadopago_access_token} value={payments.mercadopago_access_token} onChange={(value) => setPayments((prev) => ({ ...prev, mercadopago_access_token: value }))} placeholder="Nuevo access token" />
-              </FormField>
-              <FormField label="Webhook secret" description="Nunca se muestra el valor real; solo podés reemplazarlo.">
-                <MaskedSecretInput hasStored={encryptedExisting.mercadopago_webhook_secret} value={payments.mercadopago_webhook_secret} onChange={(value) => setPayments((prev) => ({ ...prev, mercadopago_webhook_secret: value }))} placeholder="Nuevo webhook secret" />
-              </FormField>
-            </div>
-            {mpStatus && <p className="mt-3 text-xs text-slate-300">{mpStatus}</p>}
-          </AdminCard>
+          <SettingsCard title={FORM_LABELS.sections.payments} action={<Button onClick={() => void paymentsForm.handleSubmit(savePayments)()} disabled={saving.payments}>{saving.payments ? 'Guardando...' : FORM_LABELS.actions.savePayments}</Button>}>
+            <Form {...paymentsForm}>
+              <form className="grid gap-3 md:grid-cols-2" onSubmit={paymentsForm.handleSubmit(savePayments)}>
+                <FormField control={paymentsForm.control} name="mercadopago_public_key" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Public key</FormLabel>
+                    <FormControl><Input {...field} disabled={saving.payments} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                <FormField control={paymentsForm.control} name="mercadopago_mode" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Modo</FormLabel>
+                    <FormControl>
+                      <Select value={field.value} onChange={field.onChange} disabled={saving.payments}>
+                        <option value="sandbox">sandbox</option>
+                        <option value="live">live</option>
+                      </Select>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                <FormField control={paymentsForm.control} name="mercadopago_access_token" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Access token</FormLabel>
+                    <FormControl>
+                      <SecretInput
+                        hasStored={encryptedExisting.mercadopago_access_token}
+                        value={field.value ?? ''}
+                        onChange={field.onChange}
+                        placeholder="Nuevo access token"
+                        disabled={saving.payments}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                <FormField control={paymentsForm.control} name="mercadopago_webhook_secret" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Webhook secret</FormLabel>
+                    <FormControl>
+                      <SecretInput
+                        hasStored={encryptedExisting.mercadopago_webhook_secret}
+                        value={field.value ?? ''}
+                        onChange={field.onChange}
+                        placeholder="Nuevo webhook secret"
+                        disabled={saving.payments}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+              </form>
+            </Form>
+          </SettingsCard>
 
-          <AdminCard
-            title={FORM_LABELS.sections.email}
-            action={
-              <div className="flex gap-2">
-                <button className="rounded-md bg-slate-800 px-3 py-1.5 text-xs" onClick={() => setTestDialogOpen(true)} disabled={testingSmtp}>
-                  {FORM_LABELS.actions.testSmtp}
-                </button>
-                <button className="rounded-md bg-cyan-700 px-3 py-1.5 text-xs" onClick={() => void saveEmail()} disabled={saving.email}>
-                  {saving.email ? 'Guardando...' : FORM_LABELS.actions.saveEmail}
-                </button>
-              </div>
-            }
-          >
-            <div className="grid gap-3 md:grid-cols-2">
-              <FormField label="Host" error={fieldErrors.smtp_host}><input className="rounded-md border border-slate-700 bg-slate-950 p-2 text-sm" value={email.smtp_host} onChange={(e) => setEmail((prev) => ({ ...prev, smtp_host: e.target.value }))} /></FormField>
-              <FormField label="Port" error={fieldErrors.smtp_port}><input className="rounded-md border border-slate-700 bg-slate-950 p-2 text-sm" value={email.smtp_port} onChange={(e) => setEmail((prev) => ({ ...prev, smtp_port: e.target.value }))} /></FormField>
-              <FormField label="User"><input className="rounded-md border border-slate-700 bg-slate-950 p-2 text-sm" value={email.smtp_user} onChange={(e) => setEmail((prev) => ({ ...prev, smtp_user: e.target.value }))} /></FormField>
-              <FormField label="Password" description="Nunca se muestra el valor real; solo podés reemplazarlo.">
-                <MaskedSecretInput hasStored={encryptedExisting.smtp_password} value={email.smtp_password} onChange={(value) => setEmail((prev) => ({ ...prev, smtp_password: value }))} placeholder="Nuevo password" />
-              </FormField>
-              <FormField label="Encryption" error={fieldErrors.smtp_encryption}>
-                <select className="rounded-md border border-slate-700 bg-slate-950 p-2 text-sm" value={email.smtp_encryption} onChange={(e) => setEmail((prev) => ({ ...prev, smtp_encryption: e.target.value }))}>
-                  {smtpEncryptionOptions.map((option) => <option key={option} value={option}>{option}</option>)}
-                </select>
-              </FormField>
-              <FormField label="From name"><input className="rounded-md border border-slate-700 bg-slate-950 p-2 text-sm" value={email.smtp_from_name} onChange={(e) => setEmail((prev) => ({ ...prev, smtp_from_name: e.target.value }))} /></FormField>
-              <FormField label="From email" error={fieldErrors.smtp_from_email}><input className="rounded-md border border-slate-700 bg-slate-950 p-2 text-sm md:col-span-2" value={email.smtp_from_email} onChange={(e) => setEmail((prev) => ({ ...prev, smtp_from_email: e.target.value }))} /></FormField>
-            </div>
-            {smtpStatus && <p className="mt-3 text-xs text-slate-300">{smtpStatus}</p>}
-          </AdminCard>
+          <SettingsCard title={FORM_LABELS.sections.email} action={<Button onClick={() => void emailForm.handleSubmit(saveEmail)()} disabled={saving.email}>{saving.email ? 'Guardando...' : FORM_LABELS.actions.saveEmail}</Button>}>
+            <Form {...emailForm}>
+              <form className="grid gap-3 md:grid-cols-2" onSubmit={emailForm.handleSubmit(saveEmail)}>
+                <FormField control={emailForm.control} name="smtp_host" render={({ field }) => (
+                  <FormItem><FormLabel>SMTP host</FormLabel><FormControl><Input {...field} disabled={saving.email} /></FormControl><FormMessage /></FormItem>
+                )} />
+                <FormField control={emailForm.control} name="smtp_port" render={({ field }) => (
+                  <FormItem><FormLabel>SMTP port</FormLabel><FormControl><Input type="number" value={field.value} onChange={field.onChange} disabled={saving.email} /></FormControl><FormMessage /></FormItem>
+                )} />
+                <FormField control={emailForm.control} name="smtp_encryption" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Encriptación</FormLabel>
+                    <FormControl>
+                      <Select value={field.value} onChange={field.onChange} disabled={saving.email}>
+                        <option value="none">none</option>
+                        <option value="tls">tls</option>
+                        <option value="ssl">ssl</option>
+                      </Select>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                <FormField control={emailForm.control} name="smtp_user" render={({ field }) => (
+                  <FormItem><FormLabel>SMTP user</FormLabel><FormControl><Input {...field} disabled={saving.email} /></FormControl><FormMessage /></FormItem>
+                )} />
+                <FormField control={emailForm.control} name="smtp_password" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>SMTP password</FormLabel>
+                    <FormControl>
+                      <SecretInput
+                        hasStored={encryptedExisting.smtp_password}
+                        value={field.value ?? ''}
+                        onChange={field.onChange}
+                        placeholder="Nuevo SMTP password"
+                        disabled={saving.email}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                <FormField control={emailForm.control} name="smtp_from_name" render={({ field }) => (
+                  <FormItem><FormLabel>From name</FormLabel><FormControl><Input {...field} disabled={saving.email} /></FormControl><FormMessage /></FormItem>
+                )} />
+                <FormField control={emailForm.control} name="smtp_from_email" render={({ field }) => (
+                  <FormItem><FormLabel>From email</FormLabel><FormControl><Input {...field} disabled={saving.email} /></FormControl><FormMessage /></FormItem>
+                )} />
+              </form>
+            </Form>
+          </SettingsCard>
 
-          <AdminCard title={FORM_LABELS.sections.maps} action={<button className="rounded-md bg-cyan-700 px-3 py-1.5 text-xs" onClick={() => void saveMaps()} disabled={saving.maps}>{saving.maps ? 'Guardando...' : FORM_LABELS.actions.saveMaps}</button>}>
-            <FormField label="Google Maps API key" description="Nunca se muestra el valor real; solo podés reemplazarlo.">
-              <MaskedSecretInput hasStored={encryptedExisting.google_maps_api_key} value={maps.google_maps_api_key} onChange={(value) => setMaps({ google_maps_api_key: value })} placeholder="Nueva API key" />
-            </FormField>
-          </AdminCard>
+          <SettingsCard title={FORM_LABELS.sections.maps} action={<Button onClick={() => void mapsForm.handleSubmit(saveMaps)()} disabled={saving.maps}>{saving.maps ? 'Guardando...' : FORM_LABELS.actions.saveMaps}</Button>}>
+            <Form {...mapsForm}>
+              <form className="grid gap-3" onSubmit={mapsForm.handleSubmit(saveMaps)}>
+                <FormField control={mapsForm.control} name="google_maps_api_key" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Google Maps API key</FormLabel>
+                    <FormControl>
+                      <SecretInput
+                        hasStored={encryptedExisting.google_maps_api_key}
+                        value={field.value ?? ''}
+                        onChange={field.onChange}
+                        placeholder="Nueva Google Maps API key"
+                        disabled={saving.maps}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+              </form>
+            </Form>
+          </SettingsCard>
+
+          <SettingsCard title="Pruebas">
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" onClick={() => setTestDialogOpen(true)}>{FORM_LABELS.actions.testMp}</Button>
+            </div>
+          </SettingsCard>
         </>
       )}
 
       <ConfirmDialog
         open={testDialogOpen}
-        title="Probar SMTP"
-        description="Ingresá un destinatario para enviar email de prueba"
-        confirmLabel={FORM_LABELS.actions.confirm}
-        loading={testingSmtp}
+        title="Probar integraciones"
+        description="Ejecuta pruebas de conectividad sin exponer secretos."
+        confirmLabel="Cerrar"
+        destructive={false}
         onClose={() => setTestDialogOpen(false)}
-        onConfirm={() => void testSmtp()}
+        onConfirm={() => setTestDialogOpen(false)}
       >
-        <FormField label="Email destinatario">
-          <input className="w-full rounded-md border border-slate-700 bg-slate-950 p-2 text-sm" value={smtpToEmail} onChange={(e) => setSmtpToEmail(e.target.value)} />
-        </FormField>
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <p className="text-sm text-slate-300">MercadoPago</p>
+            <Button type="button" onClick={() => void testMercadoPago()} disabled={testingMp}>{testingMp ? 'Probando...' : FORM_LABELS.actions.testMp}</Button>
+          </div>
+          <div className="space-y-2">
+            <p className="text-sm text-slate-300">SMTP</p>
+            <Input value={smtpToEmail} onChange={(event) => setSmtpToEmail(event.target.value)} placeholder="destino@example.com" />
+            <Button type="button" onClick={() => void testSmtp()} disabled={testingSmtp}>{testingSmtp ? 'Probando...' : FORM_LABELS.actions.testSmtp}</Button>
+          </div>
+        </div>
       </ConfirmDialog>
-
-      {toast && <Toast tone={toast.tone} message={toast.message} onClose={() => setToast(null)} />}
     </div>
   );
 }

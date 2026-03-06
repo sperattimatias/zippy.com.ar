@@ -15,7 +15,7 @@ export function SectionCard({
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center justify-between gap-3">
           <div>
             <CardTitle>{title}</CardTitle>
             {description ? <CardDescription className="mt-1">{description}</CardDescription> : null}
