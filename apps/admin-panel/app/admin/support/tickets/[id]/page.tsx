@@ -3,11 +3,13 @@
 import { useEffect, useState } from 'react';
 import { PageHeader } from '../../../../../components/page/PageHeader';
 import { StatusBadge } from '../../../../../components/common/StatusBadge';
+import { CopyText } from '../../../../../components/common/CopyText';
 import { SectionCard } from '../../../../../components/common/SectionCard';
 import { EmptyState } from '../../../../../components/states/EmptyState';
 import { ErrorState } from '../../../../../components/states/ErrorState';
 import { LoadingState } from '../../../../../components/states/LoadingState';
 import { toast } from '../../../../../lib/toast';
+import { formatDateTime } from '../../../../../lib/format';
 
 type TicketNote = { id: string; note: string; created_by?: string | null; created_at: string };
 
@@ -114,10 +116,10 @@ export default function SupportTicketDetailPage({ params }: { params: { id: stri
               <p><span className="text-slate-400">Type:</span> {detail.type}</p>
               <p><span className="text-slate-400">Status:</span> <StatusBadge status={detail.status} /></p>
               <p><span className="text-slate-400">Priority:</span> {detail.priority}</p>
-              <p><span className="text-slate-400">Created:</span> {new Date(detail.created_at).toLocaleString()}</p>
-              <p><span className="text-slate-400">User:</span> {detail.user_id}</p>
-              <p><span className="text-slate-400">Driver:</span> {detail.driver_id ?? '-'}</p>
-              <p><span className="text-slate-400">Trip:</span> {detail.trip_id ?? '-'}</p>
+              <p><span className="text-slate-400">Created:</span> {formatDateTime(detail.created_at)}</p>
+              <p><span className="text-slate-400">User:</span> <CopyText value={detail.user_id} /></p>
+              <p><span className="text-slate-400">Driver:</span> <CopyText value={detail.driver_id ?? undefined} /></p>
+              <p><span className="text-slate-400">Trip:</span> <CopyText value={detail.trip_id ?? undefined} /></p>
               <p><span className="text-slate-400">Assigned:</span> {detail.assigned_agent ?? '-'}</p>
             </div>
             <p className="mt-4 text-sm"><span className="text-slate-400">Descripción:</span> {detail.description}</p>
@@ -149,7 +151,7 @@ export default function SupportTicketDetailPage({ params }: { params: { id: stri
               </div>
               <ul className="space-y-1 text-sm text-slate-300">
                 {detail.notes.map((n) => (
-                  <li key={n.id}>• {n.note} <span className="text-slate-500">({new Date(n.created_at).toLocaleString()})</span></li>
+                  <li key={n.id}>• {n.note} <span className="text-slate-500">({formatDateTime(n.created_at)})</span></li>
                 ))}
                 {detail.notes.length === 0 && <li>Sin notas aún.</li>}
               </ul>

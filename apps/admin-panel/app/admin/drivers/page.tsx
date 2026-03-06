@@ -8,7 +8,9 @@ import { SectionCard } from '../../../components/common/SectionCard';
 import { DataTable } from '../../../components/data-table/DataTable';
 import { useDebouncedValue, useQueryState } from '../../../components/data-table/query-state';
 import { DataTableToolbar } from '../../../components/data-table/toolbar';
-import { Badge } from '../../../components/ui/badge';
+import { CopyText } from '../../../components/common/CopyText';
+import { StatusBadge } from '../../../components/common/StatusBadge';
+import { formatDateTime } from '../../../lib/format';
 
 const statusTone: Record<string, 'success' | 'danger' | 'outline'> = {
   active: 'success',
@@ -31,12 +33,12 @@ type DriversResponse = {
 };
 
 const columnsBase: ColumnDef<DriverRow>[] = [
-  { accessorKey: 'id', header: 'Driver ID', meta: 'Driver ID', cell: ({ row }) => <span className="font-mono text-xs">{row.original.id}</span> },
-  { accessorKey: 'user_id', header: 'User', meta: 'User' },
-  { accessorKey: 'status', header: 'Estado', meta: 'Estado', cell: ({ row }) => <Badge variant={statusTone[row.original.status] ?? 'outline'}>{row.original.status}</Badge> },
+  { accessorKey: 'id', header: 'Driver ID', meta: 'Driver ID', cell: ({ row }) => <CopyText value={row.original.id} /> },
+  { accessorKey: 'user_id', header: 'User', meta: 'User', cell: ({ row }) => <CopyText value={row.original.user_id} /> },
+  { accessorKey: 'status', header: 'Estado', meta: 'Estado', cell: ({ row }) => <StatusBadge status={row.original.status} /> },
   { accessorKey: 'docs_count', header: 'Docs', meta: 'Docs' },
   { accessorKey: 'notes', header: 'Notas', meta: 'Notas', cell: ({ row }) => row.original.notes ?? '-' },
-  { accessorKey: 'created_at', header: 'Creado', meta: 'Creado', cell: ({ row }) => new Date(row.original.created_at).toLocaleString('es-AR') },
+  { accessorKey: 'created_at', header: 'Creado', meta: 'Creado', cell: ({ row }) => formatDateTime(row.original.created_at) },
   {
     id: 'actions',
     header: 'Acciones',

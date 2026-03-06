@@ -8,10 +8,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../..
 import { DataTable } from '../../../components/data-table/DataTable';
 import { useDebouncedValue, useQueryState } from '../../../components/data-table/query-state';
 import { DataTableToolbar } from '../../../components/data-table/toolbar';
-import { Badge } from '../../../components/ui/badge';
+import { CopyText } from '../../../components/common/CopyText';
+import { StatusBadge } from '../../../components/common/StatusBadge';
 import { Input } from '../../../components/ui/input';
-
-const moneyFormatter = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' });
+import { formatDateTime, formatMoney } from '../../../lib/format';
 
 type PaymentRow = {
   payment_id: string;
@@ -31,15 +31,15 @@ type PaymentsResponse = {
 };
 
 const columnsBase: ColumnDef<PaymentRow>[] = [
-  { accessorKey: 'payment_id', header: 'Payment ID', meta: 'Payment ID', cell: ({ row }) => <span className="font-mono text-xs">{row.original.payment_id}</span> },
-  { accessorKey: 'trip_id', header: 'Trip ID', meta: 'Trip ID', cell: ({ row }) => <span className="font-mono text-xs">{row.original.trip_id}</span> },
-  { accessorKey: 'rider_id', header: 'Rider', meta: 'Rider', cell: ({ row }) => <span className="font-mono text-xs">{row.original.rider_id}</span> },
-  { accessorKey: 'driver_id', header: 'Driver', meta: 'Driver', cell: ({ row }) => <span className="font-mono text-xs">{row.original.driver_id}</span> },
-  { accessorKey: 'amount', header: 'Monto', meta: 'Monto', cell: ({ row }) => moneyFormatter.format(row.original.amount ?? 0) },
-  { accessorKey: 'fee_platform', header: 'Fee', meta: 'Fee', cell: ({ row }) => moneyFormatter.format(row.original.fee_platform ?? 0) },
-  { accessorKey: 'status', header: 'Status', meta: 'Status', cell: ({ row }) => <Badge variant={row.original.status === 'APPROVED' ? 'success' : 'outline'}>{row.original.status}</Badge> },
+  { accessorKey: 'payment_id', header: 'Payment ID', meta: 'Payment ID', cell: ({ row }) => <CopyText value={row.original.payment_id} /> },
+  { accessorKey: 'trip_id', header: 'Trip ID', meta: 'Trip ID', cell: ({ row }) => <CopyText value={row.original.trip_id} /> },
+  { accessorKey: 'rider_id', header: 'Rider', meta: 'Rider', cell: ({ row }) => <CopyText value={row.original.rider_id} /> },
+  { accessorKey: 'driver_id', header: 'Driver', meta: 'Driver', cell: ({ row }) => <CopyText value={row.original.driver_id} /> },
+  { accessorKey: 'amount', header: 'Monto', meta: 'Monto', cell: ({ row }) => formatMoney(row.original.amount) },
+  { accessorKey: 'fee_platform', header: 'Fee', meta: 'Fee', cell: ({ row }) => formatMoney(row.original.fee_platform) },
+  { accessorKey: 'status', header: 'Status', meta: 'Status', cell: ({ row }) => <StatusBadge status={row.original.status} /> },
   { accessorKey: 'method', header: 'Método', meta: 'Método' },
-  { accessorKey: 'created_at', header: 'Creado', meta: 'Creado', cell: ({ row }) => new Date(row.original.created_at).toLocaleString('es-AR') },
+  { accessorKey: 'created_at', header: 'Creado', meta: 'Creado', cell: ({ row }) => formatDateTime(row.original.created_at) },
   {
     id: 'actions',
     header: 'Acciones',

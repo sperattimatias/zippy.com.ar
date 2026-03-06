@@ -6,6 +6,7 @@ import { SectionCard } from '../../../../components/common/SectionCard';
 import { EmptyState } from '../../../../components/states/EmptyState';
 import { ErrorState } from '../../../../components/states/ErrorState';
 import { LoadingState } from '../../../../components/states/LoadingState';
+import { formatMoney } from '../../../../lib/format';
 import { toast } from '../../../../lib/toast';
 
 type OverviewResponse = {
@@ -90,7 +91,7 @@ export default function ReportsOverviewPage() {
           <div className="grid gap-3 md:grid-cols-3">
             <Kpi label="Rides / día" value={data.kpis.rides_per_day.toFixed(2)} />
             <Kpi label="Cancel rate" value={`${data.kpis.cancel_rate.toFixed(2)}%`} />
-            <Kpi label="Revenue" value={`$${data.kpis.revenue.toLocaleString('es-AR')}`} />
+            <Kpi label="Revenue" value={formatMoney(data.kpis.revenue)} />
             <Kpi label="Take rate" value={`${data.kpis.take_rate.toFixed(2)}%`} />
             <Kpi label="Active drivers" value={String(data.kpis.active_drivers)} />
             <Kpi label="Active riders" value={String(data.kpis.active_riders)} />

@@ -4,11 +4,13 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { PageHeader } from '../../../../components/page/PageHeader';
 import { StatusBadge } from '../../../../components/common/StatusBadge';
+import { CopyText } from '../../../../components/common/CopyText';
 import { SectionCard } from '../../../../components/common/SectionCard';
 import { EmptyState } from '../../../../components/states/EmptyState';
 import { ErrorState } from '../../../../components/states/ErrorState';
 import { LoadingState } from '../../../../components/states/LoadingState';
 import { toast } from '../../../../lib/toast';
+import { formatDateTime } from '../../../../lib/format';
 
 type UserDetail = {
   id: string;
@@ -103,12 +105,13 @@ export default function AdminUserDetailPage({ params }: { params: { id: string }
 
       {!loading && detail && (
         <>
-          <SectionCard title={`Usuario ${detail.id}`}>
+          <SectionCard title="Detalle de cuenta">
             <div className="grid gap-2 md:grid-cols-2 text-sm">
               <p><span className="text-slate-400">Email:</span> {detail.email}</p>
               <p><span className="text-slate-400">Phone:</span> {detail.phone ?? '-'}</p>
               <p><span className="text-slate-400">Estado:</span> <StatusBadge status={detail.status} /></p>
-              <p><span className="text-slate-400">Creado:</span> {new Date(detail.created_at).toLocaleString()}</p>
+              <p><span className="text-slate-400">ID usuario:</span> <CopyText value={detail.id} /></p>
+              <p><span className="text-slate-400">Creado:</span> {formatDateTime(detail.created_at)}</p>
               <p><span className="text-slate-400">Payment limited:</span> {detail.flags?.payment_limited ? 'Sí' : 'No'}</p>
               <p><span className="text-slate-400">Notas:</span> {detail.notes ?? '-'}</p>
             </div>

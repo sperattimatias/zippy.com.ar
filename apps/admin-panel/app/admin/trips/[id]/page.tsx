@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { PageHeader } from '../../../../components/page/PageHeader';
 import { StatusBadge } from '../../../../components/common/StatusBadge';
+import { CopyText } from '../../../../components/common/CopyText';
 import { SectionCard } from '../../../../components/common/SectionCard';
 import { EmptyState } from '../../../../components/states/EmptyState';
 import { ErrorState } from '../../../../components/states/ErrorState';
@@ -14,6 +15,7 @@ import { ReasonDialog } from '../../../../components/forms/reason-dialog';
 import { Button } from '../../../../components/ui/button';
 import { Input } from '../../../../components/ui/input';
 import { Textarea } from '../../../../components/ui/textarea';
+import { formatDateTime, formatMoney } from '../../../../lib/format';
 
 const TripRouteMap = dynamic(
   () => import('../../../../components/maps/trip-route-map').then((mod) => mod.TripRouteMap),
@@ -171,13 +173,13 @@ export default function AdminTripDetailPage({ params }: { params: { id: string }
           <SectionCard title={`Trip ${trip.id}`} action={<Link className="text-xs text-cyan-300 underline" href={`/admin/audit?entityType=trip&entityId=${trip.id}`}>Ver auditoría</Link>}>
             <div className="grid gap-2 text-sm md:grid-cols-2">
               <p><span className="text-slate-400">Estado:</span> <StatusBadge status={trip.status} /></p>
-              <p><span className="text-slate-400">Passenger:</span> {trip.passenger_user_id}</p>
-              <p><span className="text-slate-400">Driver:</span> {trip.driver_user_id ?? '-'}</p>
-              <p><span className="text-slate-400">Creado:</span> {new Date(trip.created_at).toLocaleString()}</p>
+              <p><span className="text-slate-400">Passenger:</span> <CopyText value={trip.passenger_user_id} /></p>
+              <p><span className="text-slate-400">Driver:</span> <CopyText value={trip.driver_user_id ?? undefined} /></p>
+              <p><span className="text-slate-400">Creado:</span> {formatDateTime(trip.created_at)}</p>
               <p><span className="text-slate-400">Origen:</span> {trip.origin_address}</p>
               <p><span className="text-slate-400">Destino:</span> {trip.dest_address}</p>
-              <p><span className="text-slate-400">Base:</span> {trip.price_base}</p>
-              <p><span className="text-slate-400">Final:</span> {trip.price_final ?? '-'}</p>
+              <p><span className="text-slate-400">Base:</span> {formatMoney(trip.price_base)}</p>
+              <p><span className="text-slate-400">Final:</span> {formatMoney(trip.price_final)}</p>
             </div>
           </SectionCard>
 
@@ -197,7 +199,7 @@ export default function AdminTripDetailPage({ params }: { params: { id: string }
                 <tbody>
                   {trip.events.map((event) => (
                     <tr key={event.id} className="border-t border-slate-800 align-top">
-                      <td className="p-2 whitespace-nowrap">{new Date(event.created_at).toLocaleString()}</td>
+                      <td className="p-2 whitespace-nowrap">{formatDateTime(event.created_at)}</td>
                       <td className="p-2 font-medium">{event.type}</td>
                       <td className="p-2"><pre className="max-w-[560px] overflow-auto rounded bg-slate-950 p-2 text-xs text-slate-300">{JSON.stringify(event.payload_json ?? {}, null, 2)}</pre></td>
                     </tr>

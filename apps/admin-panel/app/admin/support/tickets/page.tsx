@@ -7,7 +7,10 @@ import { SectionCard } from '../../../../components/common/SectionCard';
 import { EmptyState } from '../../../../components/states/EmptyState';
 import { ErrorState } from '../../../../components/states/ErrorState';
 import { LoadingState } from '../../../../components/states/LoadingState';
+import { CopyText } from '../../../../components/common/CopyText';
+import { StatusBadge } from '../../../../components/common/StatusBadge';
 import { toast } from '../../../../lib/toast';
+import { formatDateTime } from '../../../../lib/format';
 
 type Ticket = {
   id: string;
@@ -133,14 +136,14 @@ export default function SupportTicketsPage() {
               <tbody>
                 {items.map((ticket) => (
                   <tr key={ticket.id} className="border-t border-slate-800">
-                    <td className="p-2 font-mono text-xs">{ticket.id}</td>
+                    <td className="p-2"><CopyText value={ticket.id} /></td>
                     <td className="p-2">{ticket.type}</td>
-                    <td className="p-2">{ticket.status}</td>
-                    <td className="p-2">{ticket.priority}</td>
-                    <td className="p-2">{new Date(ticket.created_at).toLocaleString()}</td>
-                    <td className="p-2 font-mono text-xs">{ticket.user_id}</td>
-                    <td className="p-2 font-mono text-xs">{ticket.driver_id ?? '-'}</td>
-                    <td className="p-2 font-mono text-xs">{ticket.trip_id ?? '-'}</td>
+                    <td className="p-2"><StatusBadge status={ticket.status} /></td>
+                    <td className="p-2"><StatusBadge status={ticket.priority} /></td>
+                    <td className="p-2">{formatDateTime(ticket.created_at)}</td>
+                    <td className="p-2"><CopyText value={ticket.user_id} /></td>
+                    <td className="p-2"><CopyText value={ticket.driver_id ?? undefined} /></td>
+                    <td className="p-2"><CopyText value={ticket.trip_id ?? undefined} /></td>
                     <td className="p-2 max-w-[320px] truncate">{ticket.description}</td>
                     <td className="p-2"><Link href={`/admin/support/tickets/${ticket.id}`} className="text-cyan-400">Detalle</Link></td>
                   </tr>

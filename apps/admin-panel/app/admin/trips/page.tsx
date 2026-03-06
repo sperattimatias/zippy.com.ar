@@ -8,10 +8,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../..
 import { DataTable } from '../../../components/data-table/DataTable';
 import { useDebouncedValue, useQueryState } from '../../../components/data-table/query-state';
 import { DataTableToolbar } from '../../../components/data-table/toolbar';
-import { Badge } from '../../../components/ui/badge';
+import { CopyText } from '../../../components/common/CopyText';
+import { StatusBadge } from '../../../components/common/StatusBadge';
 import { Input } from '../../../components/ui/input';
-
-const moneyFormatter = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' });
+import { formatDateTime, formatMoney } from '../../../lib/format';
 
 type TripRow = {
   id: string;
@@ -36,25 +36,25 @@ const columnsBase: ColumnDef<TripRow>[] = [
     accessorKey: 'id',
     header: 'Trip ID',
     meta: 'Trip ID',
-    cell: ({ row }) => <span className="font-mono text-xs">{row.original.id}</span>,
+    cell: ({ row }) => <CopyText value={row.original.id} />,
   },
   {
     accessorKey: 'status',
     header: 'Estado',
     meta: 'Estado',
-    cell: ({ row }) => <Badge variant={row.original.status === 'COMPLETED' ? 'success' : 'outline'}>{row.original.status}</Badge>,
+    cell: ({ row }) => <StatusBadge status={row.original.status} />,
   },
   {
     id: 'rider',
     header: 'Rider',
     meta: 'Rider',
-    cell: ({ row }) => <span className="font-mono text-xs">{row.original.rider_user_id ?? row.original.passenger_user_id}</span>,
+    cell: ({ row }) => <CopyText value={row.original.rider_user_id ?? row.original.passenger_user_id} />,
   },
   {
     id: 'driver',
     header: 'Driver',
     meta: 'Driver',
-    cell: ({ row }) => <span className="font-mono text-xs">{row.original.driver_user_id ?? '-'}</span>,
+    cell: ({ row }) => <CopyText value={row.original.driver_user_id ?? undefined} />,
   },
   { accessorKey: 'origin_address', header: 'Origen', meta: 'Origen' },
   { accessorKey: 'dest_address', header: 'Destino', meta: 'Destino' },
@@ -62,14 +62,14 @@ const columnsBase: ColumnDef<TripRow>[] = [
     accessorKey: 'total',
     header: 'Total',
     meta: 'Total',
-    cell: ({ row }) => moneyFormatter.format(row.original.total ?? 0),
+    cell: ({ row }) => formatMoney(row.original.total),
   },
   { accessorKey: 'payment_method', header: 'Pago', meta: 'Pago', cell: ({ row }) => row.original.payment_method || '-' },
   {
     accessorKey: 'created_at',
     header: 'Creado',
     meta: 'Creado',
-    cell: ({ row }) => new Date(row.original.created_at).toLocaleString('es-AR'),
+    cell: ({ row }) => formatDateTime(row.original.created_at),
   },
   {
     id: 'actions',

@@ -7,6 +7,9 @@ import { SectionCard } from '../../../components/common/SectionCard';
 import { EmptyState } from '../../../components/states/EmptyState';
 import { ErrorState } from '../../../components/states/ErrorState';
 import { LoadingState } from '../../../components/states/LoadingState';
+import { CopyText } from '../../../components/common/CopyText';
+import { StatusBadge } from '../../../components/common/StatusBadge';
+import { formatDateTime } from '../../../lib/format';
 
 type UserRow = {
   id: string;
@@ -90,11 +93,11 @@ export default function AdminUsersPage() {
               <tbody>
                 {rows.map((row) => (
                   <tr key={row.id} className="border-t border-slate-800">
-                    <td className="p-2 font-mono text-xs">{row.id}</td>
+                    <td className="p-2"><CopyText value={row.id} /></td>
                     <td className="p-2">{row.email}</td>
                     <td className="p-2">{row.phone ?? '-'}</td>
-                    <td className="p-2">{row.status}</td>
-                    <td className="p-2">{new Date(row.created_at).toLocaleString()}</td>
+                    <td className="p-2"><StatusBadge status={row.status} /></td>
+                    <td className="p-2">{formatDateTime(row.created_at)}</td>
                     <td className="p-2">{row.total_trips ?? 0}</td>
                     <td className="p-2">{row.flags?.payment_limited ? 'payment_limited' : '-'}</td>
                     <td className="p-2"><Link href={`/admin/users/${row.id}`} className="text-cyan-400">Detalle</Link></td>

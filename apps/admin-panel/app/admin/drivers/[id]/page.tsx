@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { PageHeader } from '../../../../components/page/PageHeader';
 import { StatusBadge } from '../../../../components/common/StatusBadge';
+import { CopyText } from '../../../../components/common/CopyText';
 import { SectionCard } from '../../../../components/common/SectionCard';
 import { EmptyState } from '../../../../components/states/EmptyState';
 import { ErrorState } from '../../../../components/states/ErrorState';
@@ -12,6 +13,7 @@ import { ReasonDialog } from '../../../../components/forms/reason-dialog';
 import { Input } from '../../../../components/ui/input';
 import { Button } from '../../../../components/ui/button';
 import { toast } from '../../../../lib/toast';
+import { formatDateTime } from '../../../../lib/format';
 
 type DriverDetail = {
   id: string;
@@ -120,7 +122,7 @@ export default function AdminDriverDetailPage({ params }: { params: { id: string
           <SectionCard title={`Driver ${detail.user_id}`}>
             <div className="grid gap-2 text-sm md:grid-cols-2">
               <p><span className="text-slate-400">Estado:</span> <StatusBadge status={detail.status} /></p>
-              <p><span className="text-slate-400">Driver ID:</span> {detail.id}</p>
+              <p><span className="text-slate-400">Driver ID:</span> <CopyText value={detail.id} /></p>
               <p><span className="text-slate-400">Rechazo:</span> {detail.rejection_reason ?? '-'}</p>
               <p><span className="text-slate-400">Notas:</span> {detail.notes ?? '-'}</p>
             </div>
@@ -139,7 +141,7 @@ export default function AdminDriverDetailPage({ params }: { params: { id: string
             <ul className="space-y-1 text-sm">
               {detail.documents.map((document) => (
                 <li key={document.id} className="flex items-center justify-between gap-2">
-                  <span>{document.type} — {new Date(document.created_at).toLocaleDateString()}</span>
+                  <span>{document.type} — {formatDateTime(document.created_at)}</span>
                   <a className="text-cyan-400" href={document.get_url} target="_blank" rel="noreferrer">Ver</a>
                 </li>
               ))}
@@ -172,7 +174,7 @@ export default function AdminDriverDetailPage({ params }: { params: { id: string
           <SectionCard title="Eventos">
             <ul className="space-y-1 text-sm">
               {detail.events.map((event) => (
-                <li key={event.id}>{new Date(event.created_at).toLocaleString()} — {event.type} — actor {event.actor_user_id}</li>
+                <li key={event.id}>{formatDateTime(event.created_at)} — {event.type} — actor {event.actor_user_id}</li>
               ))}
             </ul>
           </SectionCard>
