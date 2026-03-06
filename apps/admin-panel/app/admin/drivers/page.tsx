@@ -27,10 +27,10 @@ type DriversResponse = {
 };
 
 const columnsBase: ColumnDef<DriverRow>[] = [
-  { accessorKey: 'id', header: 'Driver ID', meta: 'Driver ID', cell: ({ row }) => <CopyText value={row.original.id} /> },
-  { accessorKey: 'user_id', header: 'User', meta: 'User', cell: ({ row }) => <CopyText value={row.original.user_id} /> },
+  { accessorKey: 'id', header: 'ID del conductor', meta: 'ID del conductor', cell: ({ row }) => <CopyText value={row.original.id} /> },
+  { accessorKey: 'user_id', header: 'ID del usuario', meta: 'ID del usuario', cell: ({ row }) => <CopyText value={row.original.user_id} /> },
   { accessorKey: 'status', header: 'Estado', meta: 'Estado', cell: ({ row }) => <StatusBadge status={row.original.status} /> },
-  { accessorKey: 'docs_count', header: 'Docs', meta: 'Docs' },
+  { accessorKey: 'docs_count', header: 'Documentos', meta: 'Documentos' },
   { accessorKey: 'notes', header: 'Notas', meta: 'Notas', cell: ({ row }) => row.original.notes ?? '-' },
   { accessorKey: 'created_at', header: 'Creado', meta: 'Creado', cell: ({ row }) => formatDateTime(row.original.created_at) },
   {

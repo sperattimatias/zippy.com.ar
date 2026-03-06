@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react';
 import { StatusBadge } from '../../../../../components/common/StatusBadge';
 import { SectionCard } from '../../../../../components/common/SectionCard';
-import { EmptyState } from '../../../../../components/states/EmptyState';
 import { ErrorState } from '../../../../../components/states/ErrorState';
 import { LoadingState } from '../../../../../components/states/LoadingState';
 import { toast } from '../../../../../lib/toast';

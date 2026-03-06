@@ -6,7 +6,6 @@ import { StatusBadge } from '../../../../../components/common/StatusBadge';
 import { CopyText } from '../../../../../components/common/CopyText';
 import { SectionCard } from '../../../../../components/common/SectionCard';
 import { EventTimeline } from '../../../../../components/common/EventTimeline';
-import { EmptyState } from '../../../../../components/states/EmptyState';
 import { ErrorState } from '../../../../../components/states/ErrorState';
 import { LoadingState } from '../../../../../components/states/LoadingState';
 import { toast } from '../../../../../lib/toast';
@@ -124,7 +123,7 @@ export default function SupportTicketDetailPage({ params }: { params: { id: stri
         })),
       ]
         .sort((a, b) => +new Date(b.sortAt) - +new Date(a.sortAt))
-        .map(({ sortAt: _sortAt, ...item }) => item)
+        .map((item) => ({ id: item.id, title: item.title, timestamp: item.timestamp, description: item.description, status: item.status }))
     : [];
 
 

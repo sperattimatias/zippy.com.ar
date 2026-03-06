@@ -1,8 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
-import { Marker, Polyline, useMap } from 'react-leaflet';
-import type { DivIcon, LatLngBoundsExpression, LatLngTuple } from 'leaflet';
+import { Marker as LeafletMarker, Polyline as LeafletPolyline, useMap } from 'react-leaflet';
 import L from 'leaflet';
 
 import { Map } from '../map/Map';
@@ -14,26 +13,26 @@ type TripPath = {
   points: Point[];
 };
 
-const driverIcon: DivIcon = L.divIcon({
+const driverIcon = L.divIcon({
   className: '',
   html: '<div style="width:14px;height:14px;background:#3b82f6;border:2px solid #0f172a;border-radius:9999px"></div>',
   iconSize: [14, 14],
   iconAnchor: [7, 7],
 });
 
-const tripIcon: DivIcon = L.divIcon({
+const tripIcon = L.divIcon({
   className: '',
   html: '<div style="width:14px;height:14px;background:#f97316;border:2px solid #0f172a;border-radius:9999px"></div>',
   iconSize: [14, 14],
   iconAnchor: [7, 7],
 });
 
-function FitBounds({ points }: { points: LatLngTuple[] }) {
+function FitBounds({ points }: { points: Array<[number, number]> }) {
   const map = useMap();
 
   useEffect(() => {
     if (points.length === 0) return;
-    map.fitBounds(points as LatLngBoundsExpression, { padding: [24, 24] });
+    map.fitBounds(points as [number, number][], { padding: [24, 24] });
   }, [map, points]);
 
   return null;
@@ -44,14 +43,16 @@ export function OperationsLiveMap({
   driverPoints,
   tripPaths,
 }: {
-  center: LatLngTuple;
+  center: [number, number];
   driverPoints: Point[];
   tripPaths: TripPath[];
 }) {
+  const Marker = LeafletMarker as any;
+  const Polyline = LeafletPolyline as any;
   const pathPoints = tripPaths.flatMap((path) => path.points);
-  const boundsSource: LatLngTuple[] = [
-    ...driverPoints.map((point) => [point.lat, point.lng] as LatLngTuple),
-    ...pathPoints.map((point) => [point.lat, point.lng] as LatLngTuple),
+  const boundsSource: Array<[number, number]> = [
+    ...driverPoints.map((point) => [point.lat, point.lng] as [number, number]),
+    ...pathPoints.map((point) => [point.lat, point.lng] as [number, number]),
   ];
 
   return (
@@ -64,7 +65,7 @@ export function OperationsLiveMap({
         ))}
 
         {tripPaths.map((path) => {
-          const positions = path.points.map((point) => [point.lat, point.lng] as LatLngTuple);
+          const positions = path.points.map((point) => [point.lat, point.lng] as [number, number]);
 
           if (positions.length > 1) {
             return <Polyline key={`trip-path-${path.id}`} positions={positions} pathOptions={{ color: '#f97316', weight: 4 }} />;

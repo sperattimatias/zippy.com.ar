@@ -73,13 +73,13 @@ export function DataTableToolbar<TData>({
                       <p className="mb-1 font-medium">{String(column.columnDef.meta ?? column.id)}</p>
                       <div className="flex gap-1">
                         <Button size="sm" variant="ghost" onClick={() => column.pin('left')}>
-                          Left
+                          Izquierda
                         </Button>
                         <Button size="sm" variant="ghost" onClick={() => column.pin('right')}>
-                          Right
+                          Derecha
                         </Button>
                         <Button size="sm" variant="ghost" onClick={() => column.pin(false)}>
-                          Clear
+                          Limpiar
                         </Button>
                       </div>
                     </div>

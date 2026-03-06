@@ -88,7 +88,7 @@ export default function AdminUsersPage() {
           <div className="overflow-x-auto">
             <table className="w-full min-w-[920px] text-left text-sm">
               <thead className="bg-slate-900 text-xs uppercase text-slate-400">
-                <tr><th className="p-2">UserID</th><th className="p-2">Email</th><th className="p-2">Phone</th><th className="p-2">Estado</th><th className="p-2">CreatedAt</th><th className="p-2">Total trips</th><th className="p-2">Flags</th><th className="p-2"></th></tr>
+                <tr><th className="p-2">ID del usuario</th><th className="p-2">Email</th><th className="p-2">Teléfono</th><th className="p-2">Estado</th><th className="p-2">Creado</th><th className="p-2">Viajes totales</th><th className="p-2">Indicadores</th><th className="p-2"></th></tr>
               </thead>
               <tbody>
                 {rows.map((row) => (

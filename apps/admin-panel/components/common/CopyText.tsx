@@ -30,7 +30,7 @@ export function CopyText({ value, truncate = true }: { value: string | null | un
     <TooltipProvider>
       <Tooltip>
         <TooltipTrigger asChild>
-          <Button type="button" variant="ghost" size="sm" className="h-7 gap-1 px-2 font-mono text-xs" onClick={() => void onCopy()}>
+          <Button type="button" variant="ghost" size="sm" className="h-7 gap-1.5 px-1.5 font-mono text-xs" onClick={() => void onCopy()}>
             <span>{label}</span>
             {copied ? <Check className="h-3.5 w-3.5 text-emerald-300" aria-hidden /> : <Copy className="h-3.5 w-3.5" aria-hidden />}
           </Button>

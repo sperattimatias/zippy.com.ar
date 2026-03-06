@@ -84,8 +84,8 @@ export default function KycDriversPage() {
             <table className="w-full min-w-[1100px] text-left text-sm">
               <thead className="bg-slate-900 text-xs uppercase text-slate-400">
                 <tr>
-                  <th className="p-2">Driver</th>
-                  <th className="p-2">KYC Status</th>
+                  <th className="p-2">Conductor</th>
+                  <th className="p-2">Estado KYC</th>
                   <th className="p-2">Faltantes</th>
                   <th className="p-2">Vencimientos próximos</th>
                   <th className="p-2">Creado</th>

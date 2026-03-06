@@ -6,7 +6,6 @@ import { PageHeader } from '../../../../components/page/PageHeader';
 import { StatusBadge } from '../../../../components/common/StatusBadge';
 import { CopyText } from '../../../../components/common/CopyText';
 import { SectionCard } from '../../../../components/common/SectionCard';
-import { EmptyState } from '../../../../components/states/EmptyState';
 import { ErrorState } from '../../../../components/states/ErrorState';
 import { LoadingState } from '../../../../components/states/LoadingState';
 import { toast } from '../../../../lib/toast';

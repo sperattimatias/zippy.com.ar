@@ -122,14 +122,14 @@ export default function SupportTicketsPage() {
               <thead className="bg-slate-900 text-xs uppercase text-slate-400">
                 <tr>
                   <th className="p-2">ID</th>
-                  <th className="p-2">Type</th>
-                  <th className="p-2">Status</th>
-                  <th className="p-2">Priority</th>
-                  <th className="p-2">CreatedAt</th>
-                  <th className="p-2">User</th>
-                  <th className="p-2">Driver</th>
-                  <th className="p-2">Trip</th>
-                  <th className="p-2">Description</th>
+                  <th className="p-2">Tipo</th>
+                  <th className="p-2">Estado</th>
+                  <th className="p-2">Prioridad</th>
+                  <th className="p-2">Creado</th>
+                  <th className="p-2">Usuario</th>
+                  <th className="p-2">Conductor</th>
+                  <th className="p-2">Viaje</th>
+                  <th className="p-2">Descripción</th>
                   <th className="p-2"></th>
                 </tr>
               </thead>

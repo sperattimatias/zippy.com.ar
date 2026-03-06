@@ -14,7 +14,34 @@ import { Button } from '../../../components/ui/button';
 import { formatDateTime, formatMoney } from '../../../lib/format';
 import { RefreshCw, ArrowUpRight } from 'lucide-react';
 
-type MePayload = { email: string; roles: string[] };
+type ReportsOverview = {
+  kpis?: {
+    rides_per_day?: number;
+    cancel_rate?: number;
+    revenue?: number;
+    active_drivers?: number;
+  };
+  totals?: {
+    rides_total?: number;
+    rides_completed?: number;
+    rides_cancelled?: number;
+  };
+};
+
+type DashboardSnapshot = {
+  ridesToday: number;
+  revenueToday: number;
+  activeDrivers: number;
+  cancelRate: number;
+  openTickets: number;
+  failedPayments: number;
+  openIncidents: number;
+  previous?: {
+    rides: number;
+    revenue: number;
+    cancelRate: number;
+  };
+};
 
 type ReportsOverview = {
   kpis?: {
@@ -54,7 +81,7 @@ const quickLinks = [
   { href: '/admin/drivers', label: 'Conductores' },
   { href: '/admin/payments', label: 'Pagos' },
   { href: '/admin/support/tickets', label: 'Tickets' },
-  { href: '/admin/operations/live', label: 'Live Ops' },
+  { href: '/admin/operations/live', label: 'Operación en vivo' },
 ];
 
 function ymd(date: Date) {
@@ -99,8 +126,7 @@ function MetricCard({
 }
 
 export default function DashboardPage() {
-  const [me, setMe] = useState<MePayload | null>(null);
-  const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [snapshot, setSnapshot] = useState<DashboardSnapshot | null>(null);
   const [updatedAt, setUpdatedAt] = useState<string | null>(null);
@@ -116,8 +142,7 @@ export default function DashboardPage() {
       yesterdayDate.setDate(now.getDate() - 1);
       const yesterday = ymd(yesterdayDate);
 
-      const [meRes, todayOverviewRes, prevOverviewRes, ticketsRes, failedPaymentsRes, incidentsRes] = await Promise.all([
-        fetch('/api/auth/me', { cache: 'no-store' }),
+      const [todayOverviewRes, prevOverviewRes, ticketsRes, failedPaymentsRes, incidentsRes] = await Promise.all([
         fetch(`/api/admin/reports/overview?from=${today}&to=${today}`, { cache: 'no-store' }),
         fetch(`/api/admin/reports/overview?from=${yesterday}&to=${yesterday}`, { cache: 'no-store' }),
         fetch('/api/admin/support/tickets?status=OPEN&page_size=200', { cache: 'no-store' }),
@@ -127,16 +152,13 @@ export default function DashboardPage() {
 
       if (!todayOverviewRes.ok) throw new Error('No pudimos cargar métricas del dashboard.');
 
-      const [mePayload, todayOverview, prevOverview, ticketsPayload, failedPaymentsPayload, incidentsPayload] = await Promise.all([
-        meRes.ok ? meRes.json() : Promise.resolve({ email: 'admin', roles: ['admin'] }),
+      const [todayOverview, prevOverview, ticketsPayload, failedPaymentsPayload, incidentsPayload] = await Promise.all([
         todayOverviewRes.json() as Promise<ReportsOverview>,
         prevOverviewRes.ok ? (prevOverviewRes.json() as Promise<ReportsOverview>) : Promise.resolve({} as ReportsOverview),
         ticketsRes.ok ? ticketsRes.json() : Promise.resolve({ items: [] }),
         failedPaymentsRes.ok ? failedPaymentsRes.json() : Promise.resolve({ items: [] }),
         incidentsRes.ok ? incidentsRes.json() : Promise.resolve({ items: [] }),
       ]);
-
-      setMe({ email: mePayload.email, roles: mePayload.roles ?? [] });
 
       const ridesToday = Number(todayOverview.totals?.rides_total ?? 0);
       const revenueToday = Number(todayOverview.kpis?.revenue ?? 0);

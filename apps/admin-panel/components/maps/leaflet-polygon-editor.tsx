@@ -1,8 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
-import { Marker, Polygon, useMap, useMapEvents } from 'react-leaflet';
-import type { LatLngBoundsExpression, LatLngExpression, LatLngTuple } from 'leaflet';
+import { Marker as LeafletMarker, Polygon as LeafletPolygon, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import type { LatLngPoint } from '../../lib/zones';
 import { Map } from '../map/Map';
@@ -15,12 +14,12 @@ const vertexIcon = L.divIcon({
   iconAnchor: [6, 6],
 });
 
-function FitBounds({ points }: { points: LatLngTuple[] }) {
+function FitBounds({ points }: { points: Array<[number, number]> }) {
   const map = useMap();
 
   useEffect(() => {
     if (points.length === 0) return;
-    map.fitBounds(points as LatLngBoundsExpression, { padding: [24, 24] });
+    map.fitBounds(points as [number, number][], { padding: [24, 24] });
   }, [map, points]);
 
   return null;
@@ -28,7 +27,7 @@ function FitBounds({ points }: { points: LatLngTuple[] }) {
 
 function ClickToAdd({ onAdd }: { onAdd: (point: LatLngPoint) => void }) {
   useMapEvents({
-    click: (event) => {
+    click: (event: any) => {
       onAdd({ lat: event.latlng.lat, lng: event.latlng.lng });
     },
   });
@@ -36,8 +35,10 @@ function ClickToAdd({ onAdd }: { onAdd: (point: LatLngPoint) => void }) {
 }
 
 export function LeafletPolygonEditor({ points, onChange }: { points: LatLngPoint[]; onChange: (next: LatLngPoint[]) => void }) {
-  const polygon = points.map((point) => [point.lat, point.lng] as LatLngTuple);
-  const center = (polygon[0] ?? [-33.4592, -61.4832]) as LatLngExpression;
+  const Marker = LeafletMarker as any;
+  const Polygon = LeafletPolygon as any;
+  const polygon = points.map((point) => [point.lat, point.lng] as [number, number]);
+  const center = (polygon[0] ?? [-33.4592, -61.4832]) as [number, number];
 
   const addPoint = () => {
     const last = points[points.length - 1] ?? { lat: -33.4592, lng: -61.4832 };
@@ -59,7 +60,7 @@ export function LeafletPolygonEditor({ points, onChange }: { points: LatLngPoint
               icon={vertexIcon}
               draggable
               eventHandlers={{
-                dragend: (event) => {
+                dragend: (event: any) => {
                   const latlng = event.target.getLatLng();
                   const next = [...points];
                   next[index] = { lat: latlng.lat, lng: latlng.lng };

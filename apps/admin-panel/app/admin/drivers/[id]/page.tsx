@@ -6,7 +6,6 @@ import { PageHeader } from '../../../../components/page/PageHeader';
 import { StatusBadge } from '../../../../components/common/StatusBadge';
 import { CopyText } from '../../../../components/common/CopyText';
 import { SectionCard } from '../../../../components/common/SectionCard';
-import { EmptyState } from '../../../../components/states/EmptyState';
 import { ErrorState } from '../../../../components/states/ErrorState';
 import { LoadingState } from '../../../../components/states/LoadingState';
 import { ReasonDialog } from '../../../../components/forms/reason-dialog';
@@ -119,10 +118,10 @@ export default function AdminDriverDetailPage({ params }: { params: { id: string
 
       {!loading && detail && (
         <>
-          <SectionCard title={`Driver ${detail.user_id}`}>
+          <SectionCard title={`Conductor ${detail.user_id}`}>
             <div className="grid gap-x-6 gap-y-3 text-sm md:grid-cols-2">
               <p><span className="text-slate-400">Estado:</span> <StatusBadge status={detail.status} /></p>
-              <p><span className="text-slate-400">Driver ID:</span> <CopyText value={detail.id} /></p>
+              <p><span className="text-slate-400">ID del conductor:</span> <CopyText value={detail.id} /></p>
               <p><span className="text-slate-400">Rechazo:</span> {detail.rejection_reason ?? '-'}</p>
               <p><span className="text-slate-400">Notas:</span> {detail.notes ?? '-'}</p>
             </div>

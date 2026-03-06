@@ -84,9 +84,9 @@ export default function FraudCasesPage() {
               <thead className="bg-slate-900 text-xs uppercase text-slate-400">
                 <tr>
                   <th className="p-2">ID</th>
-                  <th className="p-2">Status</th>
-                  <th className="p-2">Severity</th>
-                  <th className="p-2">Title</th>
+                  <th className="p-2">Estado</th>
+                  <th className="p-2">Severidad</th>
+                  <th className="p-2">Título</th>
                   <th className="p-2">Score/Evidencia</th>
                   <th className="p-2">Entidades</th>
                   <th className="p-2">Creado</th>

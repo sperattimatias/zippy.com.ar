@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react';
 import { PageHeader } from '../../../../../components/page/PageHeader';
 import { StatusBadge } from '../../../../../components/common/StatusBadge';
 import { SectionCard } from '../../../../../components/common/SectionCard';
-import { EmptyState } from '../../../../../components/states/EmptyState';
 import { ErrorState } from '../../../../../components/states/ErrorState';
 import { LoadingState } from '../../../../../components/states/LoadingState';
 import { toast } from '../../../../../lib/toast';
@@ -85,12 +84,12 @@ export default function FraudCaseDetail({ params }: { params: { id: string } }) 
       <PageHeader title="Detalle del caso de fraude" subtitle="Revisá señales, evidencia y resolución en un solo lugar." />
       <SectionCard title={`Caso de fraude ${fraudCase.id}`}>
         <div className="grid gap-2 text-sm md:grid-cols-2">
-          <p><span className="text-slate-400">Title:</span> {fraudCase.title}</p>
-          <p><span className="text-slate-400">Status:</span> <StatusBadge status={fraudCase.status} /></p>
-          <p><span className="text-slate-400">Severity:</span> <StatusBadge status={fraudCase.severity} /></p>
-          <p><span className="text-slate-400">User:</span> {fraudCase.primary_user_id ?? '-'}</p>
-          <p><span className="text-slate-400">Driver:</span> {fraudCase.related_driver_id ?? '-'}</p>
-          <p><span className="text-slate-400">Trip:</span> {fraudCase.related_trip_id ?? '-'}</p>
+          <p><span className="text-slate-400">Título:</span> {fraudCase.title}</p>
+          <p><span className="text-slate-400">Estado:</span> <StatusBadge status={fraudCase.status} /></p>
+          <p><span className="text-slate-400">Severidad:</span> <StatusBadge status={fraudCase.severity} /></p>
+          <p><span className="text-slate-400">Usuario:</span> {fraudCase.primary_user_id ?? '-'}</p>
+          <p><span className="text-slate-400">Conductor:</span> {fraudCase.related_driver_id ?? '-'}</p>
+          <p><span className="text-slate-400">Viaje:</span> {fraudCase.related_trip_id ?? '-'}</p>
         </div>
         <p className="mt-3 text-sm"><span className="text-slate-400">Summary:</span> {fraudCase.summary ?? '-'}</p>
       </SectionCard>

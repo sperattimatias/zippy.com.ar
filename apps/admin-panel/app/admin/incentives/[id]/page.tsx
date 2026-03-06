@@ -68,7 +68,7 @@ export default function IncentiveDetailPage({ params }: { params: { id: string }
             {data.progress.length === 0 ? <EmptyState message="Sin progreso aún" /> : (
               <div className="overflow-x-auto">
                 <table className="min-w-full text-sm">
-                  <thead><tr className="text-left text-slate-400"><th className="p-2">Driver</th><th className="p-2">Viajes</th><th className="p-2">Horas</th><th className="p-2">Cumple</th></tr></thead>
+                  <thead><tr className="text-left text-slate-400"><th className="p-2">Conductor</th><th className="p-2">Viajes</th><th className="p-2">Horas</th><th className="p-2">Cumple</th></tr></thead>
                   <tbody>
                     {data.progress.map((row) => (
                       <tr key={row.driver_id} className="border-t border-slate-800">

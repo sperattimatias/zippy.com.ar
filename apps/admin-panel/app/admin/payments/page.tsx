@@ -31,13 +31,13 @@ type PaymentsResponse = {
 };
 
 const columnsBase: ColumnDef<PaymentRow>[] = [
-  { accessorKey: 'payment_id', header: 'Payment ID', meta: 'Payment ID', cell: ({ row }) => <CopyText value={row.original.payment_id} /> },
-  { accessorKey: 'trip_id', header: 'Trip ID', meta: 'Trip ID', cell: ({ row }) => <CopyText value={row.original.trip_id} /> },
-  { accessorKey: 'rider_id', header: 'Rider', meta: 'Rider', cell: ({ row }) => <CopyText value={row.original.rider_id} /> },
-  { accessorKey: 'driver_id', header: 'Driver', meta: 'Driver', cell: ({ row }) => <CopyText value={row.original.driver_id} /> },
+  { accessorKey: 'payment_id', header: 'ID del pago', meta: 'ID del pago', cell: ({ row }) => <CopyText value={row.original.payment_id} /> },
+  { accessorKey: 'trip_id', header: 'ID del viaje', meta: 'ID del viaje', cell: ({ row }) => <CopyText value={row.original.trip_id} /> },
+  { accessorKey: 'rider_id', header: 'Pasajero', meta: 'Pasajero', cell: ({ row }) => <CopyText value={row.original.rider_id} /> },
+  { accessorKey: 'driver_id', header: 'Conductor', meta: 'Conductor', cell: ({ row }) => <CopyText value={row.original.driver_id} /> },
   { accessorKey: 'amount', header: 'Monto', meta: 'Monto', cell: ({ row }) => formatMoney(row.original.amount) },
-  { accessorKey: 'fee_platform', header: 'Fee', meta: 'Fee', cell: ({ row }) => formatMoney(row.original.fee_platform) },
-  { accessorKey: 'status', header: 'Status', meta: 'Status', cell: ({ row }) => <StatusBadge status={row.original.status} /> },
+  { accessorKey: 'fee_platform', header: 'Comisión', meta: 'Comisión', cell: ({ row }) => formatMoney(row.original.fee_platform) },
+  { accessorKey: 'status', header: 'Estado', meta: 'Estado', cell: ({ row }) => <StatusBadge status={row.original.status} /> },
   { accessorKey: 'method', header: 'Método', meta: 'Método' },
   { accessorKey: 'created_at', header: 'Creado', meta: 'Creado', cell: ({ row }) => formatDateTime(row.original.created_at) },
   {

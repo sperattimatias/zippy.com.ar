@@ -9,7 +9,6 @@ import { z } from 'zod';
 import { StatusBadge } from '../../../../components/common/StatusBadge';
 import { EventTimeline } from '../../../../components/common/EventTimeline';
 import { SectionCard } from '../../../../components/common/SectionCard';
-import { EmptyState } from '../../../../components/states/EmptyState';
 import { ErrorState } from '../../../../components/states/ErrorState';
 import { LoadingState } from '../../../../components/states/LoadingState';
 import { ConfirmDialog } from '../../../../components/forms/confirm-dialog';
@@ -136,10 +135,11 @@ export default function AdminPaymentDetailPage({ params }: { params: { id: strin
       timestamp: formatDateTime(entry.at),
       sortAt: entry.at,
       status: entry.status,
+      description: undefined,
     })),
     ...(detail?.gateway_logs ?? []).map((log) => ({
       id: `gateway-${log.refund_id}`,
-      title: `Gateway refund ${log.refund_id}`,
+      title: `Reembolso de gateway ${log.refund_id}`,
       timestamp: formatDateTime(log.created_at),
       sortAt: log.created_at,
       description: `mp=${log.mp_refund_id ?? '-'} · status=${log.status}`,
@@ -147,7 +147,7 @@ export default function AdminPaymentDetailPage({ params }: { params: { id: strin
     })),
   ]
     .sort((a, b) => +new Date(b.sortAt) - +new Date(a.sortAt))
-    .map(({ sortAt: _sortAt, ...item }) => item);
+    .map((item) => ({ id: item.id, title: item.title, timestamp: item.timestamp, description: item.description, status: item.status }));
 
   return (
     <div className="space-y-6">
@@ -174,9 +174,9 @@ export default function AdminPaymentDetailPage({ params }: { params: { id: strin
               <p><span className="text-slate-400">Monto total:</span> {formatMoney(detail.breakdown.amount_total)}</p>
               <p><span className="text-slate-400">Comisión plataforma:</span> {formatMoney(detail.breakdown.fee_platform)}</p>
               <p><span className="text-slate-400">Neto conductor:</span> {formatMoney(detail.breakdown.driver_net)}</p>
-              <p>Refunded amount: {formatMoney(detail.breakdown.refunded_amount)}</p>
-              <p>MP payment id: <CopyText value={detail.references.mp_payment_id ?? undefined} /></p>
-              <p>MP preference id: <CopyText value={detail.references.mp_preference_id ?? undefined} /></p>
+              <p>Monto reembolsado: {formatMoney(detail.breakdown.refunded_amount)}</p>
+              <p>ID de pago MP: <CopyText value={detail.references.mp_payment_id ?? undefined} /></p>
+              <p>ID de preferencia MP: <CopyText value={detail.references.mp_preference_id ?? undefined} /></p>
             </div>
           </SectionCard>
 

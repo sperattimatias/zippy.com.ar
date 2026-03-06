@@ -34,8 +34,8 @@ type TripsResponse = {
 const columnsBase: ColumnDef<TripRow>[] = [
   {
     accessorKey: 'id',
-    header: 'Trip ID',
-    meta: 'Trip ID',
+    header: 'ID del viaje',
+    meta: 'ID del viaje',
     cell: ({ row }) => <CopyText value={row.original.id} />,
   },
   {
@@ -46,14 +46,14 @@ const columnsBase: ColumnDef<TripRow>[] = [
   },
   {
     id: 'rider',
-    header: 'Rider',
-    meta: 'Rider',
+    header: 'Pasajero',
+    meta: 'Pasajero',
     cell: ({ row }) => <CopyText value={row.original.rider_user_id ?? row.original.passenger_user_id} />,
   },
   {
     id: 'driver',
-    header: 'Driver',
-    meta: 'Driver',
+    header: 'Conductor',
+    meta: 'Conductor',
     cell: ({ row }) => <CopyText value={row.original.driver_user_id ?? undefined} />,
   },
   { accessorKey: 'origin_address', header: 'Origen', meta: 'Origen' },
