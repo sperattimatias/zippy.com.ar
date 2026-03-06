@@ -1,10 +1,16 @@
 'use client';
 
+import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { AdminCard, EmptyState, ErrorState, LoadingState } from '../../../../components/admin/ui';
 import { toast } from '../../../../components/ui/sonner';
 import { ReasonDialog } from '../../../../components/forms/reason-dialog';
+
+const TripRouteMap = dynamic(
+  () => import('../../../../components/maps/trip-route-map').then((mod) => mod.TripRouteMap),
+  { ssr: false, loading: () => <div className="h-[340px] animate-pulse rounded-lg border border-slate-700 bg-slate-900/70" /> },
+);
 
 type TripDetail = {
   id: string;
@@ -23,55 +29,6 @@ type TripDetail = {
   events: Array<{ id: string; type: string; created_at: string; payload_json?: unknown }>;
   locations: Array<{ id: string; lat: number; lng: number; created_at: string }>;
 };
-
-function RouteMap({ locations }: { locations: Array<{ lat: number; lng: number }> }) {
-  if (locations.length === 0) {
-    return <EmptyState message="No hay coordenadas disponibles" />;
-  }
-
-  const width = 700;
-  const height = 240;
-  const bounds = useMemo(() => {
-    if (locations.length === 0) return { minLat: -34.61, maxLat: -34.59, minLng: -58.42, maxLng: -58.38 };
-    const lats = locations.map((location) => location.lat);
-    const lngs = locations.map((location) => location.lng);
-    return { minLat: Math.min(...lats) - 0.005, maxLat: Math.max(...lats) + 0.005, minLng: Math.min(...lngs) - 0.005, maxLng: Math.max(...lngs) + 0.005 };
-  }, [locations]);
-
-  const toPoint = (lat: number, lng: number) => {
-    const x = ((lng - bounds.minLng) / (bounds.maxLng - bounds.minLng || 1)) * width;
-    const y = ((bounds.maxLat - lat) / (bounds.maxLat - bounds.minLat || 1)) * height;
-    return { x, y };
-  };
-
-  const path = locations.map((location) => {
-    const point = toPoint(location.lat, location.lng);
-    return `${point.x},${point.y}`;
-  });
-
-  return (
-    <div className="h-[300px] w-full overflow-hidden rounded-lg border border-slate-700 bg-slate-950">
-      <svg className="h-full w-full" viewBox={`0 0 ${width} ${height}`}>
-        <rect width={width} height={height} fill="#020617" />
-        {path.length > 1 && <polyline points={path.join(' ')} fill="none" stroke="#22d3ee" strokeWidth={2} />}
-        {locations.map((location, index) => {
-          const point = toPoint(location.lat, location.lng);
-          const isStart = index === 0;
-          const isEnd = index === locations.length - 1;
-          return (
-            <circle
-              key={`${location.lat}-${location.lng}-${index}`}
-              cx={point.x}
-              cy={point.y}
-              r={isStart || isEnd ? 5 : 3}
-              fill={isStart ? '#22c55e' : isEnd ? '#f97316' : '#f8fafc'}
-            />
-          );
-        })}
-      </svg>
-    </div>
-  );
-}
 
 export default function AdminTripDetailPage({ params }: { params: { id: string } }) {
   const [trip, setTrip] = useState<TripDetail | null>(null);
@@ -159,6 +116,36 @@ export default function AdminTripDetailPage({ params }: { params: { id: string }
       toast(actionError instanceof Error ? actionError.message : 'Error registrando incidente', 'error');
     }
   };
+  const eventPoints = useMemo(() => {
+    const values: Array<{ lat: number; lng: number }> = [];
+
+    const readPoint = (value: unknown) => {
+      if (!value || typeof value !== 'object') return;
+      const candidate = value as { lat?: unknown; lng?: unknown; lon?: unknown; latitude?: unknown; longitude?: unknown };
+      const lat = Number(candidate.lat ?? candidate.latitude);
+      const lng = Number(candidate.lng ?? candidate.lon ?? candidate.longitude);
+      if (Number.isFinite(lat) && Number.isFinite(lng)) values.push({ lat, lng });
+    };
+
+    for (const event of trip?.events ?? []) {
+      readPoint(event.payload_json);
+      if (Array.isArray(event.payload_json)) {
+        for (const item of event.payload_json) readPoint(item);
+      }
+    }
+
+    return values;
+  }, [trip?.events]);
+
+  const routePoints = useMemo(() => {
+    const fromLocations = (trip?.locations ?? []).map((location) => ({ lat: location.lat, lng: location.lng }));
+    return fromLocations.length > 0 ? fromLocations : eventPoints;
+  }, [eventPoints, trip?.locations]);
+
+  const pickup = routePoints[0];
+  const dropoff = routePoints.length > 1 ? routePoints[routePoints.length - 1] : routePoints[0];
+
+
 
   return (
     <div className="space-y-6">
@@ -187,7 +174,11 @@ export default function AdminTripDetailPage({ params }: { params: { id: string }
 
           <AdminCard title="Ruta GPS">
             <p className="mb-2 text-xs text-slate-400">Inicio (pickup) en verde y fin (dropoff) en naranja.</p>
-            <RouteMap locations={trip.locations.map((location) => ({ lat: location.lat, lng: location.lng }))} />
+            {routePoints.length > 0 ? (
+              <TripRouteMap pickup={pickup} dropoff={dropoff} points={routePoints} />
+            ) : (
+              <EmptyState message="No hay coordenadas disponibles" />
+            )}
           </AdminCard>
 
           <AdminCard title="Eventos">
