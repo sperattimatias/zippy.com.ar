@@ -2,7 +2,8 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
-import { AdminCard, EmptyState, ErrorState, LoadingState, Toast } from '../../../../components/admin/ui';
+import { AdminCard, EmptyState, ErrorState, LoadingState } from '../../../../components/admin/ui';
+import { toast } from '../../../../components/ui/sonner';
 import { ReasonDialog } from '../../../../components/forms/reason-dialog';
 
 type TripDetail = {
@@ -22,8 +23,6 @@ type TripDetail = {
   events: Array<{ id: string; type: string; created_at: string; payload_json?: unknown }>;
   locations: Array<{ id: string; lat: number; lng: number; created_at: string }>;
 };
-
-type ToastState = { tone: 'success' | 'error'; message: string } | null;
 
 function RouteMap({ locations }: { locations: Array<{ lat: number; lng: number }> }) {
   if (locations.length === 0) {
@@ -78,7 +77,6 @@ export default function AdminTripDetailPage({ params }: { params: { id: string }
   const [trip, setTrip] = useState<TripDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [toast, setToast] = useState<ToastState>(null);
 
   const [reassignDriverId, setReassignDriverId] = useState('');
   const [incidentNote, setIncidentNote] = useState('');
@@ -118,47 +116,47 @@ export default function AdminTripDetailPage({ params }: { params: { id: string }
     setCancelLoading(true);
     try {
       await postAction('cancel', { reason });
-      setToast({ tone: 'success', message: 'Viaje cancelado.' });
+      toast('Viaje cancelado.', 'success');
       setCancelOpen(false);
       await load();
     } catch (actionError) {
-      setToast({ tone: 'error', message: actionError instanceof Error ? actionError.message : 'Error cancelando' });
+      toast(actionError instanceof Error ? actionError.message : 'Error cancelando', 'error');
     } finally {
       setCancelLoading(false);
     }
   };
 
   const onReassign = async () => {
-    if (!reassignDriverId.trim()) return setToast({ tone: 'error', message: 'Ingresá driverId.' });
+    if (!reassignDriverId.trim()) return toast('Ingresá driverId.', 'error');
     try {
       await postAction('reassign', { driverId: reassignDriverId });
-      setToast({ tone: 'success', message: 'Driver reasignado.' });
+      toast('Driver reasignado.', 'success');
       setReassignDriverId('');
       await load();
     } catch (actionError) {
-      setToast({ tone: 'error', message: actionError instanceof Error ? actionError.message : 'Error reasignando' });
+      toast(actionError instanceof Error ? actionError.message : 'Error reasignando', 'error');
     }
   };
 
   const onRetryMatching = async () => {
     try {
       await postAction('retry-matching');
-      setToast({ tone: 'success', message: 'Matching reintentado.' });
+      toast('Matching reintentado.', 'success');
       await load();
     } catch (actionError) {
-      setToast({ tone: 'error', message: actionError instanceof Error ? actionError.message : 'Error reintentando matching' });
+      toast(actionError instanceof Error ? actionError.message : 'Error reintentando matching', 'error');
     }
   };
 
   const onIncident = async () => {
-    if (!incidentNote.trim()) return setToast({ tone: 'error', message: 'Ingresá una nota de incidente.' });
+    if (!incidentNote.trim()) return toast('Ingresá una nota de incidente.', 'error');
     try {
       await postAction('incident', { note: incidentNote });
-      setToast({ tone: 'success', message: 'Incidente registrado.' });
+      toast('Incidente registrado.', 'success');
       setIncidentNote('');
       await load();
     } catch (actionError) {
-      setToast({ tone: 'error', message: actionError instanceof Error ? actionError.message : 'Error registrando incidente' });
+      toast(actionError instanceof Error ? actionError.message : 'Error registrando incidente', 'error');
     }
   };
 
@@ -239,7 +237,6 @@ export default function AdminTripDetailPage({ params }: { params: { id: string }
         onConfirm={(reason) => void onCancel(reason)}
       />
 
-      {toast && <Toast tone={toast.tone} message={toast.message} onClose={() => setToast(null)} />}
     </div>
   );
 }
