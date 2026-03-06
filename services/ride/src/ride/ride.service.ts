@@ -565,7 +565,7 @@ export class RideService implements OnModuleInit {
     const freshnessMs = freshnessSeconds * 1000;
     const now = Date.now();
 
-    const presencesRaw = await this.prisma.driverPresence.findMany({
+    const onlinePresences = await this.prisma.driverPresence.findMany({
       where: {
         is_online: true,
         last_lat: { not: null },
@@ -573,7 +573,8 @@ export class RideService implements OnModuleInit {
       },
       orderBy: { last_seen_at: 'desc' },
     });
-    const presences = presencesRaw.filter(
+
+    const presences = onlinePresences.filter(
       (presence) =>
         typeof presence.last_lat === 'number' &&
         Number.isFinite(presence.last_lat) &&
@@ -599,13 +600,13 @@ export class RideService implements OnModuleInit {
 
     const onTripIds = new Set(activeTrips.map((trip) => trip.driver_user_id).filter(Boolean));
 
-    const drivers = presences.map((presence) => {
+    const enrichedDrivers = presences.map((presence) => {
       const lastSeenAt = presence.last_seen_at;
       const freshByTime = !!lastSeenAt && now - lastSeenAt.getTime() <= freshnessMs;
+      // If Redis alive data is unavailable we keep time-based freshness as fallback.
       const isAliveInRedis = aliveFromRedis ? aliveFromRedis.has(presence.driver_user_id) : true;
       const isFresh = freshByTime && isAliveInRedis;
       const onTrip = onTripIds.has(presence.driver_user_id);
-      const operationalStatus = onTrip ? 'on_trip' : isFresh ? 'available' : 'stale';
 
       return {
         driverId: presence.driver_user_id,
@@ -614,21 +615,24 @@ export class RideService implements OnModuleInit {
         lastSeenAt: lastSeenAt?.toISOString() ?? null,
         isOnline: presence.is_online,
         isFresh,
-        operationalStatus,
+        operationalStatus: onTrip ? 'on_trip' : isFresh ? 'available' : 'stale',
         onTrip,
       };
     });
 
-    const freshDrivers = drivers.filter((driver) => driver.isFresh).length;
-    const staleDrivers = drivers.length - freshDrivers;
+    // "drivers" is the reliable live layer consumed by admin UI: online + geolocated + fresh.
+    const drivers = enrichedDrivers.filter((driver) => driver.isFresh);
+
+    const freshDrivers = drivers.length;
+    const staleDrivers = enrichedDrivers.length - freshDrivers;
     const onTripDrivers = drivers.filter((driver) => driver.onTrip).length;
-    const idleDrivers = drivers.filter((driver) => driver.operationalStatus === 'available').length;
+    const idleDrivers = drivers.filter((driver) => !driver.onTrip).length;
 
     return {
       generatedAt: new Date(now).toISOString(),
       drivers,
       stats: {
-        onlineDrivers: drivers.length,
+        onlineDrivers: enrichedDrivers.length,
         freshDrivers,
         staleDrivers,
         onTripDrivers,
