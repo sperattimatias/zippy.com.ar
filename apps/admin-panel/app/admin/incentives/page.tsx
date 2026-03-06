@@ -2,7 +2,8 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { AdminCard, EmptyState, ErrorState, LoadingState, Toast } from '../../../components/admin/ui';
+import { AdminCard, EmptyState, ErrorState, LoadingState } from '../../../components/admin/ui';
+import { toast } from '../../../lib/toast';
 
 type Campaign = {
   id: string;
@@ -16,14 +17,12 @@ type Campaign = {
   status?: string;
 };
 
-type ToastState = { tone: 'success' | 'error'; message: string } | null;
 
 export default function IncentivesPage() {
   const [items, setItems] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [toast, setToast] = useState<ToastState>(null);
-
+  
   const [name, setName] = useState('');
   const [targetTrips, setTargetTrips] = useState('');
   const [targetHours, setTargetHours] = useState('');
@@ -51,7 +50,7 @@ export default function IncentivesPage() {
 
   const createCampaign = async () => {
     if (!name.trim() || !startsAt || !endsAt || !payout) {
-      setToast({ tone: 'error', message: 'Completá los campos requeridos' });
+      toast.error('Completá los campos requeridos');
       return;
     }
     const payload = {
@@ -68,10 +67,10 @@ export default function IncentivesPage() {
       body: JSON.stringify(payload),
     });
     if (!res.ok) {
-      setToast({ tone: 'error', message: 'No se pudo crear campaña' });
+      toast.error('No se pudo crear campaña');
       return;
     }
-    setToast({ tone: 'success', message: 'Campaña creada' });
+    toast.success('Campaña creada');
     setName(''); setTargetTrips(''); setTargetHours(''); setStartsAt(''); setEndsAt(''); setPayout('');
     await load();
   };
@@ -115,7 +114,6 @@ export default function IncentivesPage() {
           </div>
         )}
       </AdminCard>
-      {toast && <Toast tone={toast.tone} message={toast.message} onClose={() => setToast(null)} />}
     </div>
   );
 }

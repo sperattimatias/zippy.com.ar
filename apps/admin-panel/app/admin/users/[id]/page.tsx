@@ -2,7 +2,8 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { AdminCard, ErrorState, LoadingState, Toast } from '../../../../components/admin/ui';
+import { AdminCard, ErrorState, LoadingState } from '../../../../components/admin/ui';
+import { toast } from '../../../../lib/toast';
 
 type UserDetail = {
   id: string;
@@ -15,14 +16,12 @@ type UserDetail = {
   history?: { trips: unknown[]; cancellations: unknown[]; claims: unknown[]; fraud: unknown[] };
 };
 
-type ToastState = { tone: 'success' | 'error'; message: string } | null;
 
 export default function AdminUserDetailPage({ params }: { params: { id: string } }) {
   const [detail, setDetail] = useState<UserDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [toast, setToast] = useState<ToastState>(null);
-  const [note, setNote] = useState('');
+    const [note, setNote] = useState('');
 
   const load = async () => {
     setLoading(true);
@@ -48,10 +47,10 @@ export default function AdminUserDetailPage({ params }: { params: { id: string }
         body: JSON.stringify({ status }),
       });
       if (!res.ok) throw new Error('No se pudo actualizar estado');
-      setToast({ tone: 'success', message: `Estado actualizado a ${status}` });
+      toast.success(`Estado actualizado a ${status}`);
       await load();
     } catch (actionError) {
-      setToast({ tone: 'error', message: actionError instanceof Error ? actionError.message : 'Error actualizando estado' });
+      toast.error(actionError instanceof Error ? actionError.message : 'Error actualizando estado');
     }
   };
 
@@ -64,16 +63,16 @@ export default function AdminUserDetailPage({ params }: { params: { id: string }
         body: JSON.stringify({ payment_limited: next }),
       });
       if (!res.ok) throw new Error('No se pudo actualizar flag de pagos');
-      setToast({ tone: 'success', message: `Payment limit ${next ? 'activado' : 'desactivado'}` });
+      toast.success(`Payment limit ${next ? 'activado' : 'desactivado'}`);
       await load();
     } catch (actionError) {
-      setToast({ tone: 'error', message: actionError instanceof Error ? actionError.message : 'Error actualizando flag' });
+      toast.error(actionError instanceof Error ? actionError.message : 'Error actualizando flag');
     }
   };
 
   const addNote = async () => {
     if (!note.trim()) {
-      setToast({ tone: 'error', message: 'La nota es obligatoria' });
+      toast.error('La nota es obligatoria');
       return;
     }
     try {
@@ -83,11 +82,11 @@ export default function AdminUserDetailPage({ params }: { params: { id: string }
         body: JSON.stringify({ note }),
       });
       if (!res.ok) throw new Error('No se pudo guardar nota');
-      setToast({ tone: 'success', message: 'Nota agregada' });
+      toast.success('Nota agregada');
       setNote('');
       await load();
     } catch (actionError) {
-      setToast({ tone: 'error', message: actionError instanceof Error ? actionError.message : 'Error agregando nota' });
+      toast.error(actionError instanceof Error ? actionError.message : 'Error agregando nota');
     }
   };
 
@@ -133,8 +132,6 @@ export default function AdminUserDetailPage({ params }: { params: { id: string }
           </AdminCard>
         </>
       )}
-
-      {toast && <Toast tone={toast.tone} message={toast.message} onClose={() => setToast(null)} />}
     </div>
   );
 }

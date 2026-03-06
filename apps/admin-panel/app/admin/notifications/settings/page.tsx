@@ -1,20 +1,19 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { AdminCard, EmptyState, ErrorState, LoadingState, Toast } from '../../../../components/admin/ui';
+import { AdminCard, EmptyState, ErrorState, LoadingState } from '../../../../components/admin/ui';
+import { toast } from '../../../../lib/toast';
 
 type Setting = { event_key: string; enabled: boolean };
 type LogRow = { id: string; event_key: string; channel: string; recipient: string; status: string; error?: string | null; attempts: number; created_at: string };
 
-type ToastState = { tone: 'success' | 'error'; message: string } | null;
 
 export default function NotificationSettingsPage() {
   const [settings, setSettings] = useState<Setting[]>([]);
   const [logs, setLogs] = useState<LogRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [toast, setToast] = useState<ToastState>(null);
-
+  
   const load = async () => {
     setLoading(true); setError(null);
     try {
@@ -39,10 +38,10 @@ export default function NotificationSettingsPage() {
       body: JSON.stringify({ enabled: !enabled }),
     });
     if (!res.ok) {
-      setToast({ tone: 'error', message: 'No se pudo actualizar toggle' });
+      toast.error('No se pudo actualizar toggle');
       return;
     }
-    setToast({ tone: 'success', message: 'Toggle actualizado' });
+    toast.success('Toggle actualizado');
     await load();
   };
 
@@ -76,7 +75,6 @@ export default function NotificationSettingsPage() {
           </div>
         )}
       </AdminCard>
-      {toast && <Toast tone={toast.tone} message={toast.message} onClose={() => setToast(null)} />}
     </div>
   );
 }

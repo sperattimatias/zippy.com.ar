@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { AdminCard, EmptyState, ErrorState, LoadingState, Toast } from '../../../../components/admin/ui';
+import { AdminCard, EmptyState, ErrorState, LoadingState } from '../../../../components/admin/ui';
+import { toast } from '../../../../lib/toast';
 
 type Pricing = {
   base_fare: number;
@@ -13,7 +14,6 @@ type Pricing = {
   night_fee?: number;
 };
 
-type ToastState = { tone: 'success' | 'error'; message: string } | null;
 
 const DEFAULTS: Pricing = {
   base_fare: 800,
@@ -29,8 +29,7 @@ export default function AdminPricingSettingsPage() {
   const [pricing, setPricing] = useState<Pricing | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [toast, setToast] = useState<ToastState>(null);
-  const [km, setKm] = useState('5');
+    const [km, setKm] = useState('5');
   const [min, setMin] = useState('10');
 
   const load = async () => {
@@ -61,10 +60,10 @@ export default function AdminPricingSettingsPage() {
         body: JSON.stringify(pricing),
       });
       if (!res.ok) throw new Error('No se pudo guardar pricing');
-      setToast({ tone: 'success', message: 'Pricing actualizado' });
+      toast.success('Pricing actualizado');
       await load();
     } catch (e) {
-      setToast({ tone: 'error', message: e instanceof Error ? e.message : 'Error inesperado' });
+      toast.error(e instanceof Error ? e.message : 'Error inesperado');
     }
   };
 
@@ -109,7 +108,6 @@ export default function AdminPricingSettingsPage() {
           </div>
         </div>
       </AdminCard>
-      {toast && <Toast tone={toast.tone} message={toast.message} onClose={() => setToast(null)} />}
     </div>
   );
 }

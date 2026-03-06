@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { AdminCard, ErrorState, LoadingState, Toast } from '../../../../../components/admin/ui';
+import { AdminCard, ErrorState, LoadingState } from '../../../../../components/admin/ui';
+import { toast } from '../../../../../lib/toast';
 
 type DriverDocument = {
   id: string;
@@ -27,8 +28,7 @@ export default function DriverKycDetailPage({ params }: { params: { id: string }
   const [detail, setDetail] = useState<KycDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [toast, setToast] = useState<{ tone: 'success' | 'error'; message: string } | null>(null);
-
+  
   const [reason, setReason] = useState('');
   const [expiresAt, setExpiresAt] = useState('');
 
@@ -56,10 +56,10 @@ export default function DriverKycDetailPage({ params }: { params: { id: string }
         body: JSON.stringify({ status, reason: reason || undefined, expires_at: expiresAt || undefined }),
       });
       if (!res.ok) throw new Error('No se pudo actualizar documento');
-      setToast({ tone: 'success', message: 'Documento actualizado' });
+      toast.success('Documento actualizado');
       await load();
     } catch (e) {
-      setToast({ tone: 'error', message: e instanceof Error ? e.message : 'Error inesperado' });
+      toast.error(e instanceof Error ? e.message : 'Error inesperado');
     }
   };
 
@@ -67,10 +67,10 @@ export default function DriverKycDetailPage({ params }: { params: { id: string }
     try {
       const res = await fetch(`/api/admin/drivers/${params.id}/kyc/reset`, { method: 'PATCH' });
       if (!res.ok) throw new Error('No se pudo resetear KYC');
-      setToast({ tone: 'success', message: 'KYC reseteado' });
+      toast.success('KYC reseteado');
       await load();
     } catch (e) {
-      setToast({ tone: 'error', message: e instanceof Error ? e.message : 'Error inesperado' });
+      toast.error(e instanceof Error ? e.message : 'Error inesperado');
     }
   };
 
@@ -121,8 +121,6 @@ export default function DriverKycDetailPage({ params }: { params: { id: string }
           {detail.documents.length === 0 && <p className="text-sm text-slate-400">Sin documentos cargados.</p>}
         </div>
       </AdminCard>
-
-      {toast && <Toast tone={toast.tone} message={toast.message} onClose={() => setToast(null)} />}
     </div>
   );
 }
