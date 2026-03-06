@@ -30,6 +30,17 @@ import {
   Prisma,
 } from '@prisma/client';
 import { createHash } from 'crypto';
+import {
+  listAdminAuditEntries,
+  listAdminAuditEntriesByEntity,
+  logAdminAuditEntry,
+} from './ride-admin-audit.logic';
+import {
+  getAdminLiveDrivers,
+  presenceOffline,
+  presenceOnline,
+  presencePing,
+} from './ride-presence.logic';
 import { PrismaService } from '../prisma/prisma.service';
 import { RideGateway } from './ride.gateway';
 import { ScoreService } from '../score/score.service';
@@ -104,25 +115,6 @@ export class RideService implements OnModuleInit {
     return !!lastSeen && this.nowMs() - lastSeen.getTime() < 30_000;
   }
 
-  private sanitizeAuditPayload(payload: unknown): Prisma.InputJsonValue | undefined {
-    if (payload === undefined) return undefined;
-
-    const redact = (value: unknown): unknown => {
-      if (Array.isArray(value)) return value.map(redact);
-      if (value && typeof value === 'object') {
-        const out: Record<string, unknown> = {};
-        for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
-          if (/(token|secret|password|authorization|key)/i.test(k)) out[k] = '[REDACTED]';
-          else out[k] = redact(v);
-        }
-        return out;
-      }
-      return value;
-    };
-
-    return redact(payload) as Prisma.InputJsonValue;
-  }
-
   async logAdminAudit(
     adminId: string,
     action: string,
@@ -130,15 +122,7 @@ export class RideService implements OnModuleInit {
     entityId: string,
     payload?: unknown,
   ) {
-    return this.prisma.adminAuditLog.create({
-      data: {
-        admin_id: adminId,
-        action,
-        entity_type: entityType,
-        entity_id: entityId,
-        payload: this.sanitizeAuditPayload(payload),
-      },
-    });
+    return logAdminAuditEntry(this.prisma, adminId, action, entityType, entityId, payload);
   }
 
   async listAdminAudit(filter: {
@@ -148,31 +132,11 @@ export class RideService implements OnModuleInit {
     entityType?: string;
     adminId?: string;
   }) {
-    return this.prisma.adminAuditLog.findMany({
-      where: {
-        ...(filter.action ? { action: filter.action } : {}),
-        ...(filter.entityType ? { entity_type: filter.entityType } : {}),
-        ...(filter.adminId ? { admin_id: filter.adminId } : {}),
-        ...(filter.from || filter.to
-          ? {
-              created_at: {
-                ...(filter.from ? { gte: new Date(filter.from) } : {}),
-                ...(filter.to ? { lte: new Date(filter.to) } : {}),
-              },
-            }
-          : {}),
-      },
-      orderBy: { created_at: 'desc' },
-      take: 200,
-    });
+    return listAdminAuditEntries(this.prisma, filter);
   }
 
   async listAdminAuditByEntity(entityType: string, entityId: string) {
-    return this.prisma.adminAuditLog.findMany({
-      where: { entity_type: entityType, entity_id: entityId },
-      orderBy: { created_at: 'desc' },
-      take: 200,
-    });
+    return listAdminAuditEntriesByEntity(this.prisma, entityType, entityId);
   }
 
   private async addEvent(
@@ -491,150 +455,54 @@ export class RideService implements OnModuleInit {
   }
 
   async presenceOnline(driverUserId: string, dto: PresenceOnlineDto) {
-    const gate = await this.scoreService.ensureDriverCanGoOnline(driverUserId);
-    const score = await this.scoreService.getOrCreateUserScore(driverUserId, ActorType.DRIVER);
-    const peak = await this.merit.evaluatePeakGate(
+    return presenceOnline(
+      {
+        prisma: this.prisma,
+        scoreService: this.scoreService,
+        merit: this.merit,
+        driverGeoIndex: this.driverGeoIndex,
+        rateLimit: this.rateLimit,
+      },
       driverUserId,
-      ActorType.DRIVER,
-      score.score,
-      score.status,
+      dto,
     );
-    if (!peak.allowed) throw new ForbiddenException('Peak gate denied for driver');
-
-    const premium = await this.merit.getPremiumContext(
-      { lat: dto.lat, lng: dto.lng },
-      ActorType.DRIVER,
-      score.score,
-    );
-    const premiumCfg = ((
-      await this.prisma.appConfig.findUnique({ where: { key: 'premium_zones' } })
-    )?.value_json as any) ?? { deny_low_driver: false };
-    if (premium.zone && !premium.eligible && premiumCfg.deny_low_driver) {
-      throw new ForbiddenException('Driver score not eligible for premium zone');
-    }
-
-    const presence = await this.prisma.driverPresence.upsert({
-      where: { driver_user_id: driverUserId },
-      update: {
-        is_online: true,
-        is_limited:
-          gate.isLimited || peak.limitedMode || (premium.zone ? !premium.eligible : false),
-        last_lat: dto.lat,
-        last_lng: dto.lng,
-        last_seen_at: new Date(),
-        vehicle_category: dto.category,
-      },
-      create: {
-        driver_user_id: driverUserId,
-        is_online: true,
-        is_limited:
-          gate.isLimited || peak.limitedMode || (premium.zone ? !premium.eligible : false),
-        last_lat: dto.lat,
-        last_lng: dto.lng,
-        last_seen_at: new Date(),
-        vehicle_category: dto.category,
-      },
-    });
-    await this.driverGeoIndex.upsert(driverUserId, dto.lat, dto.lng);
-    return presence;
   }
+
   async presenceOffline(driverUserId: string) {
-    await this.prisma.driverPresence.updateMany({
-      where: { driver_user_id: driverUserId },
-      data: { is_online: false },
-    });
-    return { message: 'offline' };
+    return presenceOffline(
+      {
+        prisma: this.prisma,
+        scoreService: this.scoreService,
+        merit: this.merit,
+        driverGeoIndex: this.driverGeoIndex,
+        rateLimit: this.rateLimit,
+      },
+      driverUserId,
+    );
   }
-  async presencePing(driverUserId: string, dto: PresencePingDto) {
-    const pingAllowed = await this.rateLimit.isAllowed(`rl:presence_ping:${driverUserId}`, 1, 5);
-    if (!pingAllowed) throw new HttpException('Rate limit exceeded', 429);
 
-    await this.prisma.driverPresence.updateMany({
-      where: { driver_user_id: driverUserId },
-      data: { last_lat: dto.lat, last_lng: dto.lng, last_seen_at: new Date() },
-    });
-    await this.driverGeoIndex.upsert(driverUserId, dto.lat, dto.lng);
-    return { message: 'pong' };
+  async presencePing(driverUserId: string, dto: PresencePingDto) {
+    return presencePing(
+      {
+        prisma: this.prisma,
+        scoreService: this.scoreService,
+        merit: this.merit,
+        driverGeoIndex: this.driverGeoIndex,
+        rateLimit: this.rateLimit,
+      },
+      driverUserId,
+      dto,
+    );
   }
 
   async getAdminLiveDrivers() {
-    const freshnessSeconds = Math.max(
-      5,
-      Number(process.env.DRIVER_PRESENCE_FRESHNESS_SECONDS ?? 60) || 60,
-    );
-    const freshnessMs = freshnessSeconds * 1000;
-    const now = Date.now();
-
-    const presencesRaw = await this.prisma.driverPresence.findMany({
-      where: {
-        is_online: true,
-        last_lat: { not: null },
-        last_lng: { not: null },
-      },
-      orderBy: { last_seen_at: 'desc' },
+    return getAdminLiveDrivers({
+      prisma: this.prisma,
+      scoreService: this.scoreService,
+      merit: this.merit,
+      driverGeoIndex: this.driverGeoIndex,
+      rateLimit: this.rateLimit,
     });
-    const presences = presencesRaw.filter(
-      (presence) =>
-        typeof presence.last_lat === 'number' &&
-        Number.isFinite(presence.last_lat) &&
-        typeof presence.last_lng === 'number' &&
-        Number.isFinite(presence.last_lng),
-    );
-
-    const driverIds = presences.map((presence) => presence.driver_user_id);
-    const [activeTrips, aliveFromRedis] = await Promise.all([
-      driverIds.length
-        ? this.prisma.trip.findMany({
-            where: {
-              driver_user_id: { in: driverIds },
-              status: {
-                in: [TripStatus.DRIVER_EN_ROUTE, TripStatus.OTP_PENDING, TripStatus.IN_PROGRESS],
-              },
-            },
-            select: { driver_user_id: true },
-          })
-        : Promise.resolve([]),
-      this.driverGeoIndex.getAliveDriverIds(driverIds),
-    ]);
-
-    const onTripIds = new Set(activeTrips.map((trip) => trip.driver_user_id).filter(Boolean));
-
-    const drivers = presences.map((presence) => {
-      const lastSeenAt = presence.last_seen_at;
-      const freshByTime = !!lastSeenAt && now - lastSeenAt.getTime() <= freshnessMs;
-      const isAliveInRedis = aliveFromRedis ? aliveFromRedis.has(presence.driver_user_id) : true;
-      const isFresh = freshByTime && isAliveInRedis;
-      const onTrip = onTripIds.has(presence.driver_user_id);
-      const operationalStatus = onTrip ? 'on_trip' : isFresh ? 'available' : 'stale';
-
-      return {
-        driverId: presence.driver_user_id,
-        lat: presence.last_lat,
-        lng: presence.last_lng,
-        lastSeenAt: lastSeenAt?.toISOString() ?? null,
-        isOnline: presence.is_online,
-        isFresh,
-        operationalStatus,
-        onTrip,
-      };
-    });
-
-    const freshDrivers = drivers.filter((driver) => driver.isFresh).length;
-    const staleDrivers = drivers.length - freshDrivers;
-    const onTripDrivers = drivers.filter((driver) => driver.onTrip).length;
-    const idleDrivers = drivers.filter((driver) => driver.operationalStatus === 'available').length;
-
-    return {
-      generatedAt: new Date(now).toISOString(),
-      drivers,
-      stats: {
-        onlineDrivers: drivers.length,
-        freshDrivers,
-        staleDrivers,
-        onTripDrivers,
-        idleDrivers,
-      },
-    };
   }
 
   async requestTrip(
