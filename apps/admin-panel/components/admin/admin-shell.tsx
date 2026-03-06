@@ -32,40 +32,40 @@ function Icon({ path }: { path: string }) {
 
 const navGroups: Array<{ title: string; items: NavItem[] }> = [
   {
-    title: 'Operations',
+    title: 'Operaciones',
     items: [
       { href: '/admin/dashboard', label: 'Dashboard', icon: <Icon path="M3 13h8V3H3v10zm10 8h8V11h-8v10zM3 21h8v-6H3v6zm10-8h8V3h-8v10z" /> },
-      { href: '/admin/trips', label: 'Trips', icon: <Icon path="M5 16h14l-1-5H6l-1 5zm2 0v2m10-2v2M7 11l1-4h8l1 4M3 16h18" /> },
-      { href: '/admin/drivers', label: 'Drivers', icon: <Icon path="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2m8-10a4 4 0 1 0 0-8 4 4 0 0 0 0 8z" /> },
-      { href: '/admin/users', label: 'Users', icon: <Icon path="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2m18 0v-2a4 4 0 0 0-3-3.87M8 7a4 4 0 1 0 0-8" /> },
-      { href: '/admin/support/tickets', label: 'Support', icon: <Icon path="M22 12a10 10 0 1 1-4-8v8zM8 12h8M8 16h5" /> },
-      { href: '/admin/operations/live', label: 'Live Ops', icon: <Icon path="M3 12h4l2-5 4 10 2-5h6" /> },
+      { href: '/admin/trips', label: 'Viajes', icon: <Icon path="M5 16h14l-1-5H6l-1 5zm2 0v2m10-2v2M7 11l1-4h8l1 4M3 16h18" /> },
+      { href: '/admin/drivers', label: 'Conductores', icon: <Icon path="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2m8-10a4 4 0 1 0 0-8 4 4 0 0 0 0 8z" /> },
+      { href: '/admin/users', label: 'Usuarios', icon: <Icon path="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2m18 0v-2a4 4 0 0 0-3-3.87M8 7a4 4 0 1 0 0-8" /> },
+      { href: '/admin/support/tickets', label: 'Soporte', icon: <Icon path="M22 12a10 10 0 1 1-4-8v8zM8 12h8M8 16h5" /> },
+      { href: '/admin/operations/live', label: 'Operación en vivo', icon: <Icon path="M3 12h4l2-5 4 10 2-5h6" /> },
     ],
   },
   {
-    title: 'Risk',
+    title: 'Riesgo',
     items: [
-      { href: '/admin/fraud', label: 'Fraud', icon: <Icon path="M12 3l8 4v5c0 5-3.5 9.5-8 11-4.5-1.5-8-6-8-11V7l8-4z" /> },
-      { href: '/admin/kyc/drivers', label: 'KYC Drivers', icon: <Icon path="M4 4h16v16H4zM8 8h8M8 12h8M8 16h5" /> },
-      { href: '/admin/audit', label: 'Audit', icon: <Icon path="M8 2h8l4 4v16H4V2h4zm0 0v4h8" />, permission: 'audit.view' },
-      { href: '/admin/notifications/settings', label: 'Notif Settings', icon: <Icon path="M15 17h5l-1.4-1.4A2 2 0 0 1 18 14.2V11a6 6 0 1 0-12 0v3.2c0 .5-.2 1-.6 1.4L4 17h5m2 0a3 3 0 0 0 6 0" /> },
+      { href: '/admin/fraud', label: 'Fraude', icon: <Icon path="M12 3l8 4v5c0 5-3.5 9.5-8 11-4.5-1.5-8-6-8-11V7l8-4z" /> },
+      { href: '/admin/kyc/drivers', label: 'KYC conductores', icon: <Icon path="M4 4h16v16H4zM8 8h8M8 12h8M8 16h5" /> },
+      { href: '/admin/audit', label: 'Auditoría', icon: <Icon path="M8 2h8l4 4v16H4V2h4zm0 0v4h8" />, permission: 'audit.view' },
+      { href: '/admin/notifications/settings', label: 'Config. notificaciones', icon: <Icon path="M15 17h5l-1.4-1.4A2 2 0 0 1 18 14.2V11a6 6 0 1 0-12 0v3.2c0 .5-.2 1-.6 1.4L4 17h5m2 0a3 3 0 0 0 6 0" /> },
     ],
   },
   {
-    title: 'Business',
+    title: 'Negocio',
     items: [
-      { href: '/admin/payments', label: 'Payments', icon: <Icon path="M3 7h18v10H3zM3 11h18M7 15h3" /> },
-      { href: '/admin/incentives', label: 'Incentives', icon: <Icon path="M12 3l2.5 5 5.5.8-4 3.9.9 5.5L12 16l-4.9 2.2.9-5.5-4-3.9 5.5-.8L12 3z" /> },
-      { href: '/admin/zones', label: 'Zones', icon: <Icon path="M3 6l6-3 6 3 6-3v15l-6 3-6-3-6 3V6zM9 3v15m6-12v15" /> },
-      { href: '/admin/reports/overview', label: 'Reports', icon: <Icon path="M4 20h16M7 16V8m5 8V4m5 12v-6" /> },
+      { href: '/admin/payments', label: 'Pagos', icon: <Icon path="M3 7h18v10H3zM3 11h18M7 15h3" /> },
+      { href: '/admin/incentives', label: 'Incentivos', icon: <Icon path="M12 3l2.5 5 5.5.8-4 3.9.9 5.5L12 16l-4.9 2.2.9-5.5-4-3.9 5.5-.8L12 3z" /> },
+      { href: '/admin/zones', label: 'Zonas', icon: <Icon path="M3 6l6-3 6 3 6-3v15l-6 3-6-3-6 3V6zM9 3v15m6-12v15" /> },
+      { href: '/admin/reports/overview', label: 'Reportes', icon: <Icon path="M4 20h16M7 16V8m5 8V4m5 12v-6" /> },
     ],
   },
   {
-    title: 'Settings',
+    title: 'Configuración',
     items: [
-      { href: '/admin/settings/pricing', label: 'Pricing', icon: <Icon path="M12 1v3m0 16v3m11-11h-3M4 12H1m19.8 7.8-2.1-2.1M5.3 5.3 3.2 3.2m15.6 0-2.1 2.1M5.3 18.7l-2.1 2.1M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z" />, permission: 'settings.edit' },
-      { href: '/admin/settings/integrations', label: 'Integrations', icon: <Icon path="M7 7h10v10H7zM3 12h4m10 0h4m-9-9v4m0 10v4" />, permission: 'settings.edit' },
-      { href: '/admin/notifications/templates', label: 'Templates', icon: <Icon path="M4 6h16v12H4zM4 8l8 5 8-5" /> },
+      { href: '/admin/settings/pricing', label: 'Precios', icon: <Icon path="M12 1v3m0 16v3m11-11h-3M4 12H1m19.8 7.8-2.1-2.1M5.3 5.3 3.2 3.2m15.6 0-2.1 2.1M5.3 18.7l-2.1 2.1M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z" />, permission: 'settings.edit' },
+      { href: '/admin/settings/integrations', label: 'Integraciones', icon: <Icon path="M7 7h10v10H7zM3 12h4m10 0h4m-9-9v4m0 10v4" />, permission: 'settings.edit' },
+      { href: '/admin/notifications/templates', label: 'Plantillas', icon: <Icon path="M4 6h16v12H4zM4 8l8 5 8-5" /> },
     ],
   },
 ];
@@ -105,7 +105,7 @@ export function AdminShell({ children, topbarActions }: { children: ReactNode; t
         <div className="mx-auto flex w-full max-w-[1680px]">
           <aside className="hidden min-h-screen w-72 border-r border-slate-800 bg-slate-900/40 px-3 py-5 lg:block">
             <div className="px-2 pb-4">
-              <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Operations Console</p>
+              <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Consola de operaciones</p>
               <h1 className="mt-2 text-xl font-semibold tracking-tight">Zippy Admin</h1>
             </div>
 
@@ -169,7 +169,7 @@ export function AdminShell({ children, topbarActions }: { children: ReactNode; t
                         Dashboard
                       </button>
                       <button className="block w-full rounded-sm px-2 py-1.5 text-left text-sm hover:bg-slate-800" onClick={() => void onLogout()}>
-                        Logout
+                        Cerrar sesión
                       </button>
                     </div>
                   </details>
