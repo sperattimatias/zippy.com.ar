@@ -39,6 +39,7 @@ const navGroups: Array<{ title: string; items: NavItem[] }> = [
       { href: '/admin/drivers', label: 'Drivers', icon: <Icon path="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2m8-10a4 4 0 1 0 0-8 4 4 0 0 0 0 8z" /> },
       { href: '/admin/users', label: 'Users', icon: <Icon path="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2m18 0v-2a4 4 0 0 0-3-3.87M8 7a4 4 0 1 0 0-8" /> },
       { href: '/admin/support/tickets', label: 'Support', icon: <Icon path="M22 12a10 10 0 1 1-4-8v8zM8 12h8M8 16h5" /> },
+      { href: '/admin/operations/live', label: 'Live Ops', icon: <Icon path="M3 12h4l2-5 4 10 2-5h6" /> },
     ],
   },
   {
