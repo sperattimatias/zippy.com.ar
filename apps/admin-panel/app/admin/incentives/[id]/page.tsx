@@ -1,7 +1,10 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { AdminCard, EmptyState, ErrorState, LoadingState } from '../../../../components/admin/ui';
+import { SectionCard } from '../../../../components/common/SectionCard';
+import { EmptyState } from '../../../../components/states/EmptyState';
+import { ErrorState } from '../../../../components/states/ErrorState';
+import { LoadingState } from '../../../../components/states/LoadingState';
 
 type Detail = {
   campaign: {
@@ -51,7 +54,7 @@ export default function IncentiveDetailPage({ params }: { params: { id: string }
       {!loading && !error && !data && <EmptyState message="Campaña no encontrada" />}
       {data && (
         <>
-          <AdminCard title={data.campaign.name}>
+          <SectionCard title={data.campaign.name}>
             <div className="grid gap-2 md:grid-cols-2 text-sm">
               <p>Periodo: {new Date(data.campaign.starts_at).toLocaleDateString()} - {new Date(data.campaign.ends_at).toLocaleDateString()}</p>
               <p>Payout: {data.campaign.payout_amount}</p>
@@ -59,9 +62,9 @@ export default function IncentiveDetailPage({ params }: { params: { id: string }
               <p>Objetivo horas: {data.campaign.target_hours ?? '-'}</p>
               <p>Drivers bloqueados excluidos: {data.excluded_blocked_drivers}</p>
             </div>
-          </AdminCard>
+          </SectionCard>
 
-          <AdminCard title="Progreso por driver">
+          <SectionCard title="Progreso por driver">
             {data.progress.length === 0 ? <EmptyState message="Sin progreso aún" /> : (
               <div className="overflow-x-auto">
                 <table className="min-w-full text-sm">
@@ -79,7 +82,7 @@ export default function IncentiveDetailPage({ params }: { params: { id: string }
                 </table>
               </div>
             )}
-          </AdminCard>
+          </SectionCard>
         </>
       )}
     </div>
