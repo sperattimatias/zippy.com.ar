@@ -14,6 +14,11 @@ import { formatDateTime } from '../../../../lib/format';
 import { RefreshCw } from 'lucide-react';
 
 type Point = { lat: number; lng: number };
+type DriverMapMarker = Point & {
+  driverId: string;
+  operationalStatus: OperationalStatus;
+  onTrip: boolean;
+};
 
 type OperationalStatus = 'available' | 'on_trip' | 'stale';
 type LiveDriver = {
@@ -181,7 +186,7 @@ function parseLiveDriversPayload(payload: unknown): LiveDriversPayload {
 
 export default function AdminOperationsLivePage() {
   const [drivers, setDrivers] = useState<LiveDriver[]>([]);
-  const [driverPoints, setDriverPoints] = useState<Point[]>([]);
+  const [driverMarkers, setDriverMarkers] = useState<DriverMapMarker[]>([]);
   const [tripPaths, setTripPaths] = useState<TripPath[]>([]);
   const [openIncidents, setOpenIncidents] = useState(0);
   const [driverStats, setDriverStats] = useState<LiveDriversStats>({
@@ -220,7 +225,13 @@ export default function AdminOperationsLivePage() {
       const trips = extractItems(tripsPayload) as TripRow[];
       const incidents = extractItems(incidentsPayload);
 
-      const points = liveDrivers.map((driver) => ({ lat: driver.lat, lng: driver.lng }));
+      const markers = liveDrivers.map((driver) => ({
+        driverId: driver.driverId,
+        lat: driver.lat,
+        lng: driver.lng,
+        operationalStatus: driver.operationalStatus,
+        onTrip: driver.onTrip,
+      }));
       const paths = trips
         .map((trip, index) => {
           const id = String(trip.id ?? `trip-${index}`);
@@ -230,7 +241,7 @@ export default function AdminOperationsLivePage() {
         .filter((trip) => trip.points.length > 0);
 
       setDrivers(liveDrivers);
-      setDriverPoints(points);
+      setDriverMarkers(markers);
       setTripPaths(paths);
       setOpenIncidents(incidents.length);
       setDriverStats(liveDriversPayload.stats);
@@ -252,13 +263,21 @@ export default function AdminOperationsLivePage() {
 
   const activeTrips = tripPaths.length;
   const onlineDrivers = driverStats.onlineDrivers;
-  const hasPositions = driverPoints.length > 0 || activeTrips > 0;
+  const hasPositions = driverMarkers.length > 0 || activeTrips > 0;
+  const statusCount = useMemo(
+    () => ({
+      available: drivers.filter((driver) => driver.operationalStatus === 'available').length,
+      onTrip: drivers.filter((driver) => driver.onTrip).length,
+      stale: drivers.filter((driver) => driver.operationalStatus === 'stale').length,
+    }),
+    [drivers],
+  );
 
   const metrics = useMemo(
     () => [
-      { label: 'Conductores online', value: onlineDrivers, tone: 'success' as const },
-      { label: 'Disponibles', value: driverStats.idleDrivers, tone: 'success' as const },
-      { label: 'En viaje', value: driverStats.onTripDrivers, tone: 'warning' as const },
+      { label: 'Conductores online', value: onlineDrivers, tone: 'success' as const, badge: 'Live' },
+      { label: 'Disponibles', value: driverStats.idleDrivers, tone: 'success' as const, badge: 'Idle' },
+      { label: 'En viaje', value: driverStats.onTripDrivers, tone: 'warning' as const, badge: 'On trip' },
       { label: 'Stale', value: driverStats.staleDrivers, tone: 'danger' as const },
       { label: 'Viajes activos', value: activeTrips, tone: 'warning' as const },
       { label: 'Incidentes abiertos', value: openIncidents, tone: 'danger' as const },
@@ -281,6 +300,7 @@ export default function AdminOperationsLivePage() {
         actions={
           <div className="flex items-center gap-2">
             <Badge variant="outline">Refresh automático: 15s</Badge>
+            <Badge variant="outline">Generado: {lastUpdatedAt ? formatDateTime(lastUpdatedAt) : '-'}</Badge>
             <Button variant="secondary" onClick={() => void load()}>
               <RefreshCw className="mr-2 h-4 w-4" />
               Actualizar ahora
@@ -292,14 +312,14 @@ export default function AdminOperationsLivePage() {
       <div className="grid gap-5 lg:grid-cols-[1fr_340px]">
         <SectionCard
           title="Mapa operativo"
-          description="Marcadores azules: conductores online. Trazas naranjas: viajes activos."
+          description="Seguimiento en vivo de disponibilidad de conductores y viajes activos."
         >
-          {loading ? <LoadingState message="Cargando posiciones en tiempo real..." /> : null}
+          {loading ? <LoadingState message="Sincronizando posiciones y viajes activos..." /> : null}
           {!loading && error ? <ErrorState message={error} retry={() => void load()} /> : null}
           {!loading && !error && !hasPositions ? (
             <EmptyState
-              title="Sin posiciones disponibles"
-              description="No hay coordenadas activas para mostrar en este momento."
+              title="Sin actividad operativa visible"
+              description="No hay conductores live ni viajes activos para mapear en este momento."
               action={
                 <Button onClick={() => void load()}>
                   <RefreshCw className="mr-2 h-4 w-4" />
@@ -311,15 +331,15 @@ export default function AdminOperationsLivePage() {
           {!loading && !error && hasPositions ? (
             <OperationsLiveMap
               center={FIRMA_CENTER}
-              driverPoints={driverPoints}
+              driverMarkers={driverMarkers}
               tripPaths={tripPaths}
             />
           ) : null}
         </SectionCard>
 
         <div className="space-y-5">
-          <SectionCard title="Métricas rápidas" description="Monitoreo operativo actual.">
-            <div className="space-y-3">
+          <SectionCard title="Métricas rápidas" description="Lectura operativa actual de la flota live.">
+            <div className="grid gap-3 sm:grid-cols-2">
               {metrics.map((metric) => (
                 <div
                   key={metric.label}
@@ -337,7 +357,9 @@ export default function AdminOperationsLivePage() {
                             : 'outline'
                       }
                     >
-                      {metric.tone === 'success'
+                      {metric.badge
+                        ? metric.badge
+                        : metric.tone === 'success'
                         ? 'OK'
                         : metric.tone === 'danger'
                           ? 'Atención'
@@ -349,19 +371,16 @@ export default function AdminOperationsLivePage() {
             </div>
           </SectionCard>
 
-          <SectionCard title="Leyenda visual">
+          <SectionCard title="Leyenda visual" description="Estados de marcadores y trazas del mapa.">
             <ul className="space-y-2 text-sm text-slate-300">
               <li className="flex items-center gap-2">
-                <span className="h-3 w-3 rounded-full bg-blue-500" /> Conductores online
+                <span className="h-3 w-3 rounded-full bg-emerald-400" /> Disponible / idle ({statusCount.available})
               </li>
               <li className="flex items-center gap-2">
-                <Badge variant="success">available / idle</Badge>
+                <span className="h-3 w-3 rounded-full bg-cyan-400" /> En viaje / on_trip ({statusCount.onTrip})
               </li>
               <li className="flex items-center gap-2">
-                <Badge variant="outline">on_trip</Badge>
-              </li>
-              <li className="flex items-center gap-2">
-                <Badge variant="danger">stale</Badge>
+                <span className="h-3 w-3 rounded-full bg-amber-400" /> Stale ({statusCount.stale})
               </li>
               <li className="flex items-center gap-2">
                 <span className="h-3 w-3 rounded-full bg-orange-500" /> Viajes activos
@@ -372,7 +391,7 @@ export default function AdminOperationsLivePage() {
               </li>
             </ul>
             <p className="mt-4 text-xs text-slate-400">Drivers en payload live: {drivers.length}</p>
-            <p className="mt-4 text-xs text-slate-400">
+            <p className="mt-2 text-xs text-slate-400">
               Última actualización: {lastUpdatedAt ? formatDateTime(lastUpdatedAt) : '-'}
             </p>
           </SectionCard>
