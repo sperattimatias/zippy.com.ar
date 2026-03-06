@@ -2,7 +2,12 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { AdminCard, ErrorState, LoadingState } from '../../../../components/admin/ui';
+import { PageHeader } from '../../../../components/page/PageHeader';
+import { StatusBadge } from '../../../../components/common/StatusBadge';
+import { SectionCard } from '../../../../components/common/SectionCard';
+import { EmptyState } from '../../../../components/states/EmptyState';
+import { ErrorState } from '../../../../components/states/ErrorState';
+import { LoadingState } from '../../../../components/states/LoadingState';
 import { ReasonDialog } from '../../../../components/forms/reason-dialog';
 import { Input } from '../../../../components/ui/input';
 import { Button } from '../../../../components/ui/button';
@@ -106,30 +111,31 @@ export default function AdminDriverDetailPage({ params }: { params: { id: string
 
   return (
     <div className="space-y-6">
+      <PageHeader title="Driver detail" subtitle="Estado, documentación, actividad y acciones." />
       {loading && <LoadingState message="Cargando conductor..." />}
       {error && <ErrorState message={error} retry={() => void reload()} />}
 
       {!loading && detail && (
         <>
-          <AdminCard title={`Driver ${detail.user_id}`}>
+          <SectionCard title={`Driver ${detail.user_id}`}>
             <div className="grid gap-2 text-sm md:grid-cols-2">
-              <p><span className="text-slate-400">Estado:</span> {detail.status}</p>
+              <p><span className="text-slate-400">Estado:</span> <StatusBadge status={detail.status} /></p>
               <p><span className="text-slate-400">Driver ID:</span> {detail.id}</p>
               <p><span className="text-slate-400">Rechazo:</span> {detail.rejection_reason ?? '-'}</p>
               <p><span className="text-slate-400">Notas:</span> {detail.notes ?? '-'}</p>
             </div>
-          </AdminCard>
+          </SectionCard>
 
-          <AdminCard title="Vehículo">
+          <SectionCard title="Vehículo">
             <div className="grid gap-2 text-sm md:grid-cols-2">
               <p><span className="text-slate-400">Categoría:</span> {detail.vehicle?.category ?? '-'}</p>
               <p><span className="text-slate-400">Marca/Modelo:</span> {detail.vehicle ? `${detail.vehicle.brand ?? ''} ${detail.vehicle.model ?? ''}` : '-'}</p>
               <p><span className="text-slate-400">Año:</span> {detail.vehicle?.year ?? '-'}</p>
               <p><span className="text-slate-400">Patente:</span> {detail.vehicle?.plate ?? '-'}</p>
             </div>
-          </AdminCard>
+          </SectionCard>
 
-          <AdminCard title="Documentos">
+          <SectionCard title="Documentos">
             <ul className="space-y-1 text-sm">
               {detail.documents.map((document) => (
                 <li key={document.id} className="flex items-center justify-between gap-2">
@@ -138,17 +144,17 @@ export default function AdminDriverDetailPage({ params }: { params: { id: string
                 </li>
               ))}
             </ul>
-          </AdminCard>
+          </SectionCard>
 
-          <AdminCard title="Actividad">
+          <SectionCard title="Actividad">
             <div className="grid gap-2 text-sm md:grid-cols-3">
               <p><span className="text-slate-400">Viajes:</span> {detail.activity_summary?.trips_total ?? 0}</p>
               <p><span className="text-slate-400">Cancelaciones:</span> {detail.activity_summary?.cancellations_total ?? 0}</p>
               <p><span className="text-slate-400">Pagos:</span> {detail.activity_summary?.payments_total ?? 0}</p>
             </div>
-          </AdminCard>
+          </SectionCard>
 
-          <AdminCard title="Acciones" action={<Link className="text-xs text-cyan-300 underline" href={`/admin/audit?entityType=driver&entityId=${params.id}`}>Ver auditoría</Link>}>
+          <SectionCard title="Acciones" action={<Link className="text-xs text-cyan-300 underline" href={`/admin/audit?entityType=driver&entityId=${params.id}`}>Ver auditoría</Link>}>
             <div className="space-y-3 text-sm">
               <div className="flex flex-wrap gap-2">
                 <Button className="bg-amber-600 hover:bg-amber-500" onClick={() => setSuspendOpen(true)}>Suspender</Button>
@@ -161,15 +167,15 @@ export default function AdminDriverDetailPage({ params }: { params: { id: string
                 <Button variant="secondary" onClick={() => void addNote()}>Agregar nota</Button>
               </div>
             </div>
-          </AdminCard>
+          </SectionCard>
 
-          <AdminCard title="Eventos">
+          <SectionCard title="Eventos">
             <ul className="space-y-1 text-sm">
               {detail.events.map((event) => (
                 <li key={event.id}>{new Date(event.created_at).toLocaleString()} — {event.type} — actor {event.actor_user_id}</li>
               ))}
             </ul>
-          </AdminCard>
+          </SectionCard>
         </>
       )}
 

@@ -2,7 +2,11 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
-import { AdminCard, EmptyState, ErrorState, LoadingState } from '../../../../components/admin/ui';
+import { PageHeader } from '../../../../components/page/PageHeader';
+import { SectionCard } from '../../../../components/common/SectionCard';
+import { EmptyState } from '../../../../components/states/EmptyState';
+import { ErrorState } from '../../../../components/states/ErrorState';
+import { LoadingState } from '../../../../components/states/LoadingState';
 import { toast } from '../../../../lib/toast';
 
 type Ticket = {
@@ -82,9 +86,9 @@ export default function SupportTicketsPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Support · Tickets</h1>
+      <PageHeader title="Support · Tickets" subtitle="Gestión de tickets y asignaciones." />
 
-      <AdminCard title="Filtros">
+      <SectionCard title="Filtros">
         <div className="grid gap-2 md:grid-cols-4">
           <select className="rounded bg-slate-950 p-2" value={status} onChange={(e) => { setPage(1); setStatus(e.target.value); }}>
             <option value="">Todos los estados</option>
@@ -102,9 +106,9 @@ export default function SupportTicketsPage() {
           <input className="rounded bg-slate-950 p-2" placeholder="Buscar por id/user/trip/driver" value={search} onChange={(e) => { setPage(1); setSearch(e.target.value); }} />
           <button className="rounded bg-cyan-700 px-3 py-2 text-sm" onClick={() => void createQuickTicket()}>Crear ticket rápido</button>
         </div>
-      </AdminCard>
+      </SectionCard>
 
-      <AdminCard title="Tickets">
+      <SectionCard title="Tickets">
         {loading && <LoadingState message="Cargando tickets..." />}
         {error && <ErrorState message={error} retry={() => void load()} />}
         {!loading && !error && items.length === 0 && <EmptyState message="No hay tickets para los filtros seleccionados." />}
@@ -151,7 +155,7 @@ export default function SupportTicketsPage() {
           <span className="text-sm">Página {page} / {totalPages}</span>
           <button className="rounded bg-slate-800 px-3 py-1 text-sm disabled:opacity-40" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>Siguiente</button>
         </div>
-      </AdminCard>
+      </SectionCard>
     </div>
   );
 }

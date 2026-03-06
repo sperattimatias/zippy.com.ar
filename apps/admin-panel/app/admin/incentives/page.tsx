@@ -2,7 +2,10 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { AdminCard, EmptyState, ErrorState, LoadingState } from '../../../components/admin/ui';
+import { SectionCard } from '../../../components/common/SectionCard';
+import { EmptyState } from '../../../components/states/EmptyState';
+import { ErrorState } from '../../../components/states/ErrorState';
+import { LoadingState } from '../../../components/states/LoadingState';
 import { toast } from '../../../lib/toast';
 
 type Campaign = {
@@ -77,7 +80,7 @@ export default function IncentivesPage() {
 
   return (
     <div className="space-y-6">
-      <AdminCard title="Nueva campaña">
+      <SectionCard title="Nueva campaña">
         <div className="grid gap-2 md:grid-cols-3 text-sm">
           <input className="rounded bg-slate-950 p-2" placeholder="Nombre" value={name} onChange={(e) => setName(e.target.value)} />
           <input className="rounded bg-slate-950 p-2" placeholder="Objetivo viajes" type="number" value={targetTrips} onChange={(e) => setTargetTrips(e.target.value)} />
@@ -87,9 +90,9 @@ export default function IncentivesPage() {
           <input className="rounded bg-slate-950 p-2" placeholder="Payout" type="number" value={payout} onChange={(e) => setPayout(e.target.value)} />
         </div>
         <button className="mt-3 rounded bg-cyan-600 px-3 py-2" onClick={() => void createCampaign()}>Crear campaña</button>
-      </AdminCard>
+      </SectionCard>
 
-      <AdminCard title="Campañas">
+      <SectionCard title="Campañas">
         {loading && <LoadingState />}
         {error && <ErrorState message={error} retry={() => void load()} />}
         {!loading && !error && items.length === 0 && <EmptyState message="No hay campañas" />}
@@ -113,7 +116,7 @@ export default function IncentivesPage() {
             </table>
           </div>
         )}
-      </AdminCard>
+      </SectionCard>
     </div>
   );
 }

@@ -1,7 +1,10 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { AdminCard, EmptyState, ErrorState, LoadingState } from '../../../../components/admin/ui';
+import { SectionCard } from '../../../../components/common/SectionCard';
+import { EmptyState } from '../../../../components/states/EmptyState';
+import { ErrorState } from '../../../../components/states/ErrorState';
+import { LoadingState } from '../../../../components/states/LoadingState';
 import { toast } from '../../../../lib/toast';
 
 type Setting = { event_key: string; enabled: boolean };
@@ -47,7 +50,7 @@ export default function NotificationSettingsPage() {
 
   return (
     <div className="space-y-6">
-      <AdminCard title="Settings por evento">
+      <SectionCard title="Settings por evento">
         {loading && <LoadingState />}
         {error && <ErrorState message={error} retry={() => void load()} />}
         {!loading && !error && settings.length === 0 && <EmptyState message="Sin eventos configurados" />}
@@ -63,9 +66,9 @@ export default function NotificationSettingsPage() {
             ))}
           </div>
         )}
-      </AdminCard>
+      </SectionCard>
 
-      <AdminCard title="Últimos envíos y fallos">
+      <SectionCard title="Últimos envíos y fallos">
         {!loading && !error && logs.length === 0 && <EmptyState message="Sin logs" />}
         {!loading && !error && logs.length > 0 && (
           <div className="overflow-x-auto">
@@ -74,7 +77,7 @@ export default function NotificationSettingsPage() {
             </tbody></table>
           </div>
         )}
-      </AdminCard>
+      </SectionCard>
     </div>
   );
 }

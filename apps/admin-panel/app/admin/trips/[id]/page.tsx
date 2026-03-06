@@ -3,7 +3,12 @@
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
-import { AdminCard, EmptyState, ErrorState, LoadingState } from '../../../../components/admin/ui';
+import { PageHeader } from '../../../../components/page/PageHeader';
+import { StatusBadge } from '../../../../components/common/StatusBadge';
+import { SectionCard } from '../../../../components/common/SectionCard';
+import { EmptyState } from '../../../../components/states/EmptyState';
+import { ErrorState } from '../../../../components/states/ErrorState';
+import { LoadingState } from '../../../../components/states/LoadingState';
 import { toast } from '../../../../lib/toast';
 import { ReasonDialog } from '../../../../components/forms/reason-dialog';
 import { Button } from '../../../../components/ui/button';
@@ -152,6 +157,7 @@ export default function AdminTripDetailPage({ params }: { params: { id: string }
 
   return (
     <div className="space-y-6">
+      <PageHeader title="Trip detail" subtitle="Seguimiento del viaje, eventos y acciones operativas." />
       {loading && (
         <>
           <LoadingState message="Cargando viaje..." />
@@ -162,9 +168,9 @@ export default function AdminTripDetailPage({ params }: { params: { id: string }
 
       {!loading && trip && (
         <>
-          <AdminCard title={`Trip ${trip.id}`} action={<Link className="text-xs text-cyan-300 underline" href={`/admin/audit?entityType=trip&entityId=${trip.id}`}>Ver auditoría</Link>}>
+          <SectionCard title={`Trip ${trip.id}`} action={<Link className="text-xs text-cyan-300 underline" href={`/admin/audit?entityType=trip&entityId=${trip.id}`}>Ver auditoría</Link>}>
             <div className="grid gap-2 text-sm md:grid-cols-2">
-              <p><span className="text-slate-400">Estado:</span> {trip.status}</p>
+              <p><span className="text-slate-400">Estado:</span> <StatusBadge status={trip.status} /></p>
               <p><span className="text-slate-400">Passenger:</span> {trip.passenger_user_id}</p>
               <p><span className="text-slate-400">Driver:</span> {trip.driver_user_id ?? '-'}</p>
               <p><span className="text-slate-400">Creado:</span> {new Date(trip.created_at).toLocaleString()}</p>
@@ -173,18 +179,18 @@ export default function AdminTripDetailPage({ params }: { params: { id: string }
               <p><span className="text-slate-400">Base:</span> {trip.price_base}</p>
               <p><span className="text-slate-400">Final:</span> {trip.price_final ?? '-'}</p>
             </div>
-          </AdminCard>
+          </SectionCard>
 
-          <AdminCard title="Ruta GPS">
+          <SectionCard title="Ruta GPS">
             <p className="mb-2 text-xs text-slate-400">Inicio (pickup) en verde y fin (dropoff) en naranja.</p>
             {routePoints.length > 0 ? (
               <TripRouteMap pickup={pickup} dropoff={dropoff} points={routePoints} />
             ) : (
               <EmptyState message="Sin coordenadas disponibles" />
             )}
-          </AdminCard>
+          </SectionCard>
 
-          <AdminCard title="Eventos">
+          <SectionCard title="Eventos">
             <div className="max-h-80 overflow-auto text-sm">
               <table className="w-full text-left">
                 <thead className="text-xs uppercase text-slate-400"><tr><th className="p-2">Fecha</th><th className="p-2">Tipo</th><th className="p-2">Payload</th></tr></thead>
@@ -199,9 +205,9 @@ export default function AdminTripDetailPage({ params }: { params: { id: string }
                 </tbody>
               </table>
             </div>
-          </AdminCard>
+          </SectionCard>
 
-          <AdminCard title="Acciones sensibles">
+          <SectionCard title="Acciones sensibles">
             <div className="grid gap-3 md:grid-cols-2">
               <Button variant="destructive" onClick={() => setCancelOpen(true)}>
                 Cancelar viaje
@@ -218,7 +224,7 @@ export default function AdminTripDetailPage({ params }: { params: { id: string }
                 Registrar incidente
               </Button>
             </div>
-          </AdminCard>
+          </SectionCard>
         </>
       )}
 

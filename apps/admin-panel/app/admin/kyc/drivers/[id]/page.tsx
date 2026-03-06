@@ -1,7 +1,11 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { AdminCard, ErrorState, LoadingState } from '../../../../../components/admin/ui';
+import { StatusBadge } from '../../../../../components/common/StatusBadge';
+import { SectionCard } from '../../../../../components/common/SectionCard';
+import { EmptyState } from '../../../../../components/states/EmptyState';
+import { ErrorState } from '../../../../../components/states/ErrorState';
+import { LoadingState } from '../../../../../components/states/LoadingState';
 import { toast } from '../../../../../lib/toast';
 
 type DriverDocument = {
@@ -80,24 +84,24 @@ export default function DriverKycDetailPage({ params }: { params: { id: string }
 
   return (
     <div className="space-y-6">
-      <AdminCard title={`KYC Driver ${detail.id}`}>
+      <SectionCard title={`KYC Driver ${detail.id}`}>
         <div className="grid gap-2 text-sm md:grid-cols-2">
           <p><span className="text-slate-400">User:</span> {detail.user_id}</p>
-          <p><span className="text-slate-400">Estado KYC:</span> {detail.status}</p>
+          <p><span className="text-slate-400">Estado KYC:</span> <StatusBadge status={detail.status} /></p>
           <p className="md:col-span-2"><span className="text-slate-400">Faltantes:</span> {detail.missing_documents.length ? detail.missing_documents.join(', ') : 'Sin faltantes'}</p>
           <p className="md:col-span-2"><span className="text-slate-400">Observaciones:</span> {detail.notes ?? '-'}</p>
         </div>
-      </AdminCard>
+      </SectionCard>
 
-      <AdminCard title="Acciones generales">
+      <SectionCard title="Acciones generales">
         <div className="flex flex-wrap gap-2">
           <input className="rounded bg-slate-950 p-2" placeholder="Motivo / observación" value={reason} onChange={(e) => setReason(e.target.value)} />
           <input type="date" className="rounded bg-slate-950 p-2" value={expiresAt} onChange={(e) => setExpiresAt(e.target.value)} />
           <button className="rounded bg-amber-700 px-3 py-2" onClick={() => void resetKyc()}>Reset verificación</button>
         </div>
-      </AdminCard>
+      </SectionCard>
 
-      <AdminCard title="Documentos">
+      <SectionCard title="Documentos">
         <div className="space-y-3">
           {detail.documents.map((doc) => (
             <div key={doc.id} className="rounded border border-slate-800 p-3 text-sm">
@@ -120,7 +124,7 @@ export default function DriverKycDetailPage({ params }: { params: { id: string }
           ))}
           {detail.documents.length === 0 && <p className="text-sm text-slate-400">Sin documentos cargados.</p>}
         </div>
-      </AdminCard>
+      </SectionCard>
     </div>
   );
 }

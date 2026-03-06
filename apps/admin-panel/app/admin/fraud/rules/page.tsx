@@ -1,7 +1,10 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { AdminCard, ErrorState, LoadingState } from '../../../../components/admin/ui';
+import { SectionCard } from '../../../../components/common/SectionCard';
+import { EmptyState } from '../../../../components/states/EmptyState';
+import { ErrorState } from '../../../../components/states/ErrorState';
+import { LoadingState } from '../../../../components/states/LoadingState';
 import { toast } from '../../../../lib/toast';
 
 export default function FraudRulesPage() {
@@ -47,12 +50,12 @@ export default function FraudRulesPage() {
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">Fraud Rules</h1>
-      <AdminCard title="Thresholds / flags / cooldowns">
+      <SectionCard title="Thresholds / flags / cooldowns">
         <textarea className="h-[420px] w-full rounded bg-slate-950 p-3 font-mono text-xs" value={json} onChange={(e) => setJson(e.target.value)} />
         <div className="mt-3 flex justify-end">
           <button className="rounded bg-cyan-700 px-3 py-2 text-sm" onClick={() => void save()}>Guardar reglas</button>
         </div>
-      </AdminCard>
+      </SectionCard>
     </div>
   );
 }

@@ -3,8 +3,8 @@
 import type { ColumnDef } from '@tanstack/react-table';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { PageHeader } from '../../../components/admin/page-header';
-import { SectionCard } from '../../../components/admin/section-card';
+import { PageHeader } from '../../../components/page/PageHeader';
+import { SectionCard } from '../../../components/common/SectionCard';
 import { DataTable } from '../../../components/data-table/DataTable';
 import { useDebouncedValue, useQueryState } from '../../../components/data-table/query-state';
 import { DataTableToolbar } from '../../../components/data-table/toolbar';

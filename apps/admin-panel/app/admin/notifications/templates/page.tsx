@@ -1,7 +1,10 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { AdminCard, EmptyState, ErrorState, LoadingState } from '../../../../components/admin/ui';
+import { SectionCard } from '../../../../components/common/SectionCard';
+import { EmptyState } from '../../../../components/states/EmptyState';
+import { ErrorState } from '../../../../components/states/ErrorState';
+import { LoadingState } from '../../../../components/states/LoadingState';
 import { toast } from '../../../../lib/toast';
 
 type Template = { id: string; key: string; channel: string; title: string; body: string; is_active: boolean };
@@ -51,7 +54,7 @@ export default function NotificationTemplatesPage() {
 
   return (
     <div className="space-y-6">
-      <AdminCard title="Nuevo template">
+      <SectionCard title="Nuevo template">
         <div className="grid gap-2 md:grid-cols-2 text-sm">
           <input className="rounded bg-slate-950 p-2" placeholder="key" value={key} onChange={(e) => setKey(e.target.value)} />
           <select className="rounded bg-slate-950 p-2" value={channel} onChange={(e) => setChannel(e.target.value)}>
@@ -62,9 +65,9 @@ export default function NotificationTemplatesPage() {
           <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} /> Activo</label>
         </div>
         <button className="mt-3 rounded bg-cyan-600 px-3 py-2" onClick={() => void saveTemplate()}>Guardar</button>
-      </AdminCard>
+      </SectionCard>
 
-      <AdminCard title="Templates">
+      <SectionCard title="Templates">
         {loading && <LoadingState />}
         {error && <ErrorState message={error} retry={() => void load()} />}
         {!loading && !error && items.length === 0 && <EmptyState message="No hay templates" />}
@@ -75,7 +78,7 @@ export default function NotificationTemplatesPage() {
             </tbody></table>
           </div>
         )}
-      </AdminCard>
+      </SectionCard>
     </div>
   );
 }

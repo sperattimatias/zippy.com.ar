@@ -2,7 +2,12 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { AdminCard, ErrorState, LoadingState } from '../../../../components/admin/ui';
+import { PageHeader } from '../../../../components/page/PageHeader';
+import { StatusBadge } from '../../../../components/common/StatusBadge';
+import { SectionCard } from '../../../../components/common/SectionCard';
+import { EmptyState } from '../../../../components/states/EmptyState';
+import { ErrorState } from '../../../../components/states/ErrorState';
+import { LoadingState } from '../../../../components/states/LoadingState';
 import { toast } from '../../../../lib/toast';
 
 type UserDetail = {
@@ -92,32 +97,33 @@ export default function AdminUserDetailPage({ params }: { params: { id: string }
 
   return (
     <div className="space-y-6">
+      <PageHeader title="User detail" subtitle="Información, historial y acciones sobre la cuenta." />
       {loading && <LoadingState message="Cargando usuario..." />}
       {error && <ErrorState message={error} retry={() => void load()} />}
 
       {!loading && detail && (
         <>
-          <AdminCard title={`Usuario ${detail.id}`}>
+          <SectionCard title={`Usuario ${detail.id}`}>
             <div className="grid gap-2 md:grid-cols-2 text-sm">
               <p><span className="text-slate-400">Email:</span> {detail.email}</p>
               <p><span className="text-slate-400">Phone:</span> {detail.phone ?? '-'}</p>
-              <p><span className="text-slate-400">Estado:</span> {detail.status}</p>
+              <p><span className="text-slate-400">Estado:</span> <StatusBadge status={detail.status} /></p>
               <p><span className="text-slate-400">Creado:</span> {new Date(detail.created_at).toLocaleString()}</p>
               <p><span className="text-slate-400">Payment limited:</span> {detail.flags?.payment_limited ? 'Sí' : 'No'}</p>
               <p><span className="text-slate-400">Notas:</span> {detail.notes ?? '-'}</p>
             </div>
-          </AdminCard>
+          </SectionCard>
 
-          <AdminCard title="Historial">
+          <SectionCard title="Historial">
             <div className="grid gap-2 md:grid-cols-2 text-sm">
               <p>Viajes: {detail.history?.trips?.length ?? 0}</p>
               <p>Cancelaciones: {detail.history?.cancellations?.length ?? 0}</p>
               <p>Reclamos: {detail.history?.claims?.length ?? 0}</p>
               <p>Fraude: {detail.history?.fraud?.length ?? 0}</p>
             </div>
-          </AdminCard>
+          </SectionCard>
 
-          <AdminCard title="Acciones" action={<Link className="text-xs text-cyan-300 underline" href={`/admin/audit?entityType=user&entityId=${params.id}`}>Ver auditoría</Link>}>
+          <SectionCard title="Acciones" action={<Link className="text-xs text-cyan-300 underline" href={`/admin/audit?entityType=user&entityId=${params.id}`}>Ver auditoría</Link>}>
             <div className="space-y-3 text-sm">
               <div className="flex flex-wrap gap-2">
                 <button className="rounded bg-rose-700 px-3 py-2 text-white" onClick={() => void patchStatus('blocked')}>Bloquear</button>
@@ -129,7 +135,7 @@ export default function AdminUserDetailPage({ params }: { params: { id: string }
                 <button className="rounded bg-slate-700 px-3 py-2" onClick={() => void addNote()}>Agregar nota</button>
               </div>
             </div>
-          </AdminCard>
+          </SectionCard>
         </>
       )}
     </div>

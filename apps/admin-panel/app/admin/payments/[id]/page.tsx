@@ -3,9 +3,14 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
+import { PageHeader } from '../../../../components/page/PageHeader';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
-import { AdminCard, ErrorState, LoadingState } from '../../../../components/admin/ui';
+import { StatusBadge } from '../../../../components/common/StatusBadge';
+import { SectionCard } from '../../../../components/common/SectionCard';
+import { EmptyState } from '../../../../components/states/EmptyState';
+import { ErrorState } from '../../../../components/states/ErrorState';
+import { LoadingState } from '../../../../components/states/LoadingState';
 import { ConfirmDialog } from '../../../../components/forms/confirm-dialog';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '../../../../components/forms/form';
 import { Input } from '../../../../components/ui/input';
@@ -123,23 +128,24 @@ export default function AdminPaymentDetailPage({ params }: { params: { id: strin
 
   return (
     <div className="space-y-6">
+      <PageHeader title="Payment detail" subtitle="Resumen del pago, flags y operaciones de refund." />
       {loading && <LoadingState message="Cargando pago..." />}
       {error && <ErrorState message={error} retry={() => void load()} />}
 
       {!loading && detail && (
         <>
-          <AdminCard title={`Pago ${detail.payment_id}`}>
+          <SectionCard title={`Pago ${detail.payment_id}`}>
             <div className="grid gap-2 text-sm md:grid-cols-2">
               <p><span className="text-slate-400">Trip:</span> <Link className="text-cyan-400" href={`/admin/trips/${detail.trip_id}`}>{detail.trip_id}</Link></p>
-              <p><span className="text-slate-400">Status:</span> {detail.status}</p>
-              <p><span className="text-slate-400">Settlement:</span> {detail.settlement_status}</p>
+              <p><span className="text-slate-400">Status:</span> <StatusBadge status={detail.status} /></p>
+              <p><span className="text-slate-400">Settlement:</span> <StatusBadge status={detail.settlement_status} /></p>
               <p><span className="text-slate-400">Método:</span> {detail.method}</p>
               <p><span className="text-slate-400">Rider:</span> {detail.rider_id}</p>
               <p><span className="text-slate-400">Driver:</span> {detail.driver_id}</p>
             </div>
-          </AdminCard>
+          </SectionCard>
 
-          <AdminCard title="Breakdown y referencias">
+          <SectionCard title="Breakdown y referencias">
             <div className="grid gap-2 text-sm md:grid-cols-2">
               <p>Amount total: {detail.breakdown.amount_total}</p>
               <p>Fee platform: {detail.breakdown.fee_platform}</p>
@@ -148,25 +154,25 @@ export default function AdminPaymentDetailPage({ params }: { params: { id: strin
               <p>MP payment id: {detail.references.mp_payment_id ?? '-'}</p>
               <p>MP preference id: {detail.references.mp_preference_id ?? '-'}</p>
             </div>
-          </AdminCard>
+          </SectionCard>
 
-          <AdminCard title="Historial de estado">
+          <SectionCard title="Historial de estado">
             <ul className="space-y-1 text-sm">
               {detail.status_history.map((entry) => (
                 <li key={`${entry.status}-${entry.at}`}>{entry.status} · {new Date(entry.at).toLocaleString()}</li>
               ))}
             </ul>
-          </AdminCard>
+          </SectionCard>
 
-          <AdminCard title="Gateway logs">
+          <SectionCard title="Gateway logs">
             <ul className="space-y-1 text-sm">
               {detail.gateway_logs.length === 0 ? <li>Sin logs de refund</li> : detail.gateway_logs.map((l) => (
                 <li key={l.refund_id}>{l.status} · refund={l.refund_id} · mp={l.mp_refund_id ?? '-'} · {new Date(l.created_at).toLocaleString()}</li>
               ))}
             </ul>
-          </AdminCard>
+          </SectionCard>
 
-          <AdminCard title="Flags y acciones">
+          <SectionCard title="Flags y acciones">
             <div className="space-y-3 text-sm">
               <Input value={flagNote} onChange={(e) => setFlagNote(e.target.value)} placeholder="Nota de auditoría para flags" />
               <div className="flex flex-wrap gap-2">
@@ -177,7 +183,7 @@ export default function AdminPaymentDetailPage({ params }: { params: { id: strin
                 </Button>
               </div>
             </div>
-          </AdminCard>
+          </SectionCard>
         </>
       )}
 

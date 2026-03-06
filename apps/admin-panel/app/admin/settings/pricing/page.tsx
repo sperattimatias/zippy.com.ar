@@ -1,7 +1,10 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { AdminCard, EmptyState, ErrorState, LoadingState } from '../../../../components/admin/ui';
+import { SectionCard } from '../../../../components/common/SectionCard';
+import { EmptyState } from '../../../../components/states/EmptyState';
+import { ErrorState } from '../../../../components/states/ErrorState';
+import { LoadingState } from '../../../../components/states/LoadingState';
 import { toast } from '../../../../lib/toast';
 
 type Pricing = {
@@ -78,7 +81,7 @@ export default function AdminPricingSettingsPage() {
 
   return (
     <div className="space-y-4">
-      <AdminCard title="Pricing">
+      <SectionCard title="Pricing">
         {loading && <LoadingState message="Cargando pricing..." />}
         {error && <ErrorState message={error} retry={() => void load()} />}
         {!loading && !error && !pricing && <EmptyState message="Sin configuración de pricing" />}
@@ -96,9 +99,9 @@ export default function AdminPricingSettingsPage() {
             <button className="rounded bg-cyan-600 px-3 py-2" onClick={() => void save()}>Guardar pricing</button>
           </div>
         )}
-      </AdminCard>
+      </SectionCard>
 
-      <AdminCard title="Simulador">
+      <SectionCard title="Simulador">
         <div className="grid gap-2 md:grid-cols-3 text-sm">
           <label className="space-y-1"><span>Km</span><input className="w-full rounded bg-slate-950 p-2" type="number" value={km} onChange={(e) => setKm(e.target.value)} /></label>
           <label className="space-y-1"><span>Minutos</span><input className="w-full rounded bg-slate-950 p-2" type="number" value={min} onChange={(e) => setMin(e.target.value)} /></label>
@@ -107,7 +110,7 @@ export default function AdminPricingSettingsPage() {
             <p className="text-lg font-semibold">${estimate}</p>
           </div>
         </div>
-      </AdminCard>
+      </SectionCard>
     </div>
   );
 }

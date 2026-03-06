@@ -5,15 +5,19 @@ export function EmptyState({
   title,
   description,
   action,
+  message,
 }: {
-  title: string;
+  title?: string;
   description?: string;
   action?: ReactNode;
+  message?: string;
 }) {
+  const resolvedTitle = title ?? message ?? 'No hay resultados';
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{title}</CardTitle>
+        <CardTitle>{resolvedTitle}</CardTitle>
         {description ? <CardDescription>{description}</CardDescription> : null}
       </CardHeader>
       {action ? <CardContent>{action}</CardContent> : null}
