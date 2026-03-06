@@ -1,15 +1,20 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
+import type { ReactNode } from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
-import { AdminCard, EmptyState, ErrorState, LoadingState } from '../../../../components/admin/ui';
+import { PageHeader } from '../../../../components/page/PageHeader';
+import { EmptyState } from '../../../../components/states/EmptyState';
+import { ErrorState } from '../../../../components/states/ErrorState';
+import { TableSkeleton } from '../../../../components/states/TableSkeleton';
 import { ConfirmDialog } from '../../../../components/forms/confirm-dialog';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '../../../../components/forms/form';
 import { SecretInput } from '../../../../components/forms/secret-input';
 import { Button } from '../../../../components/ui/button';
 import { Input } from '../../../../components/ui/input';
+import { Card, CardContent, CardHeader, CardTitle } from '../../../../components/ui/card';
 import { Select } from '../../../../components/ui/select';
 import { toast } from '../../../../lib/toast';
 import { FORM_LABELS } from '../../../../lib/admin-form-labels';
@@ -41,6 +46,21 @@ const mapsSchema = z.object({
 type PaymentsValues = z.infer<typeof paymentsSchema>;
 type EmailValues = z.infer<typeof emailSchema>;
 type MapsValues = z.infer<typeof mapsSchema>;
+
+
+function SettingsCard({ title, action, children }: { title: string; action?: ReactNode; children: ReactNode }) {
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between gap-3">
+          <CardTitle>{title}</CardTitle>
+          {action}
+        </div>
+      </CardHeader>
+      <CardContent>{children}</CardContent>
+    </Card>
+  );
+}
 
 export default function IntegrationsSettingsPage() {
   const [loading, setLoading] = useState(true);
@@ -253,14 +273,15 @@ export default function IntegrationsSettingsPage() {
 
   return (
     <div className="space-y-6">
-      {loading && <LoadingState message="Cargando configuraciones..." />}
+      <PageHeader title="Integrations" subtitle="Configurá pagos, email y mapas sin exponer secretos." />
+      {loading && <TableSkeleton rows={6} />}
       {error && <ErrorState message={error} retry={() => void load()} />}
 
-      {!loading && !error && rows.length === 0 && <EmptyState message="No hay configuraciones cargadas" />}
+      {!loading && !error && rows.length === 0 && <EmptyState title="No hay configuraciones cargadas" description="Configura proveedores de pagos, email y mapas para habilitar integraciones." />}
 
       {!loading && !error && rows.length > 0 && (
         <>
-          <AdminCard title={FORM_LABELS.sections.payments} action={<Button onClick={() => void paymentsForm.handleSubmit(savePayments)()} disabled={saving.payments}>{saving.payments ? 'Guardando...' : FORM_LABELS.actions.savePayments}</Button>}>
+          <SettingsCard title={FORM_LABELS.sections.payments} action={<Button onClick={() => void paymentsForm.handleSubmit(savePayments)()} disabled={saving.payments}>{saving.payments ? 'Guardando...' : FORM_LABELS.actions.savePayments}</Button>}>
             <Form {...paymentsForm}>
               <form className="grid gap-3 md:grid-cols-2" onSubmit={paymentsForm.handleSubmit(savePayments)}>
                 <FormField control={paymentsForm.control} name="mercadopago_public_key" render={({ field }) => (
@@ -314,9 +335,9 @@ export default function IntegrationsSettingsPage() {
                 )} />
               </form>
             </Form>
-          </AdminCard>
+          </SettingsCard>
 
-          <AdminCard title={FORM_LABELS.sections.email} action={<Button onClick={() => void emailForm.handleSubmit(saveEmail)()} disabled={saving.email}>{saving.email ? 'Guardando...' : FORM_LABELS.actions.saveEmail}</Button>}>
+          <SettingsCard title={FORM_LABELS.sections.email} action={<Button onClick={() => void emailForm.handleSubmit(saveEmail)()} disabled={saving.email}>{saving.email ? 'Guardando...' : FORM_LABELS.actions.saveEmail}</Button>}>
             <Form {...emailForm}>
               <form className="grid gap-3 md:grid-cols-2" onSubmit={emailForm.handleSubmit(saveEmail)}>
                 <FormField control={emailForm.control} name="smtp_host" render={({ field }) => (
@@ -364,9 +385,9 @@ export default function IntegrationsSettingsPage() {
                 )} />
               </form>
             </Form>
-          </AdminCard>
+          </SettingsCard>
 
-          <AdminCard title={FORM_LABELS.sections.maps} action={<Button onClick={() => void mapsForm.handleSubmit(saveMaps)()} disabled={saving.maps}>{saving.maps ? 'Guardando...' : FORM_LABELS.actions.saveMaps}</Button>}>
+          <SettingsCard title={FORM_LABELS.sections.maps} action={<Button onClick={() => void mapsForm.handleSubmit(saveMaps)()} disabled={saving.maps}>{saving.maps ? 'Guardando...' : FORM_LABELS.actions.saveMaps}</Button>}>
             <Form {...mapsForm}>
               <form className="grid gap-3" onSubmit={mapsForm.handleSubmit(saveMaps)}>
                 <FormField control={mapsForm.control} name="google_maps_api_key" render={({ field }) => (
@@ -386,13 +407,13 @@ export default function IntegrationsSettingsPage() {
                 )} />
               </form>
             </Form>
-          </AdminCard>
+          </SettingsCard>
 
-          <AdminCard title="Pruebas">
+          <SettingsCard title="Pruebas">
             <div className="flex flex-wrap gap-2">
               <Button variant="outline" onClick={() => setTestDialogOpen(true)}>{FORM_LABELS.actions.testMp}</Button>
             </div>
-          </AdminCard>
+          </SettingsCard>
         </>
       )}
 

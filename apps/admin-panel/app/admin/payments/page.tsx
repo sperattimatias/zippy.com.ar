@@ -3,8 +3,8 @@
 import type { ColumnDef } from '@tanstack/react-table';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { PageHeader } from '../../../components/admin/page-header';
-import { SectionCard } from '../../../components/admin/section-card';
+import { PageHeader } from '../../../components/page/PageHeader';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../../components/ui/card';
 import { DataTable } from '../../../components/data-table/DataTable';
 import { useDebouncedValue, useQueryState } from '../../../components/data-table/query-state';
 import { DataTableToolbar } from '../../../components/data-table/toolbar';
@@ -96,7 +96,12 @@ export default function AdminPaymentsPage() {
   return (
     <div className="space-y-6">
       <PageHeader title="Payments" subtitle="Listado de pagos con filtros compartibles vía URL." />
-      <SectionCard title="Pagos" description="Tabla TanStack con estado consistente de empty/loading/error.">
+      <Card>
+        <CardHeader>
+          <CardTitle>Pagos</CardTitle>
+          <CardDescription>Tabla TanStack con estado consistente de empty/loading/error.</CardDescription>
+        </CardHeader>
+        <CardContent>
         <DataTable
           data={rows}
           columns={columnsBase}
@@ -171,7 +176,8 @@ export default function AdminPaymentsPage() {
             </>
           )}
         />
-      </SectionCard>
+        </CardContent>
+      </Card>
     </div>
   );
 }

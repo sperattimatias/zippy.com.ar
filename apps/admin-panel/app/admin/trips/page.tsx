@@ -3,8 +3,8 @@
 import type { ColumnDef } from '@tanstack/react-table';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { PageHeader } from '../../../components/admin/page-header';
-import { SectionCard } from '../../../components/admin/section-card';
+import { PageHeader } from '../../../components/page/PageHeader';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../../components/ui/card';
 import { DataTable } from '../../../components/data-table/DataTable';
 import { useDebouncedValue, useQueryState } from '../../../components/data-table/query-state';
 import { DataTableToolbar } from '../../../components/data-table/toolbar';
@@ -126,7 +126,12 @@ export default function AdminTripsPage() {
   return (
     <div className="space-y-6">
       <PageHeader title="Trips / Rides" subtitle="Tabla de viajes con filtros sincronizados en URL." />
-      <SectionCard title="Viajes" description="DataTable con TanStack + shadcn/ui para ordenar, filtrar y exportar.">
+      <Card>
+        <CardHeader>
+          <CardTitle>Viajes</CardTitle>
+          <CardDescription>DataTable con TanStack + shadcn/ui para ordenar, filtrar y exportar.</CardDescription>
+        </CardHeader>
+        <CardContent>
         <DataTable
           data={rows}
           columns={columnsBase}
@@ -197,7 +202,8 @@ export default function AdminTripsPage() {
             </>
           )}
         />
-      </SectionCard>
+        </CardContent>
+      </Card>
     </div>
   );
 }

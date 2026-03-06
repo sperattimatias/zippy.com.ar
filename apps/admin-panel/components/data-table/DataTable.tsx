@@ -11,7 +11,9 @@ import {
   type ColumnPinningState,
 } from '@tanstack/react-table';
 import { useMemo, useState } from 'react';
-import { EmptyState, ErrorState, LoadingSkeleton } from '../admin/states';
+import { EmptyState } from '../states/EmptyState';
+import { ErrorState } from '../states/ErrorState';
+import { TableSkeleton } from '../states/TableSkeleton';
 import { Checkbox } from '../ui/checkbox';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 import { DataTablePagination } from './pagination';
@@ -103,7 +105,7 @@ export function DataTable<TData>({
     <div>
       {toolbar?.(table)}
       <div className="mt-4 rounded-lg border border-slate-800">
-        {loading && <LoadingSkeleton rows={8} />}
+        {loading && <TableSkeleton rows={8} />}
         {!loading && error && <ErrorState message={error} retry={onRetry} />}
         {!loading && !error && table.getRowModel().rows.length === 0 && (
           <EmptyState title={emptyTitle} description={emptyDescription} />
