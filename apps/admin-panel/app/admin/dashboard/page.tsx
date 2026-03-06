@@ -43,39 +43,6 @@ type DashboardSnapshot = {
   };
 };
 
-type ReportsOverview = {
-  kpis?: {
-    rides_per_day?: number;
-    cancel_rate?: number;
-    revenue?: number;
-    active_drivers?: number;
-  };
-  totals?: {
-    rides_total?: number;
-    rides_completed?: number;
-    rides_cancelled?: number;
-  };
-};
-
-type ListPayload = {
-  items?: Array<Record<string, unknown>>;
-};
-
-type DashboardSnapshot = {
-  ridesToday: number;
-  revenueToday: number;
-  activeDrivers: number;
-  cancelRate: number;
-  openTickets: number;
-  failedPayments: number;
-  openIncidents: number;
-  previous?: {
-    rides: number;
-    revenue: number;
-    cancelRate: number;
-  };
-};
-
 const quickLinks = [
   { href: '/admin/trips', label: 'Viajes' },
   { href: '/admin/drivers', label: 'Conductores' },
@@ -126,7 +93,7 @@ function MetricCard({
 }
 
 export default function DashboardPage() {
-    const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [snapshot, setSnapshot] = useState<DashboardSnapshot | null>(null);
   const [updatedAt, setUpdatedAt] = useState<string | null>(null);
