@@ -12,12 +12,6 @@ import { CopyText } from '../../../components/common/CopyText';
 import { StatusBadge } from '../../../components/common/StatusBadge';
 import { formatDateTime } from '../../../lib/format';
 
-const statusTone: Record<string, 'success' | 'danger' | 'outline'> = {
-  active: 'success',
-  suspended: 'danger',
-  blocked: 'danger',
-};
-
 type DriverRow = {
   id: string;
   user_id: string;
