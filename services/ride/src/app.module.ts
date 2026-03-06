@@ -44,6 +44,7 @@ import { SettingsService } from './settings/settings.service';
         REDIS_PORT: Joi.number().default(6379),
         REDIS_PASSWORD: Joi.string().optional(),
         REDIS_DB: Joi.number().integer().min(0).optional(),
+        DRIVER_PRESENCE_FRESHNESS_SECONDS: Joi.number().integer().min(5).default(60),
         OUTBOX_LEASE_SECONDS: Joi.number().integer().min(1).default(60),
         OUTBOX_BATCH_SIZE: Joi.number().integer().min(1).default(50),
         MAX_STREAM_RETRIES: Joi.number().integer().min(1).default(5),
