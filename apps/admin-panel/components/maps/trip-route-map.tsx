@@ -1,10 +1,11 @@
 'use client';
 
 import { useEffect } from 'react';
-import { MapContainer, Marker, Polyline, TileLayer, useMap } from 'react-leaflet';
+import { Marker, Polyline, useMap } from 'react-leaflet';
 import type { DivIcon, LatLngBoundsExpression, LatLngTuple } from 'leaflet';
 import L from 'leaflet';
-import 'leaflet/dist/leaflet.css';
+
+import { Map } from '../map/Map';
 
 type RoutePoint = { lat: number; lng: number };
 
@@ -45,16 +46,12 @@ export function TripRouteMap({ pickup, dropoff, points }: { pickup?: RoutePoint;
 
   return (
     <div className="h-[340px] overflow-hidden rounded-lg border border-slate-700">
-      <MapContainer center={center as LatLngTuple} zoom={13} className="h-full w-full" scrollWheelZoom>
-        <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        />
+      <Map center={center as LatLngTuple} className="h-full w-full">
         {boundsSource.length > 0 && <FitBounds points={boundsSource} />}
         {polyline.length > 1 ? <Polyline positions={polyline} pathOptions={{ color: '#22d3ee', weight: 4 }} /> : null}
         {pickup ? <Marker position={[pickup.lat, pickup.lng]} icon={startIcon} /> : null}
         {dropoff ? <Marker position={[dropoff.lat, dropoff.lng]} icon={endIcon} /> : null}
-      </MapContainer>
+      </Map>
     </div>
   );
 }

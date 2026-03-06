@@ -180,7 +180,7 @@ export default function AdminTripDetailPage({ params }: { params: { id: string }
             {routePoints.length > 0 ? (
               <TripRouteMap pickup={pickup} dropoff={dropoff} points={routePoints} />
             ) : (
-              <EmptyState message="No hay coordenadas disponibles" />
+              <EmptyState message="Sin coordenadas disponibles" />
             )}
           </AdminCard>
 

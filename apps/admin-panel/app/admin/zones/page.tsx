@@ -331,15 +331,6 @@ function ZonesManager({ kind }: { kind: ZoneKind }) {
           </Button>
         </div>
 
-        <div className="mt-3 flex flex-wrap gap-2">
-          <Button size="sm" variant="secondary" onClick={() => setPoints(FIRMAT_BASE_POLYGON)}>
-            Firmat preset
-          </Button>
-          <Button size="sm" variant="secondary" onClick={() => setPoints([])}>
-            Reset
-          </Button>
-        </div>
-
         <div className="mt-4 flex flex-wrap gap-2">
           <Button onClick={onSave} disabled={saveLoading}>
             {saveLoading ? 'Guardando...' : editing ? 'Guardar cambios' : 'Crear zona'}

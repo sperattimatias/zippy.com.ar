@@ -1,11 +1,11 @@
 'use client';
 
 import { useEffect } from 'react';
-import { MapContainer, Marker, Polygon, TileLayer, useMap, useMapEvents } from 'react-leaflet';
+import { Marker, Polygon, useMap, useMapEvents } from 'react-leaflet';
 import type { LatLngBoundsExpression, LatLngExpression, LatLngTuple } from 'leaflet';
 import L from 'leaflet';
-import 'leaflet/dist/leaflet.css';
 import type { LatLngPoint } from '../../lib/zones';
+import { Map } from '../map/Map';
 import { Button } from '../ui/button';
 
 const vertexIcon = L.divIcon({
@@ -48,11 +48,7 @@ export function LeafletPolygonEditor({ points, onChange }: { points: LatLngPoint
     <div className="space-y-2">
       <p className="text-xs text-slate-400">Click en el mapa para agregar puntos. Arrastrá cada punto para editar el polígono.</p>
       <div className="h-[340px] overflow-hidden rounded-lg border border-slate-700">
-        <MapContainer center={center} zoom={13} className="h-full w-full" scrollWheelZoom>
-          <TileLayer
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          />
+        <Map center={center} className="h-full w-full">
           <ClickToAdd onAdd={(point) => onChange([...points, point])} />
           {polygon.length > 0 && <FitBounds points={polygon} />}
           {polygon.length >= 3 ? <Polygon positions={polygon} pathOptions={{ color: '#06b6d4', fillColor: '#0891b2', fillOpacity: 0.2 }} /> : null}
@@ -72,7 +68,7 @@ export function LeafletPolygonEditor({ points, onChange }: { points: LatLngPoint
               }}
             />
           ))}
-        </MapContainer>
+        </Map>
       </div>
       <div className="flex flex-wrap gap-2">
         <Button type="button" size="sm" variant="outline" onClick={addPoint}>Agregar punto</Button>
