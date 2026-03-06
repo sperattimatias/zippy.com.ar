@@ -1,29 +1,4 @@
-import type { ReactNode } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
+// LEGACY - DO NOT USE
+// Compatibility bridge kept to reduce merge conflicts with long-lived branches.
 
-export function SectionCard({
-  title,
-  description,
-  action,
-  children,
-}: {
-  title: string;
-  description?: string;
-  action?: ReactNode;
-  children: ReactNode;
-}) {
-  return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center justify-between gap-2">
-          <div>
-            <CardTitle>{title}</CardTitle>
-            {description ? <CardDescription className="mt-1">{description}</CardDescription> : null}
-          </div>
-          {action}
-        </div>
-      </CardHeader>
-      <CardContent>{children}</CardContent>
-    </Card>
-  );
-}
+export { SectionCard } from '../common/SectionCard';
