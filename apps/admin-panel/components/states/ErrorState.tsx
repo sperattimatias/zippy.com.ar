@@ -2,7 +2,7 @@ import { Button } from '../ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 
 export function ErrorState({
-  title = 'Ocurrió un error',
+  title = 'No pudimos cargar los datos',
   description,
   message,
   retry,
@@ -14,7 +14,7 @@ export function ErrorState({
   retry?: () => void;
   onRetry?: () => void;
 }) {
-  const resolvedDescription = description ?? message ?? 'No pudimos cargar los datos.';
+  const resolvedDescription = description ?? message ?? 'Ocurrió un error al obtener la información.';
   const resolvedRetry = onRetry ?? retry;
 
   return (

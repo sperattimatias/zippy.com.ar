@@ -112,14 +112,14 @@ export default function FraudCaseDetail({ params }: { params: { id: string } }) 
           <div className="grid gap-2 md:grid-cols-3">
             <input className="rounded bg-slate-950 p-2" placeholder="Nota acción / manual review" value={notes} onChange={(e) => setNotes(e.target.value)} />
             <input className="rounded bg-slate-950 p-2" placeholder="Asignar a agente (userId)" value={assignee} onChange={(e) => setAssignee(e.target.value)} />
-            <button className="rounded bg-slate-700 px-3 py-2" onClick={() => void runAction('manual-review', { notes: notes || 'manual review' })}>Manual review</button>
+            <button className="rounded bg-slate-700 px-3 py-2" onClick={() => void runAction('manual-review', { notes: notes || 'manual review' })}>Revisión manual</button>
           </div>
 
           <div className="flex flex-wrap gap-2">
             <button className="rounded bg-rose-700 px-3 py-2" disabled={!primaryEntity} onClick={() => void runAction('block-user', { entity_id: primaryEntity, note: notes })}>Bloquear user</button>
             <button className="rounded bg-amber-700 px-3 py-2" disabled={!driverEntity} onClick={() => void runAction('block-driver', { entity_id: driverEntity, note: notes })}>Bloquear driver</button>
             <button className="rounded bg-emerald-700 px-3 py-2" onClick={() => void runAction('assign', { assigned_to_user_id: assignee || undefined, notes })}>Asignar</button>
-            <button className="rounded bg-cyan-700 px-3 py-2" onClick={() => void runAction('resolve', { notes: notes || 'resolved' })}>Resolver</button>
+            <button className="rounded bg-cyan-700 px-3 py-2" onClick={() => void runAction('resolve', { notes: notes || 'resolved' })}>Confirmar resolución</button>
             <button className="rounded bg-slate-700 px-3 py-2" onClick={() => void runAction('dismiss', { notes: notes || 'dismissed' })}>Descartar</button>
           </div>
 

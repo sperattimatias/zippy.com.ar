@@ -111,7 +111,7 @@ export default function AdminDriverDetailPage({ params }: { params: { id: string
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Driver detail" subtitle="Estado, documentación, actividad y acciones." />
+      <PageHeader title="Detalle del conductor" subtitle="Estado operativo, documentación y acciones sobre la cuenta." />
       {loading && <LoadingState message="Cargando conductor..." />}
       {error && <ErrorState message={error} retry={() => void reload()} />}
 

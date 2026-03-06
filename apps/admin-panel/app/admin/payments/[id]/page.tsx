@@ -128,7 +128,7 @@ export default function AdminPaymentDetailPage({ params }: { params: { id: strin
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Payment detail" subtitle="Resumen del pago, flags y operaciones de refund." />
+      <PageHeader title="Detalle del pago" subtitle="Resumen del pago, historial y acciones de reembolso." />
       {loading && <LoadingState message="Cargando pago..." />}
       {error && <ErrorState message={error} retry={() => void load()} />}
 
@@ -176,8 +176,8 @@ export default function AdminPaymentDetailPage({ params }: { params: { id: strin
             <div className="space-y-3 text-sm">
               <Input value={flagNote} onChange={(e) => setFlagNote(e.target.value)} placeholder="Nota de auditoría para flags" />
               <div className="flex flex-wrap gap-2">
-                <Button variant="secondary" onClick={() => void toggleFlag('duplicate')}>Toggle duplicate</Button>
-                <Button variant="secondary" onClick={() => void toggleFlag('not_settled')}>Toggle not_settled</Button>
+                <Button variant="secondary" onClick={() => void toggleFlag('duplicate')}>Actualizar flag duplicate</Button>
+                <Button variant="secondary" onClick={() => void toggleFlag('not_settled')}>Actualizar flag not_settled</Button>
                 <Button variant="destructive" onClick={() => { setRefundOpen(true); refundForm.reset({ amount: '', reason: '' }); }} disabled={!can(roles, 'payments.refund')}>
                   Crear reembolso
                 </Button>
@@ -191,7 +191,7 @@ export default function AdminPaymentDetailPage({ params }: { params: { id: strin
         open={refundOpen}
         title="Crear reembolso"
         description="Genera un refund en gateway y registra auditoría."
-        confirmLabel="Confirmar refund"
+        confirmLabel="Confirmar reembolso"
         loading={refundLoading}
         onClose={() => setRefundOpen(false)}
         onConfirm={refundForm.handleSubmit(async (values) => createRefund(values))}

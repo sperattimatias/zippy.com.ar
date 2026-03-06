@@ -86,7 +86,7 @@ export default function SupportTicketsPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Support · Tickets" subtitle="Gestión de tickets y asignaciones." />
+      <PageHeader title="Soporte · Tickets" subtitle="Gestioná tickets, prioridades y asignaciones." />
 
       <SectionCard title="Filtros">
         <div className="grid gap-2 md:grid-cols-4">
@@ -111,7 +111,7 @@ export default function SupportTicketsPage() {
       <SectionCard title="Tickets">
         {loading && <LoadingState message="Cargando tickets..." />}
         {error && <ErrorState message={error} retry={() => void load()} />}
-        {!loading && !error && items.length === 0 && <EmptyState message="No hay tickets para los filtros seleccionados." />}
+        {!loading && !error && items.length === 0 && <EmptyState title="No hay resultados" description="Probá ajustar los filtros o crear un nuevo registro." />}
 
         {!loading && !error && items.length > 0 && (
           <div className="overflow-x-auto">

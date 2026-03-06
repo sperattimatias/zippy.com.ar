@@ -433,7 +433,7 @@ export default function ZonesPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Zones" subtitle="Administrá GeoZones y Premium Zones desde una misma pantalla." />
+      <PageHeader title="Gestión de zonas" subtitle="Administrá zonas geográficas y premium desde una sola vista." />
 
       <section className="flex gap-2 rounded-lg border border-slate-800 bg-slate-900/50 p-2">
         <Button className={`${tabButton} ${tab === 'geozones' ? 'bg-cyan-600 text-white' : 'text-slate-300 hover:bg-slate-800'}`} variant="ghost" onClick={() => setTab('geozones')}>

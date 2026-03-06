@@ -95,7 +95,7 @@ export default function AdminPaymentsPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Payments" subtitle="Listado de pagos con filtros compartibles vía URL." />
+      <PageHeader title="Gestión de pagos" subtitle="Revisá pagos, filtrá resultados y exportá información." />
       <Card>
         <CardHeader>
           <CardTitle>Pagos</CardTitle>
@@ -108,8 +108,8 @@ export default function AdminPaymentsPage() {
           loading={loading}
           error={error}
           onRetry={() => setRefreshTick((value) => value + 1)}
-          emptyTitle="No hay pagos"
-          emptyDescription="No hay resultados para el filtro aplicado."
+          emptyTitle="No hay resultados"
+          emptyDescription="Probá ajustar los filtros o crear un nuevo registro."
           page={Number(state.page || '1')}
           totalPages={totalPages}
           onPageChange={(page) => patch({ page: String(page) })}
@@ -119,11 +119,11 @@ export default function AdminPaymentsPage() {
                 table={table}
                 search={searchInput}
                 onSearchChange={setSearchInput}
-                searchPlaceholder="Buscar payment/trip id"
+                searchPlaceholder="Buscar por ID de pago o viaje"
                 facetedFilters={[
                   {
                     key: 'status',
-                    label: 'Status',
+                    label: 'Estado',
                     value: state.status,
                     options: ['CREATED', 'PENDING', 'APPROVED', 'REJECTED', 'REFUNDED'].map((status) => ({ label: status, value: status })),
                     onChange: (value) => patch({ status: value, page: '1' }),
@@ -167,9 +167,9 @@ export default function AdminPaymentsPage() {
                 }}
               />
               <div className="mt-2 grid gap-2 md:grid-cols-4">
-                <Input placeholder="trip_id" value={state.trip_id} onChange={(e) => patch({ trip_id: e.target.value, page: '1' })} />
-                <Input placeholder="driver_id" value={state.driver_id} onChange={(e) => patch({ driver_id: e.target.value, page: '1' })} />
-                <Input placeholder="rider_id" value={state.rider_id} onChange={(e) => patch({ rider_id: e.target.value, page: '1' })} />
+                <Input placeholder="ID de viaje" value={state.trip_id} onChange={(e) => patch({ trip_id: e.target.value, page: '1' })} />
+                <Input placeholder="ID de conductor" value={state.driver_id} onChange={(e) => patch({ driver_id: e.target.value, page: '1' })} />
+                <Input placeholder="ID de pasajero" value={state.rider_id} onChange={(e) => patch({ rider_id: e.target.value, page: '1' })} />
                 <Input type="date" value={state.from} onChange={(e) => patch({ from: e.target.value, page: '1' })} />
                 <Input type="date" value={state.to} onChange={(e) => patch({ to: e.target.value, page: '1' })} />
               </div>

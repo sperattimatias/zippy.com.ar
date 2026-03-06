@@ -62,7 +62,7 @@ export default function AdminUsersPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Users / Riders" subtitle="Listado y filtros de usuarios." />
+      <PageHeader title="Gestión de usuarios" subtitle="Administrá usuarios y revisá su actividad." />
 
       <SectionCard title="Filtros">
         <div className="grid gap-2 md:grid-cols-4">
@@ -72,14 +72,14 @@ export default function AdminUsersPage() {
             <option value="blocked">blocked</option>
           </select>
           <input type="date" className="rounded bg-slate-950 p-2" value={from} onChange={(e) => { setPage(1); setFrom(e.target.value); }} />
-          <input className="rounded bg-slate-950 p-2" placeholder="Search" value={search} onChange={(e) => { setPage(1); setSearch(e.target.value); }} />
+          <input className="rounded bg-slate-950 p-2" placeholder="Buscar por usuario, email o teléfono" value={search} onChange={(e) => { setPage(1); setSearch(e.target.value); }} />
         </div>
       </SectionCard>
 
       <SectionCard title="Listado de usuarios">
         {loading && <LoadingState message="Cargando usuarios..." />}
         {error && <ErrorState message={error} retry={() => void load()} />}
-        {!loading && !error && rows.length === 0 && <EmptyState message="No hay usuarios para los filtros." />}
+        {!loading && !error && rows.length === 0 && <EmptyState title="No hay resultados" description="Probá ajustar los filtros o crear un nuevo registro." />}
 
         {!loading && !error && rows.length > 0 && (
           <div className="overflow-x-auto">

@@ -273,11 +273,11 @@ export default function IntegrationsSettingsPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Integrations" subtitle="Configurá pagos, email y mapas sin exponer secretos." />
+      <PageHeader title="Configuración de integraciones" subtitle="Configurá proveedores de pagos, correo y mapas de forma segura." />
       {loading && <TableSkeleton rows={6} />}
       {error && <ErrorState message={error} retry={() => void load()} />}
 
-      {!loading && !error && rows.length === 0 && <EmptyState title="No hay configuraciones cargadas" description="Configura proveedores de pagos, email y mapas para habilitar integraciones." />}
+      {!loading && !error && rows.length === 0 && <EmptyState title="No hay resultados" description="Probá ajustar los filtros o crear un nuevo registro." />}
 
       {!loading && !error && rows.length > 0 && (
         <>

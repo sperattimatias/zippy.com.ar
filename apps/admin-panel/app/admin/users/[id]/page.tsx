@@ -97,7 +97,7 @@ export default function AdminUserDetailPage({ params }: { params: { id: string }
 
   return (
     <div className="space-y-6">
-      <PageHeader title="User detail" subtitle="Información, historial y acciones sobre la cuenta." />
+      <PageHeader title="Detalle del usuario" subtitle="Información general, historial y acciones sobre la cuenta." />
       {loading && <LoadingState message="Cargando usuario..." />}
       {error && <ErrorState message={error} retry={() => void load()} />}
 

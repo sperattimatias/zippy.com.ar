@@ -125,7 +125,7 @@ export default function AdminTripsPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Trips / Rides" subtitle="Tabla de viajes con filtros sincronizados en URL." />
+      <PageHeader title="Gestión de viajes" subtitle="Consultá viajes, aplicá filtros y exportá resultados." />
       <Card>
         <CardHeader>
           <CardTitle>Viajes</CardTitle>
@@ -138,8 +138,8 @@ export default function AdminTripsPage() {
           loading={loading}
           error={error}
           onRetry={() => setRefreshTick((value) => value + 1)}
-          emptyTitle="No hay viajes"
-          emptyDescription="No hay resultados para este conjunto de filtros."
+          emptyTitle="No hay resultados"
+          emptyDescription="Probá ajustar los filtros o crear un nuevo registro."
           page={Number(state.page || '1')}
           totalPages={totalPages}
           onPageChange={(page) => patch({ page: String(page) })}
@@ -150,7 +150,7 @@ export default function AdminTripsPage() {
                 table={table}
                 search={searchInput}
                 onSearchChange={setSearchInput}
-                searchPlaceholder="Trip ID / texto"
+                searchPlaceholder="Buscar por ID de viaje o texto"
                 facetedFilters={[
                   {
                     key: 'status',
@@ -193,9 +193,9 @@ export default function AdminTripsPage() {
                 enablePinning
               />
               <div className="mt-2 grid gap-2 md:grid-cols-4">
-                <Input placeholder="driver_id" value={state.driver_id} onChange={(e) => patch({ driver_id: e.target.value, page: '1' })} />
-                <Input placeholder="rider_id" value={state.rider_id} onChange={(e) => patch({ rider_id: e.target.value, page: '1' })} />
-                <Input placeholder="zone" value={state.zone} onChange={(e) => patch({ zone: e.target.value, page: '1' })} />
+                <Input placeholder="ID de conductor" value={state.driver_id} onChange={(e) => patch({ driver_id: e.target.value, page: '1' })} />
+                <Input placeholder="ID de pasajero" value={state.rider_id} onChange={(e) => patch({ rider_id: e.target.value, page: '1' })} />
+                <Input placeholder="Zona" value={state.zone} onChange={(e) => patch({ zone: e.target.value, page: '1' })} />
                 <Input type="date" value={state.from} onChange={(e) => patch({ from: e.target.value, page: '1' })} />
                 <Input type="date" value={state.to} onChange={(e) => patch({ to: e.target.value, page: '1' })} />
               </div>

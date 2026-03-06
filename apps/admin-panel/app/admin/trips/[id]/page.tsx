@@ -157,7 +157,7 @@ export default function AdminTripDetailPage({ params }: { params: { id: string }
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Trip detail" subtitle="Seguimiento del viaje, eventos y acciones operativas." />
+      <PageHeader title="Detalle del viaje" subtitle="Seguimiento completo del viaje y acciones operativas." />
       {loading && (
         <>
           <LoadingState message="Cargando viaje..." />
@@ -213,7 +213,7 @@ export default function AdminTripDetailPage({ params }: { params: { id: string }
                 Cancelar viaje
               </Button>
               <Button className="bg-amber-600 text-white hover:bg-amber-500" onClick={() => void onRetryMatching()}>
-                Retry matching
+                Reintentar matching
               </Button>
               <Input placeholder="Driver ID para reasignar" value={reassignDriverId} onChange={(e) => setReassignDriverId(e.target.value)} />
               <Button className="bg-indigo-600 text-white hover:bg-indigo-500" onClick={() => void onReassign()}>
