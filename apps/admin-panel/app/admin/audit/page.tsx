@@ -1,7 +1,11 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { AdminCard, EmptyState, ErrorState, LoadingState } from '../../../components/admin/ui';
+import { PageHeader } from '../../../components/page/PageHeader';
+import { SectionCard } from '../../../components/common/SectionCard';
+import { EmptyState } from '../../../components/states/EmptyState';
+import { ErrorState } from '../../../components/states/ErrorState';
+import { LoadingState } from '../../../components/states/LoadingState';
 
 type AuditRow = {
   id: string;
@@ -49,7 +53,8 @@ export default function AdminAuditPage() {
 
   return (
     <div className="space-y-4">
-      <AdminCard title="Auditoría admin">
+      <PageHeader title="Audit" subtitle="Eventos administrativos y trazabilidad." />
+      <SectionCard title="Auditoría admin">
         <div className="grid grid-cols-1 gap-2 md:grid-cols-5">
           <input className="rounded bg-slate-950 p-2" placeholder="action" value={action} onChange={(e) => setAction(e.target.value)} />
           <input className="rounded bg-slate-950 p-2" placeholder="entityType" value={entityType} onChange={(e) => setEntityType(e.target.value)} />
@@ -58,9 +63,9 @@ export default function AdminAuditPage() {
           <input className="rounded bg-slate-950 p-2" type="date" value={to} onChange={(e) => setTo(e.target.value)} />
         </div>
         <button className="mt-3 rounded bg-cyan-600 px-3 py-2" onClick={() => void load()}>Filtrar</button>
-      </AdminCard>
+      </SectionCard>
 
-      <AdminCard title="Eventos">
+      <SectionCard title="Eventos">
         {loading ? <LoadingState /> : null}
         {error ? <ErrorState message={error} retry={() => void load()} /> : null}
         {!loading && !error && rows.length === 0 ? <EmptyState message="Sin eventos" /> : null}
@@ -86,7 +91,7 @@ export default function AdminAuditPage() {
             </table>
           </div>
         ) : null}
-      </AdminCard>
+      </SectionCard>
     </div>
   );
 }

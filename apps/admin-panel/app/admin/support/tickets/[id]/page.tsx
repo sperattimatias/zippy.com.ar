@@ -1,7 +1,16 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { AdminCard, ErrorState, LoadingState, Toast } from '../../../../../components/admin/ui';
+import { PageHeader } from '../../../../../components/page/PageHeader';
+import { StatusBadge } from '../../../../../components/common/StatusBadge';
+import { CopyText } from '../../../../../components/common/CopyText';
+import { SectionCard } from '../../../../../components/common/SectionCard';
+import { EventTimeline } from '../../../../../components/common/EventTimeline';
+import { EmptyState } from '../../../../../components/states/EmptyState';
+import { ErrorState } from '../../../../../components/states/ErrorState';
+import { LoadingState } from '../../../../../components/states/LoadingState';
+import { toast } from '../../../../../lib/toast';
+import { formatDateTime } from '../../../../../lib/format';
 
 type TicketNote = { id: string; note: string; created_by?: string | null; created_at: string };
 
@@ -30,8 +39,7 @@ export default function SupportTicketDetailPage({ params }: { params: { id: stri
   const [detail, setDetail] = useState<TicketDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [toast, setToast] = useState<{ tone: 'success' | 'error'; message: string } | null>(null);
-
+  
   const [status, setStatus] = useState<TicketDetail['status']>('OPEN');
   const [assignedAgent, setAssignedAgent] = useState('');
   const [note, setNote] = useState('');
@@ -72,15 +80,15 @@ export default function SupportTicketDetailPage({ params }: { params: { id: stri
         body: JSON.stringify({ status, assigned_agent: assignedAgent, attachments: attachmentUrls }),
       });
       if (!res.ok) throw new Error('No se pudo actualizar ticket');
-      setToast({ tone: 'success', message: 'Ticket actualizado' });
+      toast.success('Ticket actualizado');
       await load();
     } catch (e) {
-      setToast({ tone: 'error', message: e instanceof Error ? e.message : 'Error inesperado' });
+      toast.error(e instanceof Error ? e.message : 'Error inesperado');
     }
   };
 
   const addNote = async () => {
-    if (!note.trim()) return setToast({ tone: 'error', message: 'La nota es obligatoria' });
+    if (!note.trim()) return toast.error('La nota es obligatoria');
     try {
       const res = await fetch(`/api/admin/support/tickets/${params.id}/notes`, {
         method: 'POST',
@@ -88,36 +96,61 @@ export default function SupportTicketDetailPage({ params }: { params: { id: stri
         body: JSON.stringify({ note: note.trim() }),
       });
       if (!res.ok) throw new Error('No se pudo agregar nota');
-      setToast({ tone: 'success', message: 'Nota agregada' });
+      toast.success('Nota agregada');
       setNote('');
       await load();
     } catch (e) {
-      setToast({ tone: 'error', message: e instanceof Error ? e.message : 'Error inesperado' });
+      toast.error(e instanceof Error ? e.message : 'Error inesperado');
     }
   };
 
+  const ticketTimeline = detail
+    ? [
+        {
+          id: `ticket-created-${detail.id}`,
+          title: 'Ticket creado',
+          timestamp: formatDateTime(detail.created_at),
+          description: detail.description,
+          status: detail.status,
+          sortAt: detail.created_at,
+        },
+        ...detail.notes.map((item) => ({
+          id: `note-${item.id}`,
+          title: 'Nota interna',
+          timestamp: formatDateTime(item.created_at),
+          description: item.note,
+          status: detail.status,
+          sortAt: item.created_at,
+        })),
+      ]
+        .sort((a, b) => +new Date(b.sortAt) - +new Date(a.sortAt))
+        .map(({ sortAt: _sortAt, ...item }) => item)
+    : [];
+
+
   return (
     <div className="space-y-6">
+      <PageHeader title="Ticket detail" subtitle="Seguimiento de ticket, notas y resolución." />
       {loading && <LoadingState message="Cargando ticket..." />}
       {error && <ErrorState message={error} retry={() => void load()} />}
 
       {!loading && detail && (
         <>
-          <AdminCard title={`Ticket ${detail.id}`}>
+          <SectionCard title={`Ticket ${detail.id}`}>
             <div className="grid gap-2 text-sm md:grid-cols-2">
               <p><span className="text-slate-400">Type:</span> {detail.type}</p>
-              <p><span className="text-slate-400">Status:</span> {detail.status}</p>
+              <p><span className="text-slate-400">Status:</span> <StatusBadge status={detail.status} /></p>
               <p><span className="text-slate-400">Priority:</span> {detail.priority}</p>
-              <p><span className="text-slate-400">Created:</span> {new Date(detail.created_at).toLocaleString()}</p>
-              <p><span className="text-slate-400">User:</span> {detail.user_id}</p>
-              <p><span className="text-slate-400">Driver:</span> {detail.driver_id ?? '-'}</p>
-              <p><span className="text-slate-400">Trip:</span> {detail.trip_id ?? '-'}</p>
+              <p><span className="text-slate-400">Created:</span> {formatDateTime(detail.created_at)}</p>
+              <p><span className="text-slate-400">User:</span> <CopyText value={detail.user_id} /></p>
+              <p><span className="text-slate-400">Driver:</span> <CopyText value={detail.driver_id ?? undefined} /></p>
+              <p><span className="text-slate-400">Trip:</span> <CopyText value={detail.trip_id ?? undefined} /></p>
               <p><span className="text-slate-400">Assigned:</span> {detail.assigned_agent ?? '-'}</p>
             </div>
             <p className="mt-4 text-sm"><span className="text-slate-400">Descripción:</span> {detail.description}</p>
-          </AdminCard>
+          </SectionCard>
 
-          <AdminCard title="Gestión">
+          <SectionCard title="Gestión">
             <div className="grid gap-2 md:grid-cols-3">
               <select className="rounded bg-slate-950 p-2" value={status} onChange={(e) => setStatus(e.target.value as TicketDetail['status'])}>
                 <option value="OPEN">OPEN</option>
@@ -128,9 +161,9 @@ export default function SupportTicketDetailPage({ params }: { params: { id: stri
               <button className="rounded bg-cyan-700 px-3 py-2" onClick={() => void saveTicket()}>Guardar cambios</button>
               <input className="rounded bg-slate-950 p-2 md:col-span-3" placeholder="Adjuntos (URLs separadas por coma)" value={attachments} onChange={(e) => setAttachments(e.target.value)} />
             </div>
-          </AdminCard>
+          </SectionCard>
 
-          <AdminCard title="Notas internas y plantillas">
+          <SectionCard title="Notas internas y plantillas">
             <div className="space-y-3">
               <div className="flex flex-wrap gap-2">
                 {templates.map((tpl) => (
@@ -141,18 +174,15 @@ export default function SupportTicketDetailPage({ params }: { params: { id: stri
                 <input className="min-w-[320px] rounded bg-slate-950 p-2" placeholder="Nota interna" value={note} onChange={(e) => setNote(e.target.value)} />
                 <button className="rounded bg-slate-700 px-3 py-2" onClick={() => void addNote()}>Agregar nota</button>
               </div>
-              <ul className="space-y-1 text-sm text-slate-300">
-                {detail.notes.map((n) => (
-                  <li key={n.id}>• {n.note} <span className="text-slate-500">({new Date(n.created_at).toLocaleString()})</span></li>
-                ))}
-                {detail.notes.length === 0 && <li>Sin notas aún.</li>}
-              </ul>
+              <EventTimeline
+                items={ticketTimeline}
+                emptyTitle="Sin eventos del ticket"
+                emptyDescription="Todavía no se registraron notas o cambios para este ticket."
+              />
             </div>
-          </AdminCard>
+          </SectionCard>
         </>
       )}
-
-      {toast && <Toast tone={toast.tone} message={toast.message} onClose={() => setToast(null)} />}
     </div>
   );
 }
