@@ -7,6 +7,7 @@ import { PageHeader } from '../../../../components/page/PageHeader';
 import { StatusBadge } from '../../../../components/common/StatusBadge';
 import { CopyText } from '../../../../components/common/CopyText';
 import { SectionCard } from '../../../../components/common/SectionCard';
+import { EventTimeline } from '../../../../components/common/EventTimeline';
 import { EmptyState } from '../../../../components/states/EmptyState';
 import { ErrorState } from '../../../../components/states/ErrorState';
 import { LoadingState } from '../../../../components/states/LoadingState';
@@ -155,7 +156,24 @@ export default function AdminTripDetailPage({ params }: { params: { id: string }
   const pickup = routePoints[0];
   const dropoff = routePoints.length > 1 ? routePoints[routePoints.length - 1] : routePoints[0];
 
-
+  const timelineItems = useMemo(
+    () =>
+      (trip?.events ?? [])
+        .slice()
+        .sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at))
+        .map((event) => ({
+          id: event.id,
+          title: event.type,
+          timestamp: formatDateTime(event.created_at),
+          description:
+            event.payload_json == null
+              ? undefined
+              : JSON.stringify(event.payload_json).slice(0, 220),
+          status: trip?.status,
+          icon: <span className="text-xs">●</span>,
+        })),
+    [trip?.events, trip?.status],
+  );
 
   return (
     <div className="space-y-6">
@@ -192,21 +210,12 @@ export default function AdminTripDetailPage({ params }: { params: { id: string }
             )}
           </SectionCard>
 
-          <SectionCard title="Eventos">
-            <div className="max-h-80 overflow-auto text-sm">
-              <table className="w-full text-left">
-                <thead className="text-xs uppercase text-slate-400"><tr><th className="p-2">Fecha</th><th className="p-2">Tipo</th><th className="p-2">Payload</th></tr></thead>
-                <tbody>
-                  {trip.events.map((event) => (
-                    <tr key={event.id} className="border-t border-slate-800 align-top">
-                      <td className="p-2 whitespace-nowrap">{formatDateTime(event.created_at)}</td>
-                      <td className="p-2 font-medium">{event.type}</td>
-                      <td className="p-2"><pre className="max-w-[560px] overflow-auto rounded bg-slate-950 p-2 text-xs text-slate-300">{JSON.stringify(event.payload_json ?? {}, null, 2)}</pre></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+          <SectionCard title="Timeline de eventos" description="Historial cronológico del viaje.">
+            <EventTimeline
+              items={timelineItems}
+              emptyTitle="Sin eventos del viaje"
+              emptyDescription="Todavía no se registraron eventos para este viaje."
+            />
           </SectionCard>
 
           <SectionCard title="Acciones sensibles">

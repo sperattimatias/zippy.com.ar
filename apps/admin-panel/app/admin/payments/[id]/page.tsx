@@ -7,6 +7,7 @@ import { PageHeader } from '../../../../components/page/PageHeader';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { StatusBadge } from '../../../../components/common/StatusBadge';
+import { EventTimeline } from '../../../../components/common/EventTimeline';
 import { SectionCard } from '../../../../components/common/SectionCard';
 import { EmptyState } from '../../../../components/states/EmptyState';
 import { ErrorState } from '../../../../components/states/ErrorState';
@@ -128,6 +129,28 @@ export default function AdminPaymentDetailPage({ params }: { params: { id: strin
     }
   };
 
+  const paymentTimeline = [
+    ...(detail?.status_history ?? []).map((entry) => ({
+      id: `status-${entry.status}-${entry.at}`,
+      title: `Cambio de estado: ${entry.status}`,
+      timestamp: formatDateTime(entry.at),
+      sortAt: entry.at,
+      status: entry.status,
+      icon: <span className="text-xs">●</span>,
+    })),
+    ...(detail?.gateway_logs ?? []).map((log) => ({
+      id: `gateway-${log.refund_id}`,
+      title: `Gateway refund ${log.refund_id}`,
+      timestamp: formatDateTime(log.created_at),
+      sortAt: log.created_at,
+      description: `mp=${log.mp_refund_id ?? '-'} · status=${log.status}`,
+      status: log.status,
+      icon: <span className="text-xs">↺</span>,
+    })),
+  ]
+    .sort((a, b) => +new Date(b.sortAt) - +new Date(a.sortAt))
+    .map(({ sortAt: _sortAt, ...item }) => item);
+
   return (
     <div className="space-y-6">
       <PageHeader title="Detalle del pago" subtitle="Resumen del pago, historial y acciones de reembolso." />
@@ -159,20 +182,12 @@ export default function AdminPaymentDetailPage({ params }: { params: { id: strin
             </div>
           </SectionCard>
 
-          <SectionCard title="Historial de estado">
-            <ul className="space-y-1 text-sm">
-              {detail.status_history.map((entry) => (
-                <li key={`${entry.status}-${entry.at}`}>{entry.status} · {formatDateTime(entry.at)}</li>
-              ))}
-            </ul>
-          </SectionCard>
-
-          <SectionCard title="Gateway logs">
-            <ul className="space-y-1 text-sm">
-              {detail.gateway_logs.length === 0 ? <li>Sin logs de refund</li> : detail.gateway_logs.map((l) => (
-                <li key={l.refund_id}>{l.status} · refund={l.refund_id} · mp={l.mp_refund_id ?? '-'} · {formatDateTime(l.created_at)}</li>
-              ))}
-            </ul>
+          <SectionCard title="Timeline de pagos" description="Estados y eventos de gateway en orden cronológico.">
+            <EventTimeline
+              items={paymentTimeline}
+              emptyTitle="Sin eventos de pago"
+              emptyDescription="No hay historial ni logs para mostrar en este pago."
+            />
           </SectionCard>
 
           <SectionCard title="Flags y acciones">

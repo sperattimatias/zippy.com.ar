@@ -5,6 +5,7 @@ import { PageHeader } from '../../../../../components/page/PageHeader';
 import { StatusBadge } from '../../../../../components/common/StatusBadge';
 import { CopyText } from '../../../../../components/common/CopyText';
 import { SectionCard } from '../../../../../components/common/SectionCard';
+import { EventTimeline } from '../../../../../components/common/EventTimeline';
 import { EmptyState } from '../../../../../components/states/EmptyState';
 import { ErrorState } from '../../../../../components/states/ErrorState';
 import { LoadingState } from '../../../../../components/states/LoadingState';
@@ -103,6 +104,32 @@ export default function SupportTicketDetailPage({ params }: { params: { id: stri
     }
   };
 
+  const ticketTimeline = detail
+    ? [
+        {
+          id: `ticket-created-${detail.id}`,
+          title: 'Ticket creado',
+          timestamp: formatDateTime(detail.created_at),
+          description: detail.description,
+          status: detail.status,
+          icon: <span className="text-xs">🎫</span>,
+          sortAt: detail.created_at,
+        },
+        ...detail.notes.map((item) => ({
+          id: `note-${item.id}`,
+          title: 'Nota interna',
+          timestamp: formatDateTime(item.created_at),
+          description: item.note,
+          status: detail.status,
+          icon: <span className="text-xs">✎</span>,
+          sortAt: item.created_at,
+        })),
+      ]
+        .sort((a, b) => +new Date(b.sortAt) - +new Date(a.sortAt))
+        .map(({ sortAt: _sortAt, ...item }) => item)
+    : [];
+
+
   return (
     <div className="space-y-6">
       <PageHeader title="Ticket detail" subtitle="Seguimiento de ticket, notas y resolución." />
@@ -149,12 +176,11 @@ export default function SupportTicketDetailPage({ params }: { params: { id: stri
                 <input className="min-w-[320px] rounded bg-slate-950 p-2" placeholder="Nota interna" value={note} onChange={(e) => setNote(e.target.value)} />
                 <button className="rounded bg-slate-700 px-3 py-2" onClick={() => void addNote()}>Agregar nota</button>
               </div>
-              <ul className="space-y-1 text-sm text-slate-300">
-                {detail.notes.map((n) => (
-                  <li key={n.id}>• {n.note} <span className="text-slate-500">({formatDateTime(n.created_at)})</span></li>
-                ))}
-                {detail.notes.length === 0 && <li>Sin notas aún.</li>}
-              </ul>
+              <EventTimeline
+                items={ticketTimeline}
+                emptyTitle="Sin eventos del ticket"
+                emptyDescription="Todavía no se registraron notas o cambios para este ticket."
+              />
             </div>
           </SectionCard>
         </>
