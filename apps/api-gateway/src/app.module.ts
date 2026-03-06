@@ -423,6 +423,22 @@ export class AppModule implements NestModule {
       )
       .forRoutes(...adminNotificationsRoutes);
 
+    // Keep this explicit route before adminDriverRoutes proxy to avoid wildcard shadowing.
+    consumer
+      .apply(
+        createServiceProxy(
+          {
+            target: process.env.RIDE_SERVICE_URL,
+            changeOrigin: true,
+            xfwd: true,
+            pathRewrite: { '^/api/admin/drivers/live': '/admin/drivers/live' },
+          },
+          timeoutMs,
+          connectTimeoutMs,
+        ),
+      )
+      .forRoutes(...adminDriversLiveRoutes);
+
     consumer
       .apply(
         createServiceProxy(
