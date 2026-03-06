@@ -137,29 +137,29 @@ export default function SupportTicketDetailPage({ params }: { params: { id: stri
       {!loading && detail && (
         <>
           <SectionCard title={`Ticket ${detail.id}`}>
-            <div className="grid gap-2 text-sm md:grid-cols-2">
-              <p><span className="text-slate-400">Type:</span> {detail.type}</p>
-              <p><span className="text-slate-400">Status:</span> <StatusBadge status={detail.status} /></p>
-              <p><span className="text-slate-400">Priority:</span> {detail.priority}</p>
-              <p><span className="text-slate-400">Created:</span> {formatDateTime(detail.created_at)}</p>
-              <p><span className="text-slate-400">User:</span> <CopyText value={detail.user_id} /></p>
-              <p><span className="text-slate-400">Driver:</span> <CopyText value={detail.driver_id ?? undefined} /></p>
-              <p><span className="text-slate-400">Trip:</span> <CopyText value={detail.trip_id ?? undefined} /></p>
-              <p><span className="text-slate-400">Assigned:</span> {detail.assigned_agent ?? '-'}</p>
+            <div className="grid gap-x-6 gap-y-3 text-sm md:grid-cols-2">
+              <p><span className="text-slate-400">Tipo:</span> {detail.type}</p>
+              <p><span className="text-slate-400">Estado:</span> <StatusBadge status={detail.status} /></p>
+              <p><span className="text-slate-400">Prioridad:</span> {detail.priority}</p>
+              <p><span className="text-slate-400">Creado:</span> {formatDateTime(detail.created_at)}</p>
+              <p><span className="text-slate-400">Usuario:</span> <CopyText value={detail.user_id} /></p>
+              <p><span className="text-slate-400">Conductor:</span> <CopyText value={detail.driver_id ?? undefined} /></p>
+              <p><span className="text-slate-400">Viaje:</span> <CopyText value={detail.trip_id ?? undefined} /></p>
+              <p><span className="text-slate-400">Asignado a:</span> {detail.assigned_agent ?? '-'}</p>
             </div>
             <p className="mt-4 text-sm"><span className="text-slate-400">Descripción:</span> {detail.description}</p>
           </SectionCard>
 
           <SectionCard title="Gestión del ticket">
-            <div className="grid gap-2 md:grid-cols-3">
-              <select className="rounded bg-slate-950 p-2" value={status} onChange={(e) => setStatus(e.target.value as TicketDetail['status'])}>
+            <div className="grid gap-3 md:grid-cols-3">
+              <select className="h-10 rounded-md border border-slate-700 bg-slate-950 px-3" value={status} onChange={(e) => setStatus(e.target.value as TicketDetail['status'])}>
                 <option value="OPEN">OPEN</option>
                 <option value="IN_PROGRESS">IN_PROGRESS</option>
                 <option value="RESOLVED">RESOLVED</option>
               </select>
-              <input className="rounded bg-slate-950 p-2" placeholder="Agente asignado (opcional)" value={assignedAgent} onChange={(e) => setAssignedAgent(e.target.value)} />
-              <button className="rounded bg-cyan-700 px-3 py-2" onClick={() => void saveTicket()}>Guardar cambios</button>
-              <input className="rounded bg-slate-950 p-2 md:col-span-3" placeholder="Adjuntos (URLs separadas por coma)" value={attachments} onChange={(e) => setAttachments(e.target.value)} />
+              <input className="h-10 rounded-md border border-slate-700 bg-slate-950 px-3" placeholder="Agente asignado (opcional)" value={assignedAgent} onChange={(e) => setAssignedAgent(e.target.value)} />
+              <button className="h-10 rounded-md bg-cyan-700 px-4 text-sm font-medium hover:bg-cyan-600" onClick={() => void saveTicket()}>Guardar cambios</button>
+              <input className="h-10 rounded-md border border-slate-700 bg-slate-950 px-3 md:col-span-3" placeholder="Adjuntos (URLs separadas por coma)" value={attachments} onChange={(e) => setAttachments(e.target.value)} />
             </div>
           </SectionCard>
 
@@ -167,12 +167,12 @@ export default function SupportTicketDetailPage({ params }: { params: { id: stri
             <div className="space-y-3">
               <div className="flex flex-wrap gap-2">
                 {templates.map((tpl) => (
-                  <button key={tpl} className="rounded bg-slate-800 px-2 py-1 text-xs" onClick={() => setNote(tpl)}>Usar plantilla</button>
+                  <button key={tpl} className="rounded-md border border-slate-700 bg-slate-800 px-2.5 py-1 text-xs text-slate-200 hover:bg-slate-700" onClick={() => setNote(tpl)}>Usar plantilla</button>
                 ))}
               </div>
               <div className="flex flex-wrap gap-2">
-                <input className="min-w-[320px] rounded bg-slate-950 p-2" placeholder="Nota interna" value={note} onChange={(e) => setNote(e.target.value)} />
-                <button className="rounded bg-slate-700 px-3 py-2" onClick={() => void addNote()}>Agregar nota</button>
+                <input className="min-w-[320px] rounded-md border border-slate-700 bg-slate-950 px-3 py-2" placeholder="Nota interna" value={note} onChange={(e) => setNote(e.target.value)} />
+                <button className="rounded-md bg-slate-700 px-4 py-2 text-sm font-medium hover:bg-slate-600" onClick={() => void addNote()}>Agregar nota</button>
               </div>
               <EventTimeline
                 items={ticketTimeline}

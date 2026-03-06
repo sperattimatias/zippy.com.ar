@@ -235,7 +235,7 @@ export default function DashboardPage() {
   }, [snapshot]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-7">
       <PageHeader
         title="Dashboard ejecutivo-operativo"
         subtitle="Monitoreo diario de operaciones, ingresos y riesgo en una sola vista."
@@ -244,7 +244,7 @@ export default function DashboardPage() {
             <Badge variant="outline">Actualizado: {updatedAt ? formatDateTime(updatedAt) : '-'}</Badge>
             <Button variant="secondary" onClick={() => void loadDashboard()}>
               <RefreshCw className="mr-2 h-4 w-4" />
-              Actualizar
+              Actualizar ahora
             </Button>
           </div>
         }
@@ -256,7 +256,7 @@ export default function DashboardPage() {
       {!loading && !error && snapshot ? (
         <>
           <SectionCard title="KPIs del día" description="Comparación simple contra el período anterior (día previo).">
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               <MetricCard
                 label="Viajes hoy"
                 value={String(snapshot.ridesToday)}
@@ -281,7 +281,7 @@ export default function DashboardPage() {
             </div>
           </SectionCard>
 
-          <div className="grid gap-4 lg:grid-cols-2">
+          <div className="grid gap-5 lg:grid-cols-2">
             <SectionCard title="Atención requerida" description="Alertas operativas para accionar rápido.">
               {attentionItems.length === 0 ? (
                 <EmptyState title="Sin alertas críticas" description="No hay señales operativas fuera de umbral por ahora." />
@@ -318,7 +318,7 @@ export default function DashboardPage() {
           </div>
 
           <SectionCard title="Accesos rápidos" description="Navegación directa a secciones críticas.">
-            <div className="grid gap-2 md:grid-cols-3 lg:grid-cols-5">
+            <div className="grid gap-3 md:grid-cols-3 lg:grid-cols-5">
               {quickLinks.map((link) => (
                 <Link key={link.href} href={link.href}>
                   <Button variant="outline" className="w-full justify-start">

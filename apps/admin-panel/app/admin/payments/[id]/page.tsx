@@ -158,22 +158,22 @@ export default function AdminPaymentDetailPage({ params }: { params: { id: strin
       {!loading && detail && (
         <>
           <SectionCard title={`Pago ${detail.payment_id}`}>
-            <div className="grid gap-2 text-sm md:grid-cols-2">
-              <p><span className="text-slate-400">Payment ID:</span> <CopyText value={detail.payment_id} /></p>
-              <p><span className="text-slate-400">Trip:</span> <Link className="text-cyan-400" href={`/admin/trips/${detail.trip_id}`}><CopyText value={detail.trip_id} /></Link></p>
-              <p><span className="text-slate-400">Status:</span> <StatusBadge status={detail.status} /></p>
-              <p><span className="text-slate-400">Settlement:</span> <StatusBadge status={detail.settlement_status} /></p>
+            <div className="grid gap-x-6 gap-y-3 text-sm md:grid-cols-2">
+              <p><span className="text-slate-400">ID de pago:</span> <CopyText value={detail.payment_id} /></p>
+              <p><span className="text-slate-400">Viaje:</span> <Link className="text-cyan-400" href={`/admin/trips/${detail.trip_id}`}><CopyText value={detail.trip_id} /></Link></p>
+              <p><span className="text-slate-400">Estado:</span> <StatusBadge status={detail.status} /></p>
+              <p><span className="text-slate-400">Liquidación:</span> <StatusBadge status={detail.settlement_status} /></p>
               <p><span className="text-slate-400">Método:</span> {detail.method}</p>
-              <p><span className="text-slate-400">Rider:</span> <CopyText value={detail.rider_id} /></p>
-              <p><span className="text-slate-400">Driver:</span> <CopyText value={detail.driver_id} /></p>
+              <p><span className="text-slate-400">Pasajero:</span> <CopyText value={detail.rider_id} /></p>
+              <p><span className="text-slate-400">Conductor:</span> <CopyText value={detail.driver_id} /></p>
             </div>
           </SectionCard>
 
           <SectionCard title="Desglose y referencias">
-            <div className="grid gap-2 text-sm md:grid-cols-2">
-              <p>Amount total: {formatMoney(detail.breakdown.amount_total)}</p>
-              <p>Fee platform: {formatMoney(detail.breakdown.fee_platform)}</p>
-              <p>Driver net: {formatMoney(detail.breakdown.driver_net)}</p>
+            <div className="grid gap-x-6 gap-y-3 text-sm md:grid-cols-2">
+              <p><span className="text-slate-400">Monto total:</span> {formatMoney(detail.breakdown.amount_total)}</p>
+              <p><span className="text-slate-400">Comisión plataforma:</span> {formatMoney(detail.breakdown.fee_platform)}</p>
+              <p><span className="text-slate-400">Neto conductor:</span> {formatMoney(detail.breakdown.driver_net)}</p>
               <p>Refunded amount: {formatMoney(detail.breakdown.refunded_amount)}</p>
               <p>MP payment id: <CopyText value={detail.references.mp_payment_id ?? undefined} /></p>
               <p>MP preference id: <CopyText value={detail.references.mp_preference_id ?? undefined} /></p>

@@ -187,11 +187,11 @@ export default function AdminTripDetailPage({ params }: { params: { id: string }
 
       {!loading && trip && (
         <>
-          <SectionCard title={`Viaje ${trip.id}`} action={<Link className="text-xs text-cyan-300 underline" href={`/admin/audit?entityType=trip&entityId=${trip.id}`}>Ver auditoría</Link>}>
-            <div className="grid gap-2 text-sm md:grid-cols-2">
+          <SectionCard title={`Viaje ${trip.id}`} action={<Link className="text-xs font-medium text-cyan-300 underline-offset-4 hover:underline" href={`/admin/audit?entityType=trip&entityId=${trip.id}`}>Ver auditoría</Link>}>
+            <div className="grid gap-x-6 gap-y-3 text-sm md:grid-cols-2">
               <p><span className="text-slate-400">Estado:</span> <StatusBadge status={trip.status} /></p>
-              <p><span className="text-slate-400">Passenger:</span> <CopyText value={trip.passenger_user_id} /></p>
-              <p><span className="text-slate-400">Driver:</span> <CopyText value={trip.driver_user_id ?? undefined} /></p>
+              <p><span className="text-slate-400">Pasajero:</span> <CopyText value={trip.passenger_user_id} /></p>
+              <p><span className="text-slate-400">Conductor:</span> <CopyText value={trip.driver_user_id ?? undefined} /></p>
               <p><span className="text-slate-400">Creado:</span> {formatDateTime(trip.created_at)}</p>
               <p><span className="text-slate-400">Origen:</span> {trip.origin_address}</p>
               <p><span className="text-slate-400">Destino:</span> {trip.dest_address}</p>
@@ -219,6 +219,7 @@ export default function AdminTripDetailPage({ params }: { params: { id: string }
 
           <SectionCard title="Acciones sensibles">
             <div className="grid gap-3 md:grid-cols-2">
+              <p className="md:col-span-2 text-xs text-slate-400">Acciones de alto impacto. Confirmá cada operación antes de ejecutarla.</p>
               <Button variant="destructive" onClick={() => setCancelOpen(true)}>
                 Cancelar viaje
               </Button>

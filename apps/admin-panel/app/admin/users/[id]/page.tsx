@@ -106,19 +106,19 @@ export default function AdminUserDetailPage({ params }: { params: { id: string }
       {!loading && detail && (
         <>
           <SectionCard title="Detalle de cuenta">
-            <div className="grid gap-2 md:grid-cols-2 text-sm">
+            <div className="grid gap-x-6 gap-y-3 text-sm md:grid-cols-2">
               <p><span className="text-slate-400">Email:</span> {detail.email}</p>
-              <p><span className="text-slate-400">Phone:</span> {detail.phone ?? '-'}</p>
+              <p><span className="text-slate-400">Teléfono:</span> {detail.phone ?? '-'}</p>
               <p><span className="text-slate-400">Estado:</span> <StatusBadge status={detail.status} /></p>
               <p><span className="text-slate-400">ID usuario:</span> <CopyText value={detail.id} /></p>
               <p><span className="text-slate-400">Creado:</span> {formatDateTime(detail.created_at)}</p>
-              <p><span className="text-slate-400">Payment limited:</span> {detail.flags?.payment_limited ? 'Sí' : 'No'}</p>
+              <p><span className="text-slate-400">Pagos limitados:</span> {detail.flags?.payment_limited ? 'Sí' : 'No'}</p>
               <p><span className="text-slate-400">Notas:</span> {detail.notes ?? '-'}</p>
             </div>
           </SectionCard>
 
           <SectionCard title="Historial">
-            <div className="grid gap-2 md:grid-cols-2 text-sm">
+            <div className="grid gap-x-6 gap-y-3 text-sm md:grid-cols-2">
               <p>Viajes: {detail.history?.trips?.length ?? 0}</p>
               <p>Cancelaciones: {detail.history?.cancellations?.length ?? 0}</p>
               <p>Reclamos: {detail.history?.claims?.length ?? 0}</p>
@@ -126,7 +126,7 @@ export default function AdminUserDetailPage({ params }: { params: { id: string }
             </div>
           </SectionCard>
 
-          <SectionCard title="Acciones" action={<Link className="text-xs text-cyan-300 underline" href={`/admin/audit?entityType=user&entityId=${params.id}`}>Ver auditoría</Link>}>
+          <SectionCard title="Acciones" action={<Link className="text-xs font-medium text-cyan-300 underline-offset-4 hover:underline" href={`/admin/audit?entityType=user&entityId=${params.id}`}>Ver auditoría</Link>}>
             <div className="space-y-3 text-sm">
               <div className="flex flex-wrap gap-2">
                 <button className="rounded bg-rose-700 px-3 py-2 text-white" onClick={() => void patchStatus('blocked')}>Bloquear</button>

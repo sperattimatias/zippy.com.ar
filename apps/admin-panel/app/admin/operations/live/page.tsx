@@ -180,7 +180,7 @@ export default function AdminOperationsLivePage() {
   );
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-7">
       <PageHeader
         title="Operación en tiempo real"
         subtitle="Monitoreo en tiempo real de conductores, viajes e incidentes en Firmat."
@@ -195,7 +195,7 @@ export default function AdminOperationsLivePage() {
         }
       />
 
-      <div className="grid gap-4 lg:grid-cols-[1fr_340px]">
+      <div className="grid gap-5 lg:grid-cols-[1fr_340px]">
         <SectionCard title="Mapa operativo" description="Marcadores azules: conductores online. Trazas naranjas: viajes activos.">
           {loading ? <LoadingState message="Cargando posiciones en tiempo real..." /> : null}
           {!loading && error ? <ErrorState message={error} retry={() => void load()} /> : null}
@@ -211,7 +211,7 @@ export default function AdminOperationsLivePage() {
           ) : null}
         </SectionCard>
 
-        <div className="space-y-4">
+        <div className="space-y-5">
           <SectionCard title="Métricas rápidas" description="Monitoreo operativo actual.">
             <div className="space-y-3">
               {metrics.map((metric) => (

@@ -120,7 +120,7 @@ export default function AdminDriverDetailPage({ params }: { params: { id: string
       {!loading && detail && (
         <>
           <SectionCard title={`Driver ${detail.user_id}`}>
-            <div className="grid gap-2 text-sm md:grid-cols-2">
+            <div className="grid gap-x-6 gap-y-3 text-sm md:grid-cols-2">
               <p><span className="text-slate-400">Estado:</span> <StatusBadge status={detail.status} /></p>
               <p><span className="text-slate-400">Driver ID:</span> <CopyText value={detail.id} /></p>
               <p><span className="text-slate-400">Rechazo:</span> {detail.rejection_reason ?? '-'}</p>
@@ -129,7 +129,7 @@ export default function AdminDriverDetailPage({ params }: { params: { id: string
           </SectionCard>
 
           <SectionCard title="Vehículo">
-            <div className="grid gap-2 text-sm md:grid-cols-2">
+            <div className="grid gap-x-6 gap-y-3 text-sm md:grid-cols-2">
               <p><span className="text-slate-400">Categoría:</span> {detail.vehicle?.category ?? '-'}</p>
               <p><span className="text-slate-400">Marca/Modelo:</span> {detail.vehicle ? `${detail.vehicle.brand ?? ''} ${detail.vehicle.model ?? ''}` : '-'}</p>
               <p><span className="text-slate-400">Año:</span> {detail.vehicle?.year ?? '-'}</p>
@@ -149,14 +149,14 @@ export default function AdminDriverDetailPage({ params }: { params: { id: string
           </SectionCard>
 
           <SectionCard title="Actividad">
-            <div className="grid gap-2 text-sm md:grid-cols-3">
+            <div className="grid gap-x-6 gap-y-3 text-sm md:grid-cols-3">
               <p><span className="text-slate-400">Viajes:</span> {detail.activity_summary?.trips_total ?? 0}</p>
               <p><span className="text-slate-400">Cancelaciones:</span> {detail.activity_summary?.cancellations_total ?? 0}</p>
               <p><span className="text-slate-400">Pagos:</span> {detail.activity_summary?.payments_total ?? 0}</p>
             </div>
           </SectionCard>
 
-          <SectionCard title="Acciones" action={<Link className="text-xs text-cyan-300 underline" href={`/admin/audit?entityType=driver&entityId=${params.id}`}>Ver auditoría</Link>}>
+          <SectionCard title="Acciones" action={<Link className="text-xs font-medium text-cyan-300 underline-offset-4 hover:underline" href={`/admin/audit?entityType=driver&entityId=${params.id}`}>Ver auditoría</Link>}>
             <div className="space-y-3 text-sm">
               <div className="flex flex-wrap gap-2">
                 <Button className="bg-amber-600 hover:bg-amber-500" onClick={() => setSuspendOpen(true)}>Suspender</Button>
