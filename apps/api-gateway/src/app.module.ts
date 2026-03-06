@@ -53,7 +53,15 @@ const driverRoutes: RouteInfo[] = [
 ];
 const adminDriverRoutes: RouteInfo[] = [
   { path: 'api/admin/drivers', method: RequestMethod.ALL },
-  { path: 'api/admin/drivers/*', method: RequestMethod.ALL },
+  { path: 'api/admin/drivers/pending', method: RequestMethod.ALL },
+  { path: 'api/admin/drivers/approve', method: RequestMethod.ALL },
+  { path: 'api/admin/drivers/reject', method: RequestMethod.ALL },
+  { path: 'api/admin/drivers/suspend', method: RequestMethod.ALL },
+  { path: 'api/admin/drivers/review-start', method: RequestMethod.ALL },
+  { path: 'api/admin/drivers/:id', method: RequestMethod.ALL },
+  { path: 'api/admin/drivers/:id/status', method: RequestMethod.ALL },
+  { path: 'api/admin/drivers/:id/notes', method: RequestMethod.ALL },
+  { path: 'api/admin/drivers/:id/kyc/reset', method: RequestMethod.ALL },
 ];
 const adminKycDriverRoutes: RouteInfo[] = [
   { path: 'api/admin/kyc/drivers', method: RequestMethod.ALL },
@@ -490,6 +498,7 @@ export class AppModule implements NestModule {
 
     const rideAdminPrefixes: Array<[RouteInfo[], string, string]> = [
       [adminTripsRoutes, '^/api/admin/trips', '/admin/trips'],
+      [adminDriversLiveRoutes, '^/api/admin/drivers/live', '/admin/drivers/live'],
       [adminGeoZonesRoutes, '^/api/admin/geozones', '/admin/geozones'],
       [adminSafetyAlertsRoutes, '^/api/admin/safety-alerts', '/admin/safety-alerts'],
       [adminScoresRoutes, '^/api/admin/scores', '/admin/scores'],
