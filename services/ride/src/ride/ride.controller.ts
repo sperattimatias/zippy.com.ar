@@ -209,6 +209,12 @@ export class RideController {
     return this.rideService.getAdminLiveDrivers();
   }
 
+  @Get('admin/operations/live')
+  @Roles('admin', 'sos')
+  adminOperationsLive() {
+    return this.rideService.getAdminOperationsSnapshot();
+  }
+
   @Get('admin/trips/:id')
   @Roles('admin', 'sos')
   adminTripDetail(@Param('id') id: string) {

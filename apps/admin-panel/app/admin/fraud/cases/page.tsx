@@ -7,6 +7,9 @@ import { SectionCard } from '../../../../components/common/SectionCard';
 import { EmptyState } from '../../../../components/states/EmptyState';
 import { ErrorState } from '../../../../components/states/ErrorState';
 import { LoadingState } from '../../../../components/states/LoadingState';
+import { Input } from '../../../../components/ui/input';
+import { Select } from '../../../../components/ui/select';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../../../components/ui/table';
 
 type FraudCase = {
   id: string;
@@ -60,58 +63,58 @@ export default function FraudCasesPage() {
       <PageHeader title="Casos de fraude" subtitle="Monitoreá alertas, priorizá casos y tomá decisiones operativas." />
 
       <SectionCard title="Filtros de búsqueda">
-        <div className="grid gap-2 md:grid-cols-4">
-          <select className="rounded bg-slate-950 p-2" value={status} onChange={(e) => setStatus(e.target.value)}>
+        <div className="grid gap-3 md:grid-cols-4">
+          <Select value={status} onChange={(e) => setStatus(e.target.value)}>
             <option value="">Todos los estados</option>
             {['OPEN', 'IN_REVIEW', 'RESOLVED', 'DISMISSED'].map((s) => <option key={s} value={s}>{s}</option>)}
-          </select>
-          <select className="rounded bg-slate-950 p-2" value={severity} onChange={(e) => setSeverity(e.target.value)}>
+          </Select>
+          <Select value={severity} onChange={(e) => setSeverity(e.target.value)}>
             <option value="">Todas las severidades</option>
             {['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'].map((s) => <option key={s} value={s}>{s}</option>)}
-          </select>
-          <input className="rounded bg-slate-950 p-2 md:col-span-2" placeholder="Buscar por título o resumen" value={q} onChange={(e) => setQ(e.target.value)} />
+          </Select>
+          <Input className="md:col-span-2" placeholder="Buscar por título o resumen" value={q} onChange={(e) => setQ(e.target.value)} />
         </div>
       </SectionCard>
 
       <SectionCard title="Listado de casos">
         {loading && <LoadingState message="Cargando casos..." />}
         {error && <ErrorState message={error} retry={() => void load()} />}
-        {!loading && !error && rows.length === 0 && <EmptyState message="No hay casos para los filtros seleccionados." />}
+        {!loading && !error && rows.length === 0 && <EmptyState title="No hay casos" description="No hay casos para los filtros seleccionados." />}
 
         {!loading && !error && rows.length > 0 && (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[1150px] text-left text-sm">
-              <thead className="bg-slate-900 text-xs uppercase text-slate-400">
-                <tr>
-                  <th className="p-2">ID</th>
-                  <th className="p-2">Estado</th>
-                  <th className="p-2">Severidad</th>
-                  <th className="p-2">Título</th>
-                  <th className="p-2">Score/Evidencia</th>
-                  <th className="p-2">Entidades</th>
-                  <th className="p-2">Creado</th>
-                  <th className="p-2"></th>
-                </tr>
-              </thead>
-              <tbody>
+          <div className="overflow-x-auto rounded-lg border border-slate-800">
+            <Table className="min-w-[1150px] text-left">
+              <TableHeader>
+                <TableRow className="hover:bg-transparent">
+                  <TableHead>ID</TableHead>
+                  <TableHead>Estado</TableHead>
+                  <TableHead>Severidad</TableHead>
+                  <TableHead>Título</TableHead>
+                  <TableHead>Score/Evidencia</TableHead>
+                  <TableHead>Entidades</TableHead>
+                  <TableHead>Creado</TableHead>
+                  <TableHead className="text-right"></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {rows.map((r) => (
-                  <tr key={r.id} className="border-t border-slate-800 align-top">
-                    <td className="p-2 font-mono text-xs">{r.id}</td>
-                    <td className="p-2">{r.status}</td>
-                    <td className="p-2">{r.severity}</td>
-                    <td className="p-2">{r.title}</td>
-                    <td className="p-2 max-w-[220px] truncate">{r.summary ?? '-'}</td>
-                    <td className="p-2 text-xs">
+                  <TableRow key={r.id} className="align-top">
+                    <TableCell className="font-mono text-xs text-slate-300">{r.id}</TableCell>
+                    <TableCell>{r.status}</TableCell>
+                    <TableCell>{r.severity}</TableCell>
+                    <TableCell className="font-medium">{r.title}</TableCell>
+                    <TableCell className="max-w-[240px] text-slate-300">{r.summary ?? '-'}</TableCell>
+                    <TableCell className="text-xs text-slate-300">
                       <div>user: {r.primary_user_id ?? '-'}</div>
                       <div>driver: {r.related_driver_id ?? '-'}</div>
                       <div>trip: {r.related_trip_id ?? '-'}</div>
-                    </td>
-                    <td className="p-2">{new Date(r.created_at).toLocaleString()}</td>
-                    <td className="p-2"><Link className="text-cyan-400" href={`/admin/fraud/cases/${r.id}`}>Abrir</Link></td>
-                  </tr>
+                    </TableCell>
+                    <TableCell className="text-slate-300">{new Date(r.created_at).toLocaleString()}</TableCell>
+                    <TableCell className="text-right"><Link className="text-cyan-400 hover:text-cyan-300" href={`/admin/fraud/cases/${r.id}`}>Abrir</Link></TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </div>
         )}
       </SectionCard>
