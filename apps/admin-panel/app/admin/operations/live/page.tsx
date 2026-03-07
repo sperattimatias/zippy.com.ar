@@ -14,13 +14,14 @@ import { formatDateTime } from '../../../../lib/format';
 import { RefreshCw } from 'lucide-react';
 
 type Point = { lat: number; lng: number };
+type OperationalStatus = 'available' | 'on_trip' | 'stale';
+
 type DriverMapMarker = Point & {
   driverId: string;
   operationalStatus: OperationalStatus;
   onTrip: boolean;
 };
 
-type OperationalStatus = 'available' | 'on_trip' | 'stale';
 type LiveDriver = {
   driverId: string;
   lat: number;
@@ -31,19 +32,32 @@ type LiveDriver = {
   operationalStatus: OperationalStatus;
   onTrip: boolean;
 };
-type LiveDriversStats = {
+
+type OperationsLiveStats = {
   onlineDrivers: number;
-  freshDrivers: number;
-  staleDrivers: number;
-  onTripDrivers: number;
-  idleDrivers: number;
+  availableDrivers: number;
+  busyDrivers: number;
+  activeTrips: number;
+  openIncidents: number;
 };
-type LiveDriversPayload = {
+
+type TripSummary = {
+  id: string;
+  origin_lat: number | null;
+  origin_lng: number | null;
+  dest_lat: number | null;
+  dest_lng: number | null;
+};
+
+type SafetyIncident = { id: string };
+
+type OperationsSnapshotPayload = {
   generatedAt: string;
   drivers: LiveDriver[];
-  stats: LiveDriversStats;
+  activeTrips: TripSummary[];
+  incidents: SafetyIncident[];
+  stats: OperationsLiveStats;
 };
-type TripRow = Record<string, unknown> & { id?: string | number };
 
 type TripPath = {
   id: string;
@@ -52,6 +66,14 @@ type TripPath = {
 
 const FIRMA_CENTER: [number, number] = [-33.4592, -61.4832];
 const REFRESH_MS = 15_000;
+
+const emptyStats: OperationsLiveStats = {
+  onlineDrivers: 0,
+  availableDrivers: 0,
+  busyDrivers: 0,
+  activeTrips: 0,
+  openIncidents: 0,
+};
 
 const OperationsLiveMap = dynamic(
   () =>
@@ -79,46 +101,108 @@ function asNumber(value: unknown) {
   return Number.isFinite(n) ? n : null;
 }
 
-function parsePoint(value: unknown): Point | null {
-  const record = asRecord(value);
-  if (!record) return null;
-
-  const lat = asNumber(record.lat ?? record.latitude);
-  const lng = asNumber(record.lng ?? record.lon ?? record.longitude);
-
-  if (lat == null || lng == null) return null;
-
-  return { lat, lng };
+function isOperationalStatus(value: unknown): value is OperationalStatus {
+  return value === 'available' || value === 'on_trip' || value === 'stale';
 }
 
-function parseTripPoints(trip: Record<string, unknown>) {
-  const directCandidates = [trip.route_points, trip.routePoints, trip.points, trip.locations];
-  for (const candidate of directCandidates) {
-    const points = asArray<unknown>(candidate).map(parsePoint).filter(Boolean) as Point[];
-    if (points.length > 0) return points;
+function isLiveDriver(value: unknown): value is LiveDriver {
+  const record = asRecord(value);
+  if (!record) return false;
+
+  return (
+    typeof record.driverId === 'string' &&
+    typeof record.lat === 'number' &&
+    Number.isFinite(record.lat) &&
+    typeof record.lng === 'number' &&
+    Number.isFinite(record.lng) &&
+    (typeof record.lastSeenAt === 'string' || record.lastSeenAt === null) &&
+    typeof record.isOnline === 'boolean' &&
+    typeof record.isFresh === 'boolean' &&
+    isOperationalStatus(record.operationalStatus) &&
+    typeof record.onTrip === 'boolean'
+  );
+}
+
+function parseTripSummary(value: unknown): TripSummary | null {
+  const record = asRecord(value);
+  if (!record || typeof record.id !== 'string') return null;
+
+  return {
+    id: record.id,
+    origin_lat: asNumber(record.origin_lat),
+    origin_lng: asNumber(record.origin_lng),
+    dest_lat: asNumber(record.dest_lat),
+    dest_lng: asNumber(record.dest_lng),
+  };
+}
+
+function parseSafetyIncident(value: unknown): SafetyIncident | null {
+  const record = asRecord(value);
+  if (!record || typeof record.id !== 'string') return null;
+  return { id: record.id };
+}
+
+function isOperationsLiveStats(value: unknown): value is OperationsLiveStats {
+  const record = asRecord(value);
+  if (!record) return false;
+
+  return (
+    typeof record.onlineDrivers === 'number' &&
+    typeof record.availableDrivers === 'number' &&
+    typeof record.busyDrivers === 'number' &&
+    typeof record.activeTrips === 'number' &&
+    typeof record.openIncidents === 'number'
+  );
+}
+
+function parseOperationsSnapshot(payload: unknown): OperationsSnapshotPayload {
+  const record = asRecord(payload);
+  if (!record) {
+    return {
+      generatedAt: new Date().toISOString(),
+      drivers: [],
+      activeTrips: [],
+      incidents: [],
+      stats: emptyStats,
+    };
   }
 
-  const eventPoints = asArray<unknown>(trip.events)
-    .flatMap((event) => {
-      const eventRecord = asRecord(event);
-      if (!eventRecord) return [];
-      const payload = eventRecord.payload_json;
-      if (Array.isArray(payload)) return payload;
-      return payload ? [payload] : [];
-    })
-    .map(parsePoint)
-    .filter(Boolean) as Point[];
+  const drivers = asArray<unknown>(record.drivers).filter(isLiveDriver);
+  const activeTrips = asArray<unknown>(record.activeTrips)
+    .map(parseTripSummary)
+    .filter(Boolean) as TripSummary[];
+  const incidents = asArray<unknown>(record.incidents)
+    .map(parseSafetyIncident)
+    .filter(Boolean) as SafetyIncident[];
 
-  return eventPoints;
+  const stats = isOperationsLiveStats(record.stats)
+    ? record.stats
+    : {
+        onlineDrivers: drivers.length,
+        availableDrivers: drivers.filter((driver) => !driver.onTrip).length,
+        busyDrivers: drivers.filter((driver) => driver.onTrip).length,
+        activeTrips: activeTrips.length,
+        openIncidents: incidents.length,
+      };
+
+  return {
+    generatedAt: typeof record.generatedAt === 'string' ? record.generatedAt : new Date().toISOString(),
+    drivers,
+    activeTrips,
+    incidents,
+    stats,
+  };
 }
 
-function extractItems(payload: unknown) {
-  if (Array.isArray(payload)) return payload;
-  const record = asRecord(payload);
-  if (!record) return [];
-  const items = record.items;
-  if (Array.isArray(items)) return items;
-  return [];
+function toTripPath(trip: TripSummary): TripPath {
+  const points: Point[] = [];
+  if (trip.origin_lat != null && trip.origin_lng != null) {
+    points.push({ lat: trip.origin_lat, lng: trip.origin_lng });
+  }
+  if (trip.dest_lat != null && trip.dest_lng != null) {
+    points.push({ lat: trip.dest_lat, lng: trip.dest_lng });
+  }
+  return { id: trip.id, points };
 }
 
 function isOperationalStatus(value: unknown): value is OperationalStatus {
@@ -189,13 +273,7 @@ export default function AdminOperationsLivePage() {
   const [driverMarkers, setDriverMarkers] = useState<DriverMapMarker[]>([]);
   const [tripPaths, setTripPaths] = useState<TripPath[]>([]);
   const [openIncidents, setOpenIncidents] = useState(0);
-  const [driverStats, setDriverStats] = useState<LiveDriversStats>({
-    onlineDrivers: 0,
-    freshDrivers: 0,
-    staleDrivers: 0,
-    onTripDrivers: 0,
-    idleDrivers: 0,
-  });
+  const [stats, setStats] = useState<OperationsLiveStats>(emptyStats);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(null);
@@ -204,48 +282,25 @@ export default function AdminOperationsLivePage() {
     setError(null);
 
     try {
-      const [driversRes, tripsRes, incidentsRes] = await Promise.all([
-        fetch('/api/admin/drivers/live', { cache: 'no-store' }),
-        fetch('/api/admin/trips?status=IN_PROGRESS&page_size=50', { cache: 'no-store' }),
-        fetch('/api/admin/safety-alerts?status=OPEN', { cache: 'no-store' }),
-      ]);
+      const response = await fetch('/api/admin/operations/live', { cache: 'no-store' });
+      if (!response.ok) throw new Error('No se pudo cargar el snapshot operativo.');
 
-      if (!driversRes.ok) throw new Error('No se pudieron cargar conductores.');
-      if (!tripsRes.ok) throw new Error('No se pudieron cargar viajes activos.');
-      if (!incidentsRes.ok) throw new Error('No se pudieron cargar incidentes.');
+      const payload = parseOperationsSnapshot(await response.json());
 
-      const [driversPayload, tripsPayload, incidentsPayload] = await Promise.all([
-        driversRes.json(),
-        tripsRes.json(),
-        incidentsRes.json(),
-      ]);
-
-      const liveDriversPayload = parseLiveDriversPayload(driversPayload);
-      const liveDrivers = liveDriversPayload.drivers;
-      const trips = extractItems(tripsPayload) as TripRow[];
-      const incidents = extractItems(incidentsPayload);
-
-      const markers = liveDrivers.map((driver) => ({
-        driverId: driver.driverId,
-        lat: driver.lat,
-        lng: driver.lng,
-        operationalStatus: driver.operationalStatus,
-        onTrip: driver.onTrip,
-      }));
-      const paths = trips
-        .map((trip, index) => {
-          const id = String(trip.id ?? `trip-${index}`);
-          const pathPoints = parseTripPoints(trip);
-          return { id, points: pathPoints };
-        })
-        .filter((trip) => trip.points.length > 0);
-
-      setDrivers(liveDrivers);
-      setDriverMarkers(markers);
-      setTripPaths(paths);
-      setOpenIncidents(incidents.length);
-      setDriverStats(liveDriversPayload.stats);
-      setLastUpdatedAt(liveDriversPayload.generatedAt);
+      setDrivers(payload.drivers);
+      setDriverMarkers(
+        payload.drivers.map((driver) => ({
+          driverId: driver.driverId,
+          lat: driver.lat,
+          lng: driver.lng,
+          operationalStatus: driver.operationalStatus,
+          onTrip: driver.onTrip,
+        })),
+      );
+      setTripPaths(payload.activeTrips.map(toTripPath).filter((trip) => trip.points.length > 0));
+      setOpenIncidents(payload.incidents.length);
+      setStats(payload.stats);
+      setLastUpdatedAt(payload.generatedAt);
     } catch (loadError) {
       setError(
         loadError instanceof Error ? loadError.message : 'No pudimos actualizar el mapa operativo.',
@@ -261,9 +316,7 @@ export default function AdminOperationsLivePage() {
     return () => clearInterval(timer);
   }, [load]);
 
-  const activeTrips = tripPaths.length;
-  const onlineDrivers = driverStats.onlineDrivers;
-  const hasPositions = driverMarkers.length > 0 || activeTrips > 0;
+  const hasPositions = driverMarkers.length > 0 || tripPaths.length > 0;
   const statusCount = useMemo(
     () => ({
       available: drivers.filter((driver) => driver.operationalStatus === 'available').length,
@@ -275,21 +328,14 @@ export default function AdminOperationsLivePage() {
 
   const metrics = useMemo(
     () => [
-      { label: 'Conductores online', value: onlineDrivers, tone: 'success' as const, badge: 'Live' },
-      { label: 'Disponibles', value: driverStats.idleDrivers, tone: 'success' as const, badge: 'Idle' },
-      { label: 'En viaje', value: driverStats.onTripDrivers, tone: 'warning' as const, badge: 'On trip' },
-      { label: 'Stale', value: driverStats.staleDrivers, tone: 'danger' as const },
-      { label: 'Viajes activos', value: activeTrips, tone: 'warning' as const },
-      { label: 'Incidentes abiertos', value: openIncidents, tone: 'danger' as const },
+      { label: 'Conductores online', value: stats.onlineDrivers, tone: 'success' as const, badge: 'Live' },
+      { label: 'Disponibles', value: stats.availableDrivers, tone: 'success' as const, badge: 'Idle' },
+      { label: 'En viaje', value: stats.busyDrivers, tone: 'warning' as const, badge: 'On trip' },
+      { label: 'Stale', value: statusCount.stale, tone: 'danger' as const },
+      { label: 'Viajes activos', value: stats.activeTrips, tone: 'warning' as const },
+      { label: 'Incidentes abiertos', value: stats.openIncidents, tone: 'danger' as const },
     ],
-    [
-      activeTrips,
-      driverStats.idleDrivers,
-      driverStats.onTripDrivers,
-      driverStats.staleDrivers,
-      onlineDrivers,
-      openIncidents,
-    ],
+    [stats, statusCount.stale],
   );
 
   return (
@@ -360,10 +406,10 @@ export default function AdminOperationsLivePage() {
                       {metric.badge
                         ? metric.badge
                         : metric.tone === 'success'
-                        ? 'OK'
-                        : metric.tone === 'danger'
-                          ? 'Atención'
-                          : 'Seguimiento'}
+                          ? 'OK'
+                          : metric.tone === 'danger'
+                            ? 'Atención'
+                            : 'Seguimiento'}
                     </Badge>
                   </div>
                 </div>
@@ -387,7 +433,7 @@ export default function AdminOperationsLivePage() {
                 (marker/polilínea)
               </li>
               <li className="flex items-center gap-2">
-                <span className="h-3 w-3 rounded-full bg-rose-500" /> Incidentes abiertos
+                <span className="h-3 w-3 rounded-full bg-rose-500" /> Incidentes abiertos ({openIncidents})
               </li>
             </ul>
             <p className="mt-4 text-xs text-slate-400">Drivers en payload live: {drivers.length}</p>

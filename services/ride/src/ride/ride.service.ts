@@ -36,6 +36,7 @@ import {
   logAdminAuditEntry,
 } from './ride-admin-audit.logic';
 import {
+  buildAdminLiveDriversPayload,
   getAdminLiveDrivers,
   presenceOffline,
   presenceOnline,
@@ -505,6 +506,72 @@ export class RideService implements OnModuleInit {
       driverGeoIndex: this.driverGeoIndex,
       rateLimit: this.rateLimit,
     });
+  }
+
+  async getAdminOperationsSnapshot() {
+    const [presences, activeTrips, incidents] = await Promise.all([
+      this.prisma.driverPresence.findMany({
+        where: { is_online: true, last_lat: { not: null }, last_lng: { not: null } },
+        orderBy: { last_seen_at: 'desc' },
+      }),
+      this.prisma.trip.findMany({
+        where: { status: { in: [TripStatus.DRIVER_EN_ROUTE, TripStatus.OTP_PENDING, TripStatus.IN_PROGRESS] } },
+        orderBy: { created_at: 'desc' },
+        take: 50,
+        select: {
+          id: true,
+          status: true,
+          driver_user_id: true,
+          passenger_user_id: true,
+          origin_lat: true,
+          origin_lng: true,
+          dest_lat: true,
+          dest_lng: true,
+          origin_address: true,
+          dest_address: true,
+          created_at: true,
+        },
+      }),
+      this.prisma.safetyAlert.findMany({
+        where: { status: SafetyAlertStatus.OPEN },
+        orderBy: { created_at: 'desc' },
+        take: 200,
+        select: {
+          id: true,
+          status: true,
+          type: true,
+          severity: true,
+          trip_id: true,
+          created_at: true,
+        },
+      }),
+    ]);
+
+    const driverIds = presences.map((presence) => presence.driver_user_id);
+    const aliveFromRedis = await this.driverGeoIndex.getAliveDriverIds(driverIds);
+    const live = buildAdminLiveDriversPayload({
+      presences,
+      activeTripDriverIds: new Set(
+        activeTrips
+          .map((trip) => trip.driver_user_id)
+          .filter((driverId): driverId is string => typeof driverId === 'string' && driverId.length > 0),
+      ),
+      aliveDriverIds: aliveFromRedis,
+    });
+
+    return {
+      generatedAt: live.generatedAt,
+      drivers: live.drivers,
+      activeTrips,
+      incidents,
+      stats: {
+        onlineDrivers: live.stats.onlineDrivers,
+        availableDrivers: live.stats.idleDrivers,
+        busyDrivers: live.stats.onTripDrivers,
+        activeTrips: activeTrips.length,
+        openIncidents: incidents.length,
+      },
+    };
   }
 
   async requestTrip(

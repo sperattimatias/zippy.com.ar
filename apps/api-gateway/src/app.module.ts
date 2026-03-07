@@ -74,6 +74,9 @@ const adminTripsRoutes: RouteInfo[] = [
 const adminDriversLiveRoutes: RouteInfo[] = [
   { path: 'api/admin/drivers/live', method: RequestMethod.ALL },
 ];
+const adminOperationsLiveRoutes: RouteInfo[] = [
+  { path: 'api/admin/operations/live', method: RequestMethod.ALL },
+];
 const adminGeoZonesRoutes: RouteInfo[] = [
   { path: 'api/admin/geozones', method: RequestMethod.ALL },
   { path: 'api/admin/geozones/*', method: RequestMethod.ALL },
@@ -311,6 +314,7 @@ export class AppModule implements NestModule {
       ...adminKycDriverRoutes,
       ...adminTripsRoutes,
       ...adminDriversLiveRoutes,
+      ...adminOperationsLiveRoutes,
       ...adminGeoZonesRoutes,
       ...adminSafetyAlertsRoutes,
       ...adminScoresRoutes,
@@ -406,6 +410,13 @@ export class AppModule implements NestModule {
       changeOrigin: true,
       xfwd: true,
       pathRewrite: { '^/api/admin/drivers/live': '/admin/drivers/live' },
+    });
+
+    applyProxyToRoutes(adminOperationsLiveRoutes, {
+      target: process.env.RIDE_SERVICE_URL,
+      changeOrigin: true,
+      xfwd: true,
+      pathRewrite: { '^/api/admin/operations/live': '/admin/operations/live' },
     });
 
     applyProxyToRoutes(adminDriverRoutes, {
