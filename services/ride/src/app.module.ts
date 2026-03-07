@@ -26,6 +26,7 @@ import { MetricsController } from './metrics/metrics.controller';
 import { MetricsService } from './metrics/metrics.service';
 import { RateLimitService } from './ride/rate-limit.service';
 import { SettingsService } from './settings/settings.service';
+import { RideOperationsService } from './ride/ride-operations.service';
 
 @Module({
   imports: [
@@ -77,6 +78,7 @@ import { SettingsService } from './settings/settings.service';
     MetricsService,
     RateLimitService,
     SettingsService,
+    RideOperationsService,
   ],
 })
 export class AppModule {}
