@@ -205,6 +205,69 @@ function toTripPath(trip: TripSummary): TripPath {
   return { id: trip.id, points };
 }
 
+function isOperationalStatus(value: unknown): value is OperationalStatus {
+  return value === 'available' || value === 'on_trip' || value === 'stale';
+}
+
+function isLiveDriver(value: unknown): value is LiveDriver {
+  const record = asRecord(value);
+  if (!record) return false;
+
+  return (
+    typeof record.driverId === 'string' &&
+    typeof record.lat === 'number' &&
+    Number.isFinite(record.lat) &&
+    typeof record.lng === 'number' &&
+    Number.isFinite(record.lng) &&
+    (typeof record.lastSeenAt === 'string' || record.lastSeenAt === null) &&
+    typeof record.isOnline === 'boolean' &&
+    typeof record.isFresh === 'boolean' &&
+    isOperationalStatus(record.operationalStatus) &&
+    typeof record.onTrip === 'boolean'
+  );
+}
+
+function isLiveDriversStats(value: unknown): value is LiveDriversStats {
+  const record = asRecord(value);
+  if (!record) return false;
+
+  return (
+    typeof record.onlineDrivers === 'number' &&
+    typeof record.freshDrivers === 'number' &&
+    typeof record.staleDrivers === 'number' &&
+    typeof record.onTripDrivers === 'number' &&
+    typeof record.idleDrivers === 'number'
+  );
+}
+
+function parseLiveDriversPayload(payload: unknown): LiveDriversPayload {
+  const record = asRecord(payload);
+  if (!record) {
+    return {
+      generatedAt: new Date().toISOString(),
+      drivers: [],
+      stats: { onlineDrivers: 0, freshDrivers: 0, staleDrivers: 0, onTripDrivers: 0, idleDrivers: 0 },
+    };
+  }
+
+  const drivers = asArray<unknown>(record.drivers).filter(isLiveDriver);
+  const stats = isLiveDriversStats(record.stats)
+    ? record.stats
+    : {
+        onlineDrivers: drivers.length,
+        freshDrivers: drivers.filter((driver) => driver.isFresh).length,
+        staleDrivers: 0,
+        onTripDrivers: drivers.filter((driver) => driver.onTrip).length,
+        idleDrivers: drivers.filter((driver) => !driver.onTrip).length,
+      };
+
+  return {
+    generatedAt: typeof record.generatedAt === 'string' ? record.generatedAt : new Date().toISOString(),
+    drivers,
+    stats,
+  };
+}
+
 export default function AdminOperationsLivePage() {
   const [drivers, setDrivers] = useState<LiveDriver[]>([]);
   const [driverMarkers, setDriverMarkers] = useState<DriverMapMarker[]>([]);
