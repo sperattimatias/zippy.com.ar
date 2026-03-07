@@ -12,6 +12,7 @@ import { GeoZoneCacheService } from './geozone-cache.service';
 import { RateLimitService } from './rate-limit.service';
 import { RedisStateService } from './redis-state.service';
 import { RideService } from './ride.service';
+import { RideOperationsService } from './ride-operations.service';
 
 export const fraudMock = () => ({
   captureFingerprint: jest.fn(),
@@ -55,6 +56,51 @@ const defaultRateLimit = () => ({
   isAllowed: jest.fn().mockResolvedValue(true),
 });
 
+const defaultRideOperations = () => ({
+  createGeoZone: jest.fn(),
+  listGeoZones: jest.fn(),
+  patchGeoZone: jest.fn(),
+  deleteGeoZone: jest.fn(),
+  listSafetyAlerts: jest.fn(),
+  updateSafetyAlert: jest.fn(),
+  tripSafety: jest.fn(),
+  listScores: jest.fn(),
+  userScoreDetail: jest.fn(),
+  createManualRestriction: jest.fn(),
+  liftRestriction: jest.fn(),
+  adjustScore: jest.fn(),
+  myBadge: jest.fn(),
+  getConfig: jest.fn(),
+  putConfig: jest.fn(),
+  listIncentiveCampaigns: jest.fn(),
+  createIncentiveCampaign: jest.fn(),
+  getIncentiveCampaign: jest.fn(),
+  adminReportsOverview: jest.fn(),
+  adminReportsExportCsv: jest.fn(),
+  listPremiumZones: jest.fn(),
+  createPremiumZone: jest.fn(),
+  patchPremiumZone: jest.fn(),
+  deletePremiumZone: jest.fn(),
+  getDriverCurrentCommission: jest.fn(),
+  adminListLevels: jest.fn(),
+  adminListMonthlyPerformance: jest.fn(),
+  adminListBonuses: jest.fn(),
+  adminPutPolicy: jest.fn(),
+  adminRevokeBonus: jest.fn(),
+  listFraudCases: jest.fn(),
+  getFraudCase: jest.fn(),
+  assignFraudCase: jest.fn(),
+  resolveFraudCase: jest.fn(),
+  dismissFraudCase: jest.fn(),
+  userFraudRisk: jest.fn(),
+  manualReviewFraudCase: jest.fn(),
+  blockUserFromFraudCase: jest.fn(),
+  blockDriverFromFraudCase: jest.fn(),
+  freezePaymentsFromFraudCase: jest.fn(),
+  createFraudHold: jest.fn(),
+  releaseFraudHold: jest.fn(),
+});
+
 
 const withDefaultPrisma = (prisma: any) => ({
   geoZone: { findMany: jest.fn().mockResolvedValue([]) },
@@ -89,6 +135,7 @@ export const createRideService = async (...args: any[]) => {
       { provide: RedisStateService, useValue: redisState },
       { provide: DriverGeoIndexService, useValue: driverGeoIndex },
       { provide: RateLimitService, useValue: rateLimit ?? defaultRateLimit() },
+      { provide: RideOperationsService, useValue: defaultRideOperations() },
       { provide: MetricsService, useValue: metrics },
     ],
   }).compile();
