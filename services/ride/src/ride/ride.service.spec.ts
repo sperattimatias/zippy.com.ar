@@ -8,4 +8,8 @@
  * Keep this file to reduce merge conflicts with branches that still touch
  * the legacy monolithic spec path.
  */
-export {};
+describe('RideService legacy spec placeholder', () => {
+  it('keeps legacy spec path registered without duplicating split suites', () => {
+    expect(true).toBe(true);
+  });
+});
