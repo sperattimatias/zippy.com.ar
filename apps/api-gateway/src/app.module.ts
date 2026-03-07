@@ -298,40 +298,50 @@ export class AppModule implements NestModule {
     const timeoutMs = Number(process.env.PROXY_TIMEOUT_MS ?? 15000);
     const connectTimeoutMs = Number(process.env.PROXY_CONNECT_TIMEOUT_MS ?? 5000);
 
+    const applyProxyToRoutes = (
+      routes: RouteInfo[],
+      options: Parameters<typeof createProxyMiddleware>[0],
+    ) =>
+      consumer
+        .apply(createServiceProxy(options, timeoutMs, connectTimeoutMs))
+        .forRoutes(...routes);
+
+    const adminProtectedRoutes: RouteInfo[] = [
+      ...adminDriverRoutes,
+      ...adminKycDriverRoutes,
+      ...adminTripsRoutes,
+      ...adminDriversLiveRoutes,
+      ...adminGeoZonesRoutes,
+      ...adminSafetyAlertsRoutes,
+      ...adminScoresRoutes,
+      ...adminUserScoreRoutes,
+      ...adminRestrictionsRoutes,
+      ...adminUsersRoutes,
+      ...adminConfigRoutes,
+      ...adminPremiumZoneRoutes,
+      ...adminFraudRoutes,
+      ...adminLevelsRoutes,
+      ...adminMonthlyPerformanceRoutes,
+      ...adminBonusesRoutes,
+      ...adminPoliciesRoutes,
+      ...adminSettingsRoutes,
+      ...adminPricingRoutes,
+      ...adminIncentivesRoutes,
+      ...adminAuditRoutes,
+      ...adminPaymentsRoutes,
+      ...adminSupportRoutes,
+      ...adminNotificationsRoutes,
+      ...adminReportsRoutes,
+    ];
+
+    // ---------- AuthZ middlewares ----------
     consumer
       .apply(JwtClaimsMiddleware, RequirePassengerOrDriverMiddleware)
       .forRoutes(...publicBadgeRoutes);
     consumer.apply(JwtClaimsMiddleware, RequireDriverMiddleware).forRoutes(...driverRoutes);
-
     consumer
       .apply(JwtClaimsMiddleware, RequireAdminOrSosMiddleware)
-      .forRoutes(
-        ...adminDriverRoutes,
-        ...adminKycDriverRoutes,
-        ...adminTripsRoutes,
-        ...adminDriversLiveRoutes,
-        ...adminGeoZonesRoutes,
-        ...adminSafetyAlertsRoutes,
-        ...adminScoresRoutes,
-        ...adminUserScoreRoutes,
-        ...adminRestrictionsRoutes,
-        ...adminUsersRoutes,
-        ...adminConfigRoutes,
-        ...adminPremiumZoneRoutes,
-        ...adminFraudRoutes,
-        ...adminLevelsRoutes,
-        ...adminMonthlyPerformanceRoutes,
-        ...adminBonusesRoutes,
-        ...adminPoliciesRoutes,
-        ...adminSettingsRoutes,
-        ...adminPricingRoutes,
-        ...adminIncentivesRoutes,
-        ...adminAuditRoutes,
-        ...adminPaymentsRoutes,
-        ...adminSupportRoutes,
-        ...adminNotificationsRoutes,
-        ...adminReportsRoutes,
-      );
+      .forRoutes(...adminProtectedRoutes);
 
     consumer
       .apply(JwtClaimsMiddleware, RequireDriverMiddleware)
@@ -353,141 +363,76 @@ export class AppModule implements NestModule {
     consumer.apply(attachClientFingerprintHeaders).forRoutes(...tripsRoutes, ...paymentRoutes);
     consumer.apply(AuthRateLimitMiddleware).forRoutes(...authRoutes);
 
-    consumer
-      .apply(
-        createServiceProxy(
-          {
-            target: process.env.AUTH_SERVICE_URL,
-            changeOrigin: true,
-            xfwd: true,
-            pathRewrite: { '^/api/auth': '/auth' },
-          },
-          timeoutMs,
-          connectTimeoutMs,
-        ),
-      )
-      .forRoutes(...authRoutes);
+    // ---------- Proxies: auth ----------
+    applyProxyToRoutes(authRoutes, {
+      target: process.env.AUTH_SERVICE_URL,
+      changeOrigin: true,
+      xfwd: true,
+      pathRewrite: { '^/api/auth': '/auth' },
+    });
 
-    consumer
-      .apply(
-        createServiceProxy(
-          {
-            target: process.env.AUTH_SERVICE_URL,
-            changeOrigin: true,
-            xfwd: true,
-            pathRewrite: { '^/api/admin/users': '/auth/admin/users' },
-          },
-          timeoutMs,
-          connectTimeoutMs,
-        ),
-      )
-      .forRoutes(...adminUsersRoutes);
+    applyProxyToRoutes(adminUsersRoutes, {
+      target: process.env.AUTH_SERVICE_URL,
+      changeOrigin: true,
+      xfwd: true,
+      pathRewrite: { '^/api/admin/users': '/auth/admin/users' },
+    });
 
-    consumer
-      .apply(
-        createServiceProxy(
-          { target: process.env.DRIVER_SERVICE_URL, changeOrigin: true, xfwd: true },
-          timeoutMs,
-          connectTimeoutMs,
-        ),
-      )
-      .forRoutes(...driverRoutes);
+    // ---------- Proxies: drivers / support / notifications ----------
+    applyProxyToRoutes(driverRoutes, {
+      target: process.env.DRIVER_SERVICE_URL,
+      changeOrigin: true,
+      xfwd: true,
+    });
 
-    consumer
-      .apply(
-        createServiceProxy(
-          {
-            target: process.env.SUPPORT_SERVICE_URL,
-            changeOrigin: true,
-            xfwd: true,
-            pathRewrite: { '^/api/admin/support/tickets': '/admin/support/tickets' },
-          },
-          timeoutMs,
-          connectTimeoutMs,
-        ),
-      )
-      .forRoutes(...adminSupportRoutes);
+    applyProxyToRoutes(adminSupportRoutes, {
+      target: process.env.SUPPORT_SERVICE_URL,
+      changeOrigin: true,
+      xfwd: true,
+      pathRewrite: { '^/api/admin/support/tickets': '/admin/support/tickets' },
+    });
 
-    consumer
-      .apply(
-        createServiceProxy(
-          {
-            target: process.env.NOTIFICATIONS_SERVICE_URL,
-            changeOrigin: true,
-            xfwd: true,
-            pathRewrite: { '^/api/admin/notifications': '/admin/notifications' },
-          },
-          timeoutMs,
-          connectTimeoutMs,
-        ),
-      )
-      .forRoutes(...adminNotificationsRoutes);
+    applyProxyToRoutes(adminNotificationsRoutes, {
+      target: process.env.NOTIFICATIONS_SERVICE_URL,
+      changeOrigin: true,
+      xfwd: true,
+      pathRewrite: { '^/api/admin/notifications': '/admin/notifications' },
+    });
 
-    // Keep this explicit route before adminDriverRoutes proxy to avoid wildcard shadowing.
-    consumer
-      .apply(
-        createServiceProxy(
-          {
-            target: process.env.RIDE_SERVICE_URL,
-            changeOrigin: true,
-            xfwd: true,
-            pathRewrite: { '^/api/admin/drivers/live': '/admin/drivers/live' },
-          },
-          timeoutMs,
-          connectTimeoutMs,
-        ),
-      )
-      .forRoutes(...adminDriversLiveRoutes);
+    // ---------- Proxies: ride ----------
+    // IMPORTANT: keep this specific route before admin driver wildcard routes to avoid shadowing.
+    applyProxyToRoutes(adminDriversLiveRoutes, {
+      target: process.env.RIDE_SERVICE_URL,
+      changeOrigin: true,
+      xfwd: true,
+      pathRewrite: { '^/api/admin/drivers/live': '/admin/drivers/live' },
+    });
 
-    consumer
-      .apply(
-        createServiceProxy(
-          {
-            target: process.env.DRIVER_SERVICE_URL,
-            changeOrigin: true,
-            xfwd: true,
-            pathRewrite: { '^/api/admin/drivers': '/admin/drivers' },
-          },
-          timeoutMs,
-          connectTimeoutMs,
-        ),
-      )
-      .forRoutes(...adminDriverRoutes);
+    applyProxyToRoutes(adminDriverRoutes, {
+      target: process.env.DRIVER_SERVICE_URL,
+      changeOrigin: true,
+      xfwd: true,
+      pathRewrite: { '^/api/admin/drivers': '/admin/drivers' },
+    });
 
-    consumer
-      .apply(
-        createServiceProxy(
-          {
-            target: process.env.DRIVER_SERVICE_URL,
-            changeOrigin: true,
-            xfwd: true,
-            pathRewrite: { '^/api/admin/kyc/drivers': '/admin/kyc/drivers' },
-          },
-          timeoutMs,
-          connectTimeoutMs,
-        ),
-      )
-      .forRoutes(...adminKycDriverRoutes);
+    applyProxyToRoutes(adminKycDriverRoutes, {
+      target: process.env.DRIVER_SERVICE_URL,
+      changeOrigin: true,
+      xfwd: true,
+      pathRewrite: { '^/api/admin/kyc/drivers': '/admin/kyc/drivers' },
+    });
 
-    consumer
-      .apply(
-        createServiceProxy(
-          {
-            target: process.env.RIDE_SERVICE_URL,
-            changeOrigin: true,
-            xfwd: true,
-            pathRewrite: {
-              '^/ride/health': '/health',
-              '^/ride/ready': '/ready',
-              '^/api/ride/health': '/health',
-              '^/api/ride/ready': '/ready',
-            },
-          },
-          timeoutMs,
-          connectTimeoutMs,
-        ),
-      )
-      .forRoutes(...rideHealthRoutes);
+    applyProxyToRoutes(rideHealthRoutes, {
+      target: process.env.RIDE_SERVICE_URL,
+      changeOrigin: true,
+      xfwd: true,
+      pathRewrite: {
+        '^/ride/health': '/health',
+        '^/ride/ready': '/ready',
+        '^/api/ride/health': '/health',
+        '^/api/ride/ready': '/ready',
+      },
+    });
 
     const tripProxy = createServiceProxy(
       { target: process.env.RIDE_SERVICE_URL, changeOrigin: true, xfwd: true },
@@ -498,7 +443,6 @@ export class AppModule implements NestModule {
 
     const rideAdminPrefixes: Array<[RouteInfo[], string, string]> = [
       [adminTripsRoutes, '^/api/admin/trips', '/admin/trips'],
-      [adminDriversLiveRoutes, '^/api/admin/drivers/live', '/admin/drivers/live'],
       [adminGeoZonesRoutes, '^/api/admin/geozones', '/admin/geozones'],
       [adminSafetyAlertsRoutes, '^/api/admin/safety-alerts', '/admin/safety-alerts'],
       [adminScoresRoutes, '^/api/admin/scores', '/admin/scores'],
@@ -526,50 +470,27 @@ export class AppModule implements NestModule {
     ];
 
     for (const [routes, from, to] of rideAdminPrefixes) {
-      consumer
-        .apply(
-          createServiceProxy(
-            {
-              target: process.env.RIDE_SERVICE_URL,
-              changeOrigin: true,
-              xfwd: true,
-              pathRewrite: { [from]: to },
-            },
-            timeoutMs,
-            connectTimeoutMs,
-          ),
-        )
-        .forRoutes(...routes);
+      applyProxyToRoutes(routes, {
+        target: process.env.RIDE_SERVICE_URL,
+        changeOrigin: true,
+        xfwd: true,
+        pathRewrite: { [from]: to },
+      });
     }
 
-    consumer
-      .apply(
-        createServiceProxy(
-          {
-            target: process.env.RIDE_SERVICE_URL,
-            changeOrigin: true,
-            xfwd: true,
-            pathRewrite: { '^/api/rides': '' },
-          },
-          timeoutMs,
-          connectTimeoutMs,
-        ),
-      )
-      .forRoutes(...rideRoutes);
+    applyProxyToRoutes(rideRoutes, {
+      target: process.env.RIDE_SERVICE_URL,
+      changeOrigin: true,
+      xfwd: true,
+      pathRewrite: { '^/api/rides': '' },
+    });
 
-    consumer
-      .apply(
-        createServiceProxy(
-          {
-            target: process.env.PAYMENT_SERVICE_URL,
-            changeOrigin: true,
-            xfwd: true,
-            pathRewrite: { '^/api/payments': '' },
-          },
-          timeoutMs,
-          connectTimeoutMs,
-        ),
-      )
-      .forRoutes(...paymentRoutes);
+    // ---------- Proxies: payments ----------
+    applyProxyToRoutes(paymentRoutes, {
+      target: process.env.PAYMENT_SERVICE_URL,
+      changeOrigin: true,
+      xfwd: true,
+      pathRewrite: { '^/api/payments': '' },
+    });
   }
 }
